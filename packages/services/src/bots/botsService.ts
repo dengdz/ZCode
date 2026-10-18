@@ -270,7 +270,23 @@ function validateBotConfig(config: BotsConfigFile, candidate: BotConfig): void {
   if (!candidate.id.trim()) {
     throw new Error("Bot id is required.");
   }
-  if (candidate.enabled && candidate.providerUserId?.trim()) {
+  if (candidate.provider === "feishu" || candidate.provider === "lark") {
+    // 飞书/Lark 允许同一用户绑定多个 bot（多角色协作），查重键从 providerUserId 改为 feishuAppId：
+    // 两个启用的 bot 指向同一应用会互抢按 appId 加的 WebSocket 跨进程锁，输家空转。
+    if (candidate.enabled && candidate.feishuAppId?.trim()) {
+      const duplicateApp = config.bots.find(
+        (bot) =>
+          bot.id !== candidate.id &&
+          bot.enabled &&
+          bot.provider === candidate.provider &&
+          // 与 WebSocket 锁使用同一规范化键，避免空白绕过同应用查重。
+          bot.feishuAppId?.trim() === candidate.feishuAppId?.trim(),
+      );
+      if (duplicateApp) {
+        throw new Error("An enabled bot with this Feishu app already exists.");
+      }
+    }
+  } else if (candidate.enabled && candidate.providerUserId?.trim()) {
     const duplicateBinding = config.bots.find(
       (bot) =>
         bot.id !== candidate.id &&

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { BotConfig } from "@zcode/shared";
 import * as f from "./botsService.fixtures.js";
 
 const actor = {
@@ -142,6 +143,143 @@ describe("botsService config", () => {
       /provider user/,
     );
     service.disposeAll();
+  });
+
+  describe.each(["feishu", "lark"] as const)("%s multiple bots", (provider) => {
+    function createPair(overrides: Partial<BotConfig> = {}) {
+      const first = { ...f.feishuConfig.bots[0]!, provider };
+      const second = {
+        ...first,
+        id: "feishu-2",
+        name: "Second bot",
+        credentialRef: "feishu-secret-2",
+        feishuAppId: "cli_yyy",
+        ...overrides,
+      };
+      const repo = f.createMemoryRepo({ ...f.feishuConfig, bots: [first, second] });
+      const service = f.createBotsService({
+        credentialService: f.createCredentialService({
+          "feishu-secret": "secret",
+          "feishu-secret-2": "secret-2",
+        }),
+        legacyTaskService: f.createLegacyTaskService(),
+        repo: repo as never,
+      });
+      return { first, second, repo, service };
+    }
+
+    function privateMessage(botId: string, providerUserId = "ou_user", text = "/status") {
+      return {
+        botId,
+        text,
+        actor: { provider, botId, providerUserId, chatType: "private" as const },
+      };
+    }
+
+    it("allows one actor to bind distinct enabled apps", async () => {
+      const { second, repo, service } = createPair();
+      try {
+        await service.saveBot({ bot: second });
+        expect((await repo.readConfig()).bots.filter((bot) => bot.enabled)).toHaveLength(2);
+      } finally {
+        service.disposeAll();
+      }
+    });
+
+    it.each(["cli_xxx", " cli_xxx "])("rejects duplicate enabled app %j", async (appId) => {
+      const { second, service } = createPair({ feishuAppId: appId });
+      try {
+        await expect(service.saveBot({ bot: second })).rejects.toThrow(
+          "An enabled bot with this Feishu app already exists.",
+        );
+      } finally {
+        service.disposeAll();
+      }
+    });
+
+    it("allows a disabled bot to retain the same app", async () => {
+      const { second, service } = createPair({ feishuAppId: "cli_xxx", enabled: false });
+      try {
+        await expect(service.saveBot({ bot: second })).resolves.toMatchObject({ enabled: false });
+      } finally {
+        service.disposeAll();
+      }
+    });
+
+    it("rejects enabling a disabled duplicate app", async () => {
+      const { second, service } = createPair({ feishuAppId: "cli_xxx", enabled: false });
+      try {
+        await expect(service.saveBot({ bot: { ...second, enabled: true } })).rejects.toThrow(
+          /Feishu app/,
+        );
+      } finally {
+        service.disposeAll();
+      }
+    });
+
+    it("returns status for the second bot bound to the same actor", async () => {
+      // 回归：按绑定用户反查会命中第一个 bot；必须验证第二个 bot 的成功回复而非仅排除一条错误文案。
+      const { second, service } = createPair();
+      try {
+        const replies = await service.handleInboundMessage(privateMessage(second.id));
+        expect(replies).toHaveLength(1);
+        expect(replies[0]?.botId).toBe(second.id);
+        expect(replies[0]?.text).toContain("工作区");
+        expect(replies[0]?.text).toContain("模型: default");
+      } finally {
+        service.disposeAll();
+      }
+    });
+
+    it("keeps each bot's private task context separate", async () => {
+      const { first, second, repo, service } = createPair();
+      try {
+        await service.handleInboundMessage(privateMessage(first.id, "ou_user", "/new"));
+        await service.handleInboundMessage(privateMessage(second.id, "ou_user", "/new"));
+        const state = await repo.readState();
+        expect(state.bots[first.id]).toMatchObject({ botId: first.id, mode: "draft" });
+        expect(state.bots[second.id]).toMatchObject({ botId: second.id, mode: "draft" });
+      } finally {
+        service.disposeAll();
+      }
+    });
+
+    it("still requires the target bot's bound user", async () => {
+      const { second, service } = createPair({ providerUserId: "ou_other" });
+      try {
+        const rejected = await service.handleInboundMessage(privateMessage(second.id));
+        expect(rejected[0]?.text).toContain("当前 bot 未绑定");
+        const accepted = await service.handleInboundMessage(privateMessage(second.id, "ou_other"));
+        expect(accepted[0]?.text).toContain("工作区");
+      } finally {
+        service.disposeAll();
+      }
+    });
+
+    it("does not authorize a disabled target bot", async () => {
+      const { second, service } = createPair({ enabled: false });
+      try {
+        const replies = await service.handleInboundMessage(privateMessage(second.id));
+        expect(replies[0]?.text).toContain("当前 bot 未启用");
+      } finally {
+        service.disposeAll();
+      }
+    });
+
+    it("does not authorize a mismatched provider or inbound bot id", async () => {
+      const { first, second, service } = createPair();
+      try {
+        const mismatchedProvider = privateMessage(second.id);
+        mismatchedProvider.actor.provider = provider === "feishu" ? "lark" : "feishu";
+        const replies = await service.handleInboundMessage(mismatchedProvider);
+        expect(replies[0]?.text).toContain("当前 bot 未启用");
+        const mismatchedId = { ...privateMessage(first.id), botId: second.id };
+        const crossed = await service.handleInboundMessage(mismatchedId);
+        expect(crossed[0]?.text).toContain("当前 bot 未启用");
+      } finally {
+        service.disposeAll();
+      }
+    });
   });
 
   it("normalizes empty allowedWorkspaces to wildcard", async () => {

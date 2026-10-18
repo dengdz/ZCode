@@ -37,26 +37,11 @@ export function findCallbackBot(
 }
 
 export function findAuthorizedBot(config: BotsConfigFile, actor: BotActor): BotConfig | null {
-  if (actor.chatType === "group" && (actor.provider === "feishu" || actor.provider === "lark")) {
-    return (
-      config.bots.find(
-        (bot) => bot.enabled && bot.id === actor.botId && bot.provider === actor.provider,
-      ) ?? null
-    );
-  }
-  if (actor.provider === "weixin") {
-    return (
-      config.bots.find(
-        (bot) => bot.enabled && bot.provider === "weixin" && bot.id === actor.botId,
-      ) ?? null
-    );
-  }
+  // 授权统一按 botId 定位（私聊、群、微信一致）：入站消息的 botId 由各渠道连接闭包注入；
+  // 同一用户可在同一渠道绑定多个 bot，按 providerUserId 反查会命中别的 bot 并被下游 botId 交叉校验误判为未启用。
   return (
     config.bots.find(
-      (bot) =>
-        bot.enabled &&
-        bot.provider === actor.provider &&
-        bot.providerUserId === actor.providerUserId,
+      (bot) => bot.enabled && bot.id === actor.botId && bot.provider === actor.provider,
     ) ?? null
   );
 }

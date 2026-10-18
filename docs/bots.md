@@ -63,11 +63,15 @@ both domains and the existing ready/reconnect/timeout/close paths still work.
 
 `/bind <code>` binds a private actor to a specific bot id. Rebinding overwrites that bot's `providerUserId` and `displayName`; it does not append another user. Unbound bots only accept `/bind`; ordinary messages and other commands are ignored or rejected.
 
-At runtime, authorization resolves exactly one enabled bot by:
+At runtime, authorization resolves the enabled bot by:
 
 ```ts
-provider + providerUserId;
+botId + provider;
 ```
+
+On Feishu/Lark, one actor may bind multiple enabled bots (for example one Feishu user driving several role bots in one group). Within each provider, enabled bots must have distinct `feishuAppId` values, compared after trimming whitespace to match the per-app WebSocket lock key. Disabled bots may retain the same app id. Bot credentials, bound-user checks, private conversations, group/topic authorization and task state remain scoped to each bot id; authorizing one bot does not authorize the actor on another bot. No persisted state migration is required. On the other providers, the historical uniqueness of `provider + providerUserId` among enabled bots still applies.
+
+The Mobile Remote Control bot-channel shortcut still opens the first bot for a provider. Use the Bots settings list to manage additional bots; this display limitation does not change inbound routing.
 
 Feishu/Lark ordinary groups and dedicated topic groups support explicitly enabled collaborative sessions. Topics bind independent tasks; only @ mentions trigger work, and `/history on` opts a group into incremental topic background. Other providers retain their existing behavior. See
 [Feishu group collaboration](bots-feishu-group-collaboration.md) for the normative
