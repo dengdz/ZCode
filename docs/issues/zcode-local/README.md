@@ -4,9 +4,9 @@
 
 父规格：[ZCode Local spec](../../local-edition/spec.md)。[已确认拆分](../../local-edition/ticket-plan.md)。父 Issue 保持不变，执行状态以各子工单为准。
 
-当前集成分支：`3.16.2-local.1`。01–06 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)；日常安装与数据切换继续受后续工单门禁约束。
+当前集成分支：`3.16.2-local.1`。01–07 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)；日常安装与数据切换继续受后续工单门禁约束。
 
-执行策略：按编号一次一票。用户于 2026-10-22 请求「开始 06」；06 已完成；03a 测试弹窗修复已完成；当前按用户「继续 07」实施 07，不进入 08。普通提交沿用既有授权；远端 fork 尚未配置，不向官方 origin 推送，真实切换和用户验收遵守 spec 条件。
+执行策略：按编号一次一票。用户于 2026-10-22 请求「继续 07」；07 已完成；03a 测试弹窗修复继续有效。下一票为 08，尚未开始。普通提交沿用既有授权；远端 fork 尚未配置，不向官方 origin 推送，真实切换和用户验收遵守 spec 条件。
 
 | 编号 | Issue | 直接前置 |
 |---|---|---|
@@ -30,6 +30,8 @@
 | 18 | [完成整体回归与真实群只读验收](18-end-to-end-acceptance.md) | 13、17 |
 
 ## Progress
+
+- 2026-10-22：07 完成。实现 `736e3200`，显式 silent、完整自动群输出边界、终态缺失输入编号重读、幂等与后续正式工作隔离落地；370 项相关及 17 项 CLI 通过，根与完整 CLI 类型、Lint/架构、双轴审查通过。一次全量 20060 通过、3 既有端口环境失败、10 跳过；fixture 新崩溃报告 0，官网签名有效；固定官网 Reader 通过。当前交付源码，未更新安装候选，08 未开始。
 
 - 2026-10-22：[03a 测试弹窗修复](03a-test-fixture-popups.md) 完成。实现 `e277a9fe`，自编原生夹具/完整临时签名/就绪与正常退出取代系统程序复制；17 项启动回归多轮通过，全量后 fixture 新诊断 0，已安装官网签名有效。类型/Lint/架构与两轴审查通过；全量 20043 通过、3 项既有端口环境失败、10 跳过，如实保留。未进入 07。
 
