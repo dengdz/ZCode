@@ -498,20 +498,106 @@ it.each([false, true])("可信派单首次接入话题并尊重显式停用：%s
   }));
   await f.service.handleInboundMessage(f.human());
   const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
-  const receipt = await f.service.replyToChannel!({
+  const request = {
     workspacePath: "/project",
     taskId: "task-pm",
     inputId: input.commandId,
     toolCallId: "new-topic",
-    parts: [{ type: "text", text: "Work" }],
-    collaboration: { kind: "dispatch", targetBotId: "app" },
-  });
+    parts: [{ type: "text" as const, text: "Work" }],
+    collaboration: { kind: "dispatch" as const, targetBotId: "app" },
+  };
+  if (disabled) {
+    await expect(f.service.replyToChannel!(request)).rejects.toThrow(
+      "collaboration.identityUnavailable",
+    );
+    expect(f.sent).toHaveLength(0);
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+    return;
+  }
+  const receipt = await f.service.replyToChannel!(request);
   if (receipt.status !== "sent") throw Error("dispatch failed");
   await f.service.handleProviderCallback(
     "feishu",
     f.native("app", "pm", receipt.providerMessageId!, "Work"),
   );
-  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(disabled ? 1 : 2);
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(2);
   if (!disabled)
     expect(vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0].taskId).toBe("task-app");
 });
+
+it.each(["", "  ", " /project "])("发送授权沿用规范化工作区身份：%s", async (workspaceIdentity) => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  const receipt = await f.service.replyToChannel!({
+    workspacePath: "/project",
+    workspaceIdentity,
+    taskId: "task-pm",
+    inputId: input.commandId,
+    toolCallId: "normalized-identity",
+    parts: [{ type: "text", text: "Final" }],
+    collaboration: { kind: "final" },
+  });
+  expect(receipt.status).toBe("sent");
+  expect(f.sent).toHaveLength(1);
+  expect(JSON.stringify(f.sent[0]!.body)).toContain("ou_owner_pm");
+});
+
+it.each(["group", "permission", "revision"])(
+  "发送准备后撤销%s，原投递owner拒绝实际发送",
+  async (boundary) => {
+    const f = await setup();
+    await f.service.handleInboundMessage(f.human());
+    const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+    const write = f.repo.writeState.bind(f.repo);
+    let revoked = false;
+    f.repo.writeState = async (state) => {
+      const pm = Object.values(state.bots).find((context) => context.botId === "pm")!;
+      if (
+        !revoked &&
+        Object.values(pm.group?.deliveries ?? {}).some((delivery) => delivery.status === "unknown")
+      ) {
+        revoked = true;
+        if (boundary === "group")
+          Object.values(state.bots).find((context) => context.botId === "app")!.group!.enabled =
+            false;
+        if (boundary === "permission") {
+          const config = await f.repo.readConfig();
+          await f.repo.writeConfig({
+            ...config,
+            bots: config.bots.map((bot) =>
+              bot.id === "app" ? { ...bot, allowedWorkspaces: ["/forbidden"] } : bot,
+            ),
+          });
+        }
+        if (boundary === "revision") {
+          const group = (await f.service.getCollaborationSettings!())!.groups[0]!;
+          await f.service.saveCollaborationSettings!({
+            provider: "feishu",
+            chatId: "oc_group",
+            expectedRevision: 1,
+            enabled: false,
+            pmBotId: group.config!.pm.botId,
+            executors: group.config!.executors.map(({ botId, duty }) => ({ botId, duty })),
+            authorizedUserId: group.users[0]!.id,
+            workspaceId: group.workspaces[0]!.id,
+          });
+        }
+      }
+      await write(state);
+    };
+    const receipt = await f.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: input.commandId,
+      toolCallId: "revocation-race",
+      parts: [{ type: "text", text: "Work" }],
+      collaboration: { kind: "dispatch", targetBotId: "app" },
+    });
+    expect(revoked).toBe(true);
+    expect({ sent: f.sent.length, status: receipt.status }).toEqual({
+      sent: 0,
+      status: "invalidated",
+    });
+  },
+);

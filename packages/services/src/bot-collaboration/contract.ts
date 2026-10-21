@@ -8,6 +8,7 @@ import type {
   CollaborationVerification,
   ChannelReplyHostRequest,
   ChannelContentPart,
+  BotGroupDelivery,
 } from "@zcode/shared";
 export type { BotCollaborationPort } from "./port.js";
 export interface BotCollaborationContract {
@@ -29,6 +30,11 @@ export interface BotCollaborationContract {
     scope: CollaborationScope & { botId: string; threadId?: string },
     deliveryId: string,
   ): Promise<ChannelContentPart[] | undefined>;
+  /** 既有投递 owner 的最后检查；等待期间变更配置或收件人授权必须失效。 */
+  authorizeDelivery(
+    scope: CollaborationScope & { botId: string; threadId?: string },
+    delivery: BotGroupDelivery,
+  ): Promise<boolean>;
   /** 普通终答保留原需求用户；执行者需明确 report 意图才创建新的机器人交接。 */
   inputOrigin(
     scope: CollaborationScope & { botId: string },

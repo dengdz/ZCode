@@ -807,7 +807,7 @@ export function createBotsService(
     (deps.localCollaborationEnabled ?? ZCODE_PRODUCT_FLAVOR === "local")
       ? createBotCollaboration({
           file: join(getAppConfigDir(), "..", "local", "v1", "collaboration.json"),
-          diagnose: (event) => botsLogger.info(undefined, "Local collaboration routing", event),
+          diagnose: (event) => botsLogger.debug(undefined, "Local collaboration routing", event),
           readConfig: async () => {
             const config = await repo.readConfig();
             const workspaces = await listWorkspaceRefs();
@@ -2960,7 +2960,7 @@ export function createBotsService(
     const authorized = async (result: BotGroupDelivery): Promise<boolean> => {
       const state = (await repo.readState()).bots[key];
       const currentBot = findBot(await repo.readConfig(), bot.id);
-      return Boolean(
+      const senderAuthorized = Boolean(
         currentBot?.enabled &&
         (!result.appId || result.appId === currentBot.feishuAppId) &&
         (!result.contentParts ||
@@ -2972,6 +2972,17 @@ export function createBotsService(
         state.activeTaskId === result.taskId &&
         state.group.deliveries?.[result.id]?.status !== "invalidated" &&
         (!result.authorizationId || result.authorizationId === state.group.authorizationId),
+      );
+      // 准备后的节流和持久化会让收件人授权过期；最终发送仍由此 owner 统一复核。
+      return (
+        senderAuthorized &&
+        (!collaboration ||
+          !currentBot ||
+          !isFeishuBotProvider(currentBot.provider) ||
+          (await collaboration.authorizeDelivery(
+            { provider: currentBot.provider, chatId, threadId, botId: bot.id },
+            result,
+          )))
       );
     };
     const sender = createGroupResultDelivery({
@@ -3018,6 +3029,7 @@ export function createBotsService(
         if (!(await authorized(result)))
           throw Object.assign(new Error("Group delivery authorization changed"), {
             deliveryRejected: true,
+            deliveryInvalidated: true,
           });
         const currentBot = findBot(await repo.readConfig(), bot.id);
         const adapter = currentBot && providers[currentBot.provider];

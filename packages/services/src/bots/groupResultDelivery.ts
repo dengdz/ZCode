@@ -43,16 +43,19 @@ export function createGroupResultDelivery(deps: GroupDeliveryDependencies) {
         } catch (error) {
           const details = error as {
             deliveryRejected?: boolean;
+            deliveryInvalidated?: boolean;
             deliveryReplyUnavailable?: boolean;
             retryAfterMs?: number;
           } | null;
           const rejected = details?.deliveryRejected === true;
           await deps.write({
             ...attemptResult,
-            status: rejected ? "failed" : "unknown",
+            // 最后一次授权复核失败属于撤销，不是可手动重试的网络失败。
+            status: details?.deliveryInvalidated ? "invalidated" : rejected ? "failed" : "unknown",
             lastError: error instanceof Error ? error.message : String(error),
             updatedAt: Date.now(),
           });
+          if (details?.deliveryInvalidated) return;
           // 只有明确拒绝才降级；普通群去掉引用，话题最多退到根锚点，群目标仍由闭包固定。
           if (rejected && details?.deliveryReplyUnavailable) {
             const fallback = getUnavailableReplyFallback(attemptResult);

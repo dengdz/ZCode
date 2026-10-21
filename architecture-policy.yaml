@@ -787,12 +787,14 @@ modules:
     roots:
       - packages/services/src/bot-channel-reply
       - packages/services/src/bots/channelReply.ts
+      - packages/services/src/bots/groupResultDelivery.ts
     managed: true
     requires: [shared, services]
     publicEntrypoints:
       - packages/services/src/bot-channel-reply/index.ts
       - packages/services/src/bot-channel-reply/contract.ts
       - packages/services/src/bots/channelReply.ts
+      - packages/services/src/bots/groupResultDelivery.ts
     layers: {app: .}
     owner: conversation
   - id: channel-mentions
