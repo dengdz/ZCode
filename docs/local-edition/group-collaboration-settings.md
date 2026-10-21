@@ -1,6 +1,6 @@
 # 04：协作群设置
 
-状态：实施中，功能及定向验证已通过，等待全量结果与独立审查。对应 [04 工单](../issues/zcode-local/04-group-collaboration-settings.md)。起点 `901fdb2f`，分支 `3.16.2-local.1`，日期 2026-10-21。
+状态：04 已完成。对应 [04 工单](../issues/zcode-local/04-group-collaboration-settings.md)。起点 `901fdb2f`，实现 `862ae473`，审查补正 `766cec7d`；分支 `3.16.2-local.1`，日期 2026-10-21。
 
 ## 用户行为
 
@@ -11,6 +11,8 @@
 飞书用户 open_id 属于单应用，跨机器人确认同一用户使用 Provider 事件中的 tenant_key 与 union_id，各机器人仍保存自己的应用内身份；缺失证明时保持未核验。依据：[飞书身份说明](https://open.feishu.cn/document/platform-overveiw/basic-concepts/user-identity-introduction/introduction)。
 
 有群输入正在接收、任务在办或运行事实无法确认时，关键设置拒绝保存并显示原因。无变化保存不增加版本；有效变更递增版本，旧窗口不能覆盖，原群卡片的旧授权会失效。群请求使用保存的固定项目，不能通过群内 workspace 命令临时切换。
+
+关闭已启用配置是撤销操作：空闲且版本一致时，即使成员或项目失效仍可关闭，原角色、职责和项目保留；请求中其他字段不会借机改变授权。已保存群在成员全部移除后仍显示。重新启用和其他变更继续核对完整可信选项。
 
 ## 实现与兼容
 
@@ -24,17 +26,28 @@
 
 | 检查 | 已执行结果 |
 |---|---|
-| 定向单测 | 5 文件 / 27 项通过，含 Bot 服务、设置 UI 与三个模块契约；各行为增量保留红→绿日志 |
+| 定向单测 | 补正后 5 文件 / 31 项通过，含 Bot 服务、设置 UI 与三个模块契约；新增四类失效配置撤销回归，关键行为保留红→绿日志 |
+| 相关回归 | 补正后 10 文件 / 295 项通过，包含既有飞书 Provider、群逻辑、Bot 配置与绑定群界面 |
 | 界面联调 | 5 项通过。真实隔离 Electron 界面 → 生产 RPC ChannelClient/ChannelServer/ProxyChannel → 实际 Bot 服务及 Repo/项目数据库；核验、保存、重建服务读回、忙碌拒绝、其他群隔离均有断言 |
 | 视觉 | 1000px 中文浅色、英文深色，390px 中文深色、英文浅色共四张；无横向溢出、缺失译文或页面错误，已查看截图 |
 | 固定官网 Reader | 官方 `3c5b227649371507ddc4eb46ac5133afe6db1cab` 独立 worktree 的旧 Repo 读取项目及四个机器人群状态并写回；Local 读回通过，Local 配置文件逐字保持 |
 | 类型、Lint、架构 | 类型检查通过；Lint 0 errors、96 条既有警告；架构 0 新违规 |
-| 全量单测 | 运行中，最终结果待补 |
-| 独立审查 | 待补 |
+| 全量单测（补正前，仅一次） | 2056 文件通过、1 文件失败、2 文件跳过；19998 项通过、3 项失败、10 项跳过，378.77 秒。失败均在既有 webRemoteControlAuthGateFixture.test.ts，固定 5173 端口被本轮开始前运行的其他项目开发服务占用；单独重跑同样失败，未终止其他项目、未修改该测试或断言，不能记为全量通过 |
+| 独立审查 | Standards 首轮 2 项 P3、Spec 首轮 1 项 P2，均已补正并独立复审关闭，最终 0 项遗留 |
 
 界面测试的传输由 Playwright 测试端口提供，RPC 编解码与两端服务代理使用生产实现；不是已安装应用的完整 Main/Host 引导验收。飞书 HTTP 与任务运行状态端口使用合成数据，未连接真实平台、未创建执行任务、未读取日常凭据。官网 Reader 读取的是隔离数据库，不替代 18 的真实群验收。
 
-本机证据目录：`~/.local/share/zcode-local/research/issue-04/`，包含各次失败与通过日志、`browser-rpc/result.json`、四张截图及固定 Reader 探针。前期界面测试缺少宿主附加的 botId、错误引用 Electron 包导出，以及测试类型/模块边界问题均保留原日志；最终以通过结果为准。
+本机证据目录：`~/.local/share/zcode-local/research/issue-04/`。最终相关回归为 `related-review.log`，界面为 `browser-review.log`、`browser-review/result.json` 及四张截图，固定 Reader 为 `frozen-official-reader-final.log`、`local-after-official-reader-final.log`。全量原日志 `full-unit.log`、独立重跑 `full-failure-focused.log` 及 `full-failure-port-owner.log` 保留失败证据。前期界面测试缺少宿主附加的 botId、错误引用 Electron 包导出，以及测试类型/模块边界问题均保留原日志；以最终对应结果为准。
+
+## Standards
+
+首轮发现 2 项 P3：原生 select 未复用共享菜单组件，核验命令未用等宽字体。补正后使用完整共享 Select 及 `font-mono`，独立复审确认全部关闭。状态所有者、Runtime 依赖、异步 IO 与 UI hook 边界未发现新增违规；Fowler 异味基线没有需要提出的 possible smell。
+
+## Spec
+
+首轮发现 1 项 P2：失效成员或项目阻止关闭旧协作配置。补正将关闭作为只改 enabled/revision 的撤销，保留旧字段与已保存群入口，仍核对版本和实际空闲；四类服务回归及空候选界面回归通过。独立复审确认关闭，无新增规格缺口或确定越界。
+
+审查汇总：Standards 首轮 2 项 P3，最终 0 项；Spec 首轮 1 项 P2，最终 0 项。全量的端口占用失败保持独立披露。
 
 ## 本票边界
 
