@@ -23,6 +23,10 @@ let service, repo, index, server, app, page, origin, home, artifacts, legacyBefo
 let activeTasks = [];
 let rpcServer, rpcInbox;
 const rpcCalls = [];
+async function choose(label, option) {
+  await page.getByRole("combobox", { name: label, exact: true }).click();
+  await page.getByRole("option", { name: option, exact: true }).click();
+}
 const ids = ["pm", "app"];
 const bots = ids.map((id) => ({
   id,
@@ -326,12 +330,11 @@ test(
       await page.getByRole("button", { name: "刷新", exact: true }).click();
       await page.getByText("已核验", { exact: true }).first().waitFor();
     }
-    await page.getByRole("combobox", { name: "PM 机器人" }).selectOption("pm");
+    await choose("PM 机器人", "PM");
     await page.getByRole("checkbox", { name: "执行者：APP" }).check();
     await page.getByRole("textbox", { name: "职责：APP" }).fill("APP development");
-    await page.getByRole("combobox", { name: "授权用户" }).selectOption({ label: "Demo owner" });
-    const options = (await service.getCollaborationSettings()).groups[0];
-    await page.getByRole("combobox", { name: "绑定项目" }).selectOption(options.workspaces[0].id);
+    await choose("授权用户", "Demo owner");
+    await choose("绑定项目", "Demo project");
     await page.getByRole("switch", { name: "启用 PM 协作" }).check();
     await page.getByRole("button", { name: "保存协作设置" }).click();
     await page.getByText("配置版本：1", { exact: true }).waitFor();
@@ -362,7 +365,7 @@ test(
     );
     await action("busy", { active: false });
     await page.getByRole("button", { name: "刷新", exact: true }).click();
-    await page.getByRole("combobox", { name: "协作群" }).selectOption("oc_other");
+    await choose("协作群", "Other group");
     await page.getByText("配置版本：0", { exact: true }).waitFor();
     assert.equal(
       (await service.getCollaborationSettings()).groups.find((group) => group.chatId === "oc_other")

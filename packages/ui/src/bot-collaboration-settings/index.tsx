@@ -7,7 +7,15 @@ import {
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard } from "@/settings/SettingsPageParts.js";
 import { Button } from "@/components/ui/button.js";
-import { Input, inputVariants } from "@/components/ui/input.js";
+import { Input } from "@/components/ui/input.js";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.js";
 import { Switch } from "@/components/ui/switch.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
 import { useCollaborationSettings } from "@/hooks/bot-collaboration/useCollaborationSettings.js";
@@ -26,17 +34,18 @@ function Choice({
   children: ReactNode;
 }) {
   const id = useId();
+  const { intl } = useZCodeIntl();
   return (
     <label htmlFor={id} className="grid min-w-0 gap-1 text-ui-base text-foreground">
       <span>{label}</span>
-      <select
-        id={id}
-        className={inputVariants()}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        {children}
-      </select>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id} aria-label={label} className="w-full min-w-0">
+          <SelectValue placeholder={intl.formatMessage({ id: "bots.collaboration.choose" })} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>{children}</SelectGroup>
+        </SelectContent>
+      </Select>
     </label>
   );
 }
@@ -64,15 +73,17 @@ function GroupForm({
   );
   const [workspace, setWorkspace] = useState(group.config?.workspace.id ?? "");
   const selected = [pm, ...executors.map((item) => item.botId)];
+  const revoking = Boolean(group.config?.enabled && !enabled);
   const ready =
-    pm &&
-    executors.length &&
-    executors.every((item) => item.duty.trim()) &&
-    user &&
-    workspace &&
-    selected.every((id) =>
-      group.bots.some((bot) => bot.id === id && bot.verified && bot.connected),
-    );
+    revoking ||
+    (pm &&
+      executors.length &&
+      executors.every((item) => item.duty.trim()) &&
+      user &&
+      workspace &&
+      selected.every((id) =>
+        group.bots.some((bot) => bot.id === id && bot.verified && bot.connected),
+      ));
   return (
     <form
       className="grid gap-3"
@@ -83,10 +94,12 @@ function GroupForm({
           chatId: group.chatId,
           expectedRevision: group.config?.revision ?? 0,
           enabled,
-          pmBotId: pm,
-          executors,
-          authorizedUserId: user,
-          workspaceId: workspace,
+          pmBotId: revoking ? group.config!.pm.botId : pm,
+          executors: revoking
+            ? group.config!.executors.map(({ botId, duty }) => ({ botId, duty }))
+            : executors,
+          authorizedUserId: revoking ? collaborationUserId(group.config!.authorizedUser) : user,
+          workspaceId: revoking ? group.config!.workspace.id : workspace,
         });
       }}
     >
@@ -114,11 +127,10 @@ function GroupForm({
             setExecutors((items) => items.filter((item) => item.botId !== value));
           }}
         >
-          <option value="">{t("choose")}</option>
           {group.bots.map((bot) => (
-            <option key={bot.id} value={bot.id}>
+            <SelectItem key={bot.id} value={bot.id}>
               {bot.name}
-            </option>
+            </SelectItem>
           ))}
         </Choice>
         <div className="grid gap-2">
@@ -171,19 +183,17 @@ function GroupForm({
             })}
         </div>
         <Choice label={t("user")} value={user} onChange={setUser}>
-          <option value="">{t("choose")}</option>
           {group.users.map((item) => (
-            <option key={item.id} value={item.id}>
+            <SelectItem key={item.id} value={item.id}>
               {item.name}
-            </option>
+            </SelectItem>
           ))}
         </Choice>
         <Choice label={t("workspace")} value={workspace} onChange={setWorkspace}>
-          <option value="">{t("choose")}</option>
           {group.workspaces.map((item) => (
-            <option key={item.id} value={item.id}>
+            <SelectItem key={item.id} value={item.id}>
               {item.label}
-            </option>
+            </SelectItem>
           ))}
         </Choice>
         <div className="grid gap-2">
@@ -257,9 +267,9 @@ export function BotCollaborationSettings({ provider }: BotCollaborationSettingsP
           <>
             <Choice label={t("group")} value={group.chatId} onChange={setSelected}>
               {groups.map((item) => (
-                <option key={item.chatId} value={item.chatId}>
+                <SelectItem key={item.chatId} value={item.chatId}>
                   {item.name}
-                </option>
+                </SelectItem>
               ))}
             </Choice>
             <GroupForm
@@ -290,6 +300,7 @@ export function BotCollaborationSettings({ provider }: BotCollaborationSettingsP
               </p>
               <Input
                 aria-label={t("command")}
+                className="font-mono"
                 readOnly
                 value={state.challenge.command}
                 onFocus={(event) => event.currentTarget.select()}

@@ -37,6 +37,7 @@ const challengeSchema = z
   .strict();
 const groupSchema = collaborationScopeSchema
   .extend({
+    name: z.string().min(1).optional(),
     config: collaborationConfigSchema.optional(),
     identities: z.array(proofSchema),
     challenges: z.array(challengeSchema),
@@ -75,7 +76,7 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
   };
   const write = (ledger: Ledger) =>
     atomicWritePrivateTextFile(port.file, JSON.stringify(ledgerSchema.parse(ledger)));
-  const source = async () => {
+  const source = async (ledger: Ledger) => {
     const config = await port.readConfig();
     const states = await port.readStates();
     const groups = new Map<string, CollaborationScope & { name: string }>();
@@ -91,6 +92,15 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
         const scope = { provider: bot.provider, chatId: state.group.chatId };
         groups.set(key(scope), { ...scope, name: state.group.name });
       }
+    }
+    // 已经授权的群即使成员全部移除也必须保留撤销入口，不能依赖当前候选仍存在。
+    for (const saved of ledger.groups) {
+      if (saved.config && !groups.has(key(saved)))
+        groups.set(key(saved), {
+          provider: saved.provider,
+          chatId: saved.chatId,
+          name: saved.name ?? saved.chatId,
+        });
     }
     const workspaces = (await port.listWorkspaces())
       .filter(
@@ -130,7 +140,7 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
     }
   };
   const snapshot = async (ledger: Ledger) => {
-    const current = await source();
+    const current = await source(ledger);
     return collaborationSnapshotSchema.parse({
       groups: await Promise.all(
         [...current.groups.values()].map(async (group) => {
@@ -184,7 +194,8 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
     async beginVerification(request) {
       const input = collaborationVerificationSchema.parse(request);
       return withFileLock(port.file, async () => {
-        const current = await source();
+        const ledger = await read();
+        const current = await source(ledger);
         if (!current.groups.has(key(input))) fail("groupUnavailable");
         const bot = current.config.bots.find(
           (bot) =>
@@ -195,7 +206,6 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
             bot.providerUserId,
         );
         if (!bot) fail("identityUnavailable");
-        const ledger = await read();
         let group = ledger.groups.find((item) => key(item) === key(input));
         if (!group) {
           group = {
@@ -240,7 +250,8 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
           provider: message.actor.provider as "feishu" | "lark",
           chatId: message.actor.chatId!,
         };
-        const current = await source();
+        const ledger = await read();
+        const current = await source(ledger);
         const bot = current.config.bots.find(
           (bot) =>
             bot.id === message.botId &&
@@ -254,7 +265,6 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
           !bot.providerUserId
         )
           return verifying ? { kind: "rejected" } : null;
-        const ledger = await read();
         let group = ledger.groups.find((item) => key(item) === key(scope));
         const challenge = group?.challenges.find(
           (item) =>
@@ -294,13 +304,20 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
     async save(request) {
       const input = collaborationSaveSchema.parse(request);
       return withFileLock(port.file, async () => {
-        const current = await source();
-        if (!current.groups.has(key(input))) fail("groupUnavailable");
         const ledger = await read();
         const group = ledger.groups.find((item) => key(item) === key(input));
+        const current = await source(ledger);
+        if (!current.groups.has(key(input))) fail("groupUnavailable");
         if (!group) fail("identityUnavailable");
         const previous = group.config;
         if ((previous?.revision ?? 0) !== input.expectedRevision) fail("stale");
+        if (previous?.enabled && !input.enabled) {
+          if (!(await idle(ledger, input, previous))) fail("busy");
+          // 撤销不授予任何新权限，故不要求已经失效的成员/项目恢复，也不采纳请求中的其他字段。
+          group.config = { ...previous, enabled: false, revision: previous.revision + 1 };
+          await write(ledger);
+          return snapshot(ledger);
+        }
         const ids = [input.pmBotId, ...input.executors.map((item) => item.botId)];
         if (new Set(ids).size !== ids.length) fail("duplicateRole");
         const identity = (botId: string) => {
@@ -350,6 +367,7 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
         if (previous && JSON.stringify(previous) === JSON.stringify(next)) return snapshot(ledger);
         if (!(await idle(ledger, input, previous))) fail("busy");
         group.config = { ...next, revision: (previous?.revision ?? 0) + 1 };
+        group.name = current.groups.get(key(input))!.name;
         await write(ledger);
         return snapshot(ledger);
       });

@@ -64,10 +64,14 @@ async function setup() {
   const tasks = f.createLegacyTaskService();
   tasks.listActiveTaskIds = vi.fn(async () => []);
   tasks.getBotGroupTaskBlockReason = vi.fn(async () => null);
+  const projects = f.createBotProjectServices([
+    { workspacePath: "/project" },
+    { workspacePath: "/other" },
+  ]);
   const create = (local = true) => {
     const service = f.createBotsService({
       repo: repo as never,
-      ...f.createBotProjectServices([{ workspacePath: "/project" }, { workspacePath: "/other" }]),
+      ...projects,
       credentialService: f.createCredentialService({ "feishu-secret": "synthetic-app-value" }),
       localCollaborationEnabled: local,
       zcodeTaskService: tasks,
@@ -76,7 +80,7 @@ async function setup() {
     cleanups.push(() => service.disposeAllAndWait());
     return service;
   };
-  return { create, repo, home, tasks };
+  return { create, repo, home, tasks, projects };
 }
 it("用户通过一次原生提及核验跨应用身份，保存群角色与固定项目后重启仍一致", async () => {
   const { create } = await setup();
@@ -449,10 +453,43 @@ it("机器人改名不改变职责，替换应用则必须重新核验", async (
       (bot) => bot.id === "executor",
     )!.verified,
   ).toBe(false);
-  await expect(service.saveCollaborationSettings!({ ...request, enabled: false })).rejects.toThrow(
-    "collaboration.identityUnavailable",
-  );
+  await expect(
+    service.saveCollaborationSettings!({
+      ...request,
+      executors: [{ botId: "executor", duty: "Changed duty" }],
+    }),
+  ).rejects.toThrow("collaboration.identityUnavailable");
 });
+
+it.each(["disabled-member", "deleted-members", "replaced-app", "deleted-project"])(
+  "失效配置仍可撤销，关闭不借机改变原身份：%s",
+  async (kind) => {
+    const { service, request, repo, tasks, projects } = await configured();
+    const previous = (await service.getCollaborationSettings!())!.groups[0]!.config!;
+    const config = structuredClone(await repo.readConfig());
+    if (kind === "deleted-members") config.bots = [];
+    else if (kind === "disabled-member") config.bots[1]!.enabled = false;
+    else if (kind === "replaced-app") config.bots[1]!.feishuAppId = "cli_replaced";
+    else projects.projectService.readProjects.mockResolvedValue([]);
+    await repo.writeConfig(config);
+    const group = (await service.getCollaborationSettings!())!.groups.find(
+      (item) => item.chatId === request.chatId,
+    );
+    expect(group?.name).toBe("Synthetic project");
+    tasks.listActiveTaskIds = vi.fn(async () => ["active-task"]);
+    await expect(
+      service.saveCollaborationSettings!({ ...request, enabled: false }),
+    ).rejects.toThrow("collaboration.busy");
+    tasks.listActiveTaskIds = vi.fn(async () => []);
+    const saved = await service.saveCollaborationSettings!({
+      ...request,
+      enabled: false,
+      pmBotId: "forged-id",
+      workspaceId: "invalid-project",
+    });
+    expect(saved.groups[0]?.config).toEqual({ ...previous, revision: 2, enabled: false });
+  },
+);
 
 it.each(["{invalid", '{"version":999}'])("未知或损坏Local存储不被默认值覆盖：%s", async (raw) => {
   const { service, home, request } = await configured();
