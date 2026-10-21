@@ -4,7 +4,7 @@
 
 父规格：[ZCode Local spec](../../local-edition/spec.md)。[已确认拆分](../../local-edition/ticket-plan.md)。父 Issue 保持不变，执行状态以各子工单为准。
 
-当前集成分支：`3.16.2-local.1`。01–05 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 正在实施；日常安装与数据切换继续受后续工单门禁约束。
+当前集成分支：`3.16.2-local.1`。01–06 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)；日常安装与数据切换继续受后续工单门禁约束。
 
 执行策略：按编号一次一票。用户于 2026-10-22 请求「开始 06」；本轮按用户「开始 06」只处理 06，不自动进入 07。普通提交沿用既有授权；远端 fork 尚未配置，不向官方 origin 推送，真实切换和用户验收遵守 spec 条件。
 
@@ -30,6 +30,8 @@
 | 18 | [完成整体回归与真实群只读验收](18-end-to-end-acceptance.md) | 13、17 |
 
 ## Progress
+
+- 2026-10-22：06 完成。实现 `e8e697bc`，补正 `d8efc894`；所需职责声明、可信目标/引用共同校验、严格未发送结果与三处复核落地，不增加语义模型。353 项相关回归、16 项 CLI、根及完整 CLI 类型、Lint/架构/格式与固定官网 Reader 通过；两路复审无遗留。一次全量 20041 通过、3 环境失败、10 跳过（既有固定 5173 被其他项目占用），未记全绿。未更新安装候选；按逐票要求结束，07 未开始。
 
 - 2026-10-22：05 完成。实现 `7317fa0e`，补正 `1a46a276`；可信用户→PM→执行者→PM→用户短链、原需求归属与最终原生提及落地；默认群/话题及发送前撤销覆盖。339 项相关回归、15 项 CLI、类型/Lint/架构、固定官网 Reader 通过；两路审查全部关闭。一次全量 20023 通过、3 环境失败、10 跳过（既有固定 5173 被其他项目占用），未记全绿。未更新安装候选；按逐票要求结束，06 未开始。
 

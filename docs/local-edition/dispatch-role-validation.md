@@ -1,8 +1,8 @@
 # 06 派发职责与可信引用校验
 
-Status: in-progress
+Status: done
 
-工单：[06](../issues/zcode-local/06-dispatch-role-validation.md)。实现 `e8e697bc`，起点 `91fb69af`，分支 `3.16.2-local.1`。父规格冻结 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 未改写。
+工单：[06](../issues/zcode-local/06-dispatch-role-validation.md)。实现 `e8e697bc`，审查补正 `d8efc894`，起点 `91fb69af`，分支 `3.16.2-local.1`。父规格冻结 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 未改写。
 
 ## 交付行为
 
@@ -26,12 +26,12 @@ PM 先判断任务需要什么职责，再通过 ReplyToChannel 的 `requiredDut
 |---|---|
 | 相关回归 | 补正后 14 文件 / 353 项通过，其中 39 项可信交接，覆盖原生错误角色引用、身份/目标不符、未决选择、改名、精确匹配、发送前职责变更及原05链路 |
 | CLI | 2 文件 / 16 项通过；职责转发和严格 blocked 结果不改写为成功，拒绝伪造收据字段 |
-| 类型 | 根类型检查通过；CLI 顶层脚本因 turbo 不可执行失败，直接按现有包脚本检查 core/bootstrap/contracts 三个受影响包均通过 |
+| 类型 | 根类型检查通过；CLI core/bootstrap/contracts 三包检查通过。初次顶层脚本找不到 Turbo，补入仓库已有 node_modules/.bin 后完整 CLI typecheck 入口通过（32/32 任务成功，16.02 秒），未改依赖或源码配置 |
 | Lint/架构 | 根 0 errors / 96 条既有警告；CLI 0 errors / 69 条警告，另 13 项原样上游行数存量；架构 0 新违规 |
-| 全量 | 正在运行，待归档 |
-| 两路审查 | Standards 首轮 0 项；Spec 首轮 1 项 P2，已补正，待独立复审 |
+| 全量 | 实现检查点启动的一次全量：2059 文件通过、1 文件失败、2 文件跳过；20041 项通过、3 项失败、10 项跳过，348.61 秒。失败均为既有 webRemoteControlAuthGateFixture 固定 5173 被其他项目进程占用，未记全绿；审查补正后 353 项相关回归通过，未重复全量 |
+| 两路审查 | Standards 首轮及增量复查 0 项；Spec 首轮 1 项 P2，补正后复审关闭，原探针保持断言独立重跑 1 项通过 |
 
-本机证据目录 `~/.local/share/zcode-local/research/issue-06/`。关键产品红证据为 `missing-duty-red.log`、`role-red.log`、`native-ref-red.log`、`idempotency-red.log`；最终相关 `related-review.log`、CLI `cli-first.log`，类型 `typecheck-review.log` 与 `cli-scoped-typecheck.log`。原生入站会正常发送已有排队提示，测试比较派单前后实际消息增量，未把正常入站提示误当作错误派单。
+本机证据目录 `~/.local/share/zcode-local/research/issue-06/`。关键产品红证据为 `missing-duty-red.log`、`role-red.log`、`native-ref-red.log`、`idempotency-red.log`；最终相关 `related-review.log`、CLI `cli-first.log`，类型 `typecheck-review.log`、`cli-scoped-typecheck.log` 与 `cli-typecheck-path.log`。原生入站会正常发送已有排队提示，测试比较派单前后实际消息增量，未把正常入站提示误当作错误派单。
 
 ## Standards
 
@@ -39,12 +39,27 @@ PM 先判断任务需要什么职责，再通过 ReplyToChannel 的 `requiredDut
 
 ## Spec
 
-首轮 1 项 P2：同参重放先进行新引用校验，较早引用来源停止后可能返回 blocked/“Nothing sent”，掩盖已发送或未知事实。补正将同参数持久投递优先交回原 owner，角色/引用校验只约束新的发送；sent/unknown 两类公开集成回归从红转绿，复审待收尾。
+首轮 1 项 P2：同参重放先进行新引用校验，较早引用来源停止后可能返回 blocked/“Nothing sent”，掩盖已发送或未知事实。补正将同参数持久投递优先交回原 owner，角色/引用校验只约束新的发送；sent/unknown 两类公开集成回归从红转绿；独立复审确认关闭，原仓库外探针不改断言重跑 1 项通过。
 
-审查汇总：Standards 首轮 0 项；Spec 首轮 1 项 P2，补正后待独立复审。
+审查汇总：Standards 首轮 0 项、最终 0 项；Spec 首轮 1 项 P2、最终 0 项。
+
+固定官网 `3c5b2276` 独立 worktree 的 Repo 已读取并写回本轮默认群及话题短链生成的 Bot v3 数据，Local 读回通过，侧车索引逐字不变且 requiredDuty 保留。此项只证明隔离 Bot 文件兼容，SQLite 继续沿用 03/04 验证；未接触实际凭据。
+
+补正证据为 `replay-red.log`、`replay-green.log`、`spec-replay-probe.log` 与 `spec-replay-recheck.log`；固定 Reader 为 `frozen-group.log`、`frozen-topic.log`、`local-group-reader.log`、`local-topic-reader.log`；工程检查为 `typecheck-review.log`、`lint-review.log`、`cli-lint.log`、`architecture-review.log`、`format-review.log`、`cli-format.log`。全量 `full-unit.log` 与端口归属 `full-failure-port-owner.log` 保留失败证据；没有终止其他项目或改动无关测试。
 
 ## 本票边界
 
 当前证明显式声明与绑定校验，不证明真实模型一定能正确归类任务。受控语义判断不冒充模型评测；08 卡片选择时仍需保存并复用原 requiredDuty，选人不授予改职责权限。07 静默、08 续发、09 串行与后续恢复/真实验收保持各自工单。
 
 未打包、安装、替换应用或重启日常机器人。02 旧候选仍不含 04–06；日常切换继续按后续维护工单推进。
+
+## 复验入口
+
+固定上述 Node/pnpm 后，从仓库运行：
+
+```sh
+pnpm exec vitest run packages/services/test/botCollaborationHandoffs.test.ts packages/services/test/channelReply.test.ts packages/services/test/botGroupDelivery.test.ts
+pnpm --dir apps/zcode-cli --filter @zcode/core exec vitest run tests/reply-to-channel.test.ts tests/channel-reply-permission.test.ts
+```
+
+首条为 83 项，CLI 为 16 项。临时隔离数据默认清理；完整 353 项范围与执行结果见 `related-review.log`，全量另行如实披露。
