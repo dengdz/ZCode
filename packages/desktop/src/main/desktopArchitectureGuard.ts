@@ -71,6 +71,7 @@ export function formatArchitectureMismatchDialogText(
   locale: Locale,
 ): ArchitectureMismatchDialogText {
   const isZh = locale === "zh-CN";
+  // 官网只提供官方包，会使 Local 的架构迁移丢失本地补丁；按 Local 更新契约只提示重新构建。
   if (ZCODE_PRODUCT_FLAVOR === "local") {
     return {
       title: isZh ? "架构不匹配" : "Architecture Mismatch",
@@ -113,7 +114,7 @@ export interface ArchitectureGuardLogger {
 }
 
 /**
- * 启动时检测架构是否匹配；若用户装了错误架构的版本，弹框提示其下载原生版本。
+ * 启动时检测架构是否匹配；官方身份提示下载原生版本，Local 提示从本地源码重建。
  * 非阻塞：检测命中后异步弹框，不影响主界面继续加载。
  */
 export async function maybeWarnArchitectureMismatch(options: {
