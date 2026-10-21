@@ -5,3 +5,5 @@
 Local collaboration 意图为可选扩展；原请求没有该字段时仍按原契约解析。意图中的 targetBotId 是本机已配置选项，不是平台身份；最终目标及原需求用户由 Host 选择。该协议不改变官网 Bot v3 来源或数据库格式。
 
 06：channelReplyResultSchema 接受严格 blocked 未发送结果，区别于投递和候选澄清。collaboration 的 requiredDuty 由 PM 声明，引用和用户选择不能替代角色校验。
+
+07：严格 silent 结果只有 status，不携带投递编号或完成含义。silent 意图禁止目标字段；空 text part 由 Host 校验为唯一内容，普通群拒绝该意图。

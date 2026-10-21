@@ -12,3 +12,5 @@
 Local 协作输入可声明 dispatch/report/question/final 意图及本机目标 botId，正文仅 text parts；真实原需求用户、平台目标和方向由 Host 重读 Local 归属与配置确认。没有 Local 能力的宿主拒绝该意图，不能降级为普通发送；普通群原接口不变。
 
 06：Local 派单提供 requiredDuty；blocked 结果只说明未发送及纠正原因，不包装为成功，不自行更换职责或发送目标。
+
+07：Local 上下文允许 silent 意图，parts 为单个空 text，不传目标；Host 保存当前执行输入静默状态并返回 {status: "silent"}。该结果不是投递或完成回报。错误与阻塞仍会显示，普通群不可使用。

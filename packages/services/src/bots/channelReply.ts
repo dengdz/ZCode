@@ -12,6 +12,7 @@ import {
   type BotGroupDelivery,
   type ChannelContentPart,
   type CollaborationBlockedResult,
+  type ChannelSilentResult,
 } from "@zcode/shared";
 
 interface ChannelReplyDependencies {
@@ -20,7 +21,7 @@ interface ChannelReplyDependencies {
     scope: { provider: "feishu" | "lark"; chatId: string; botId: string; threadId?: string },
     deliveryId: string,
     trusted: readonly ChannelContentPart[],
-  ): Promise<ChannelContentPart[] | CollaborationBlockedResult | undefined>;
+  ): Promise<ChannelContentPart[] | CollaborationBlockedResult | ChannelSilentResult | undefined>;
   readState(): Promise<BotsStateFile>;
   readConfig(): Promise<BotsConfigFile>;
   listMembers?(bot: BotConfig, chatId: string): Promise<Record<string, string>>;

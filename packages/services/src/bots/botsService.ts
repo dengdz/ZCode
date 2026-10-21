@@ -5235,6 +5235,7 @@ export function createBotsService(
     const supportsStreamingCardReply = () => {
       const adapter = providers[bot.provider];
       return (
+        !collaborationResult &&
         getMode() === "streaming_card" &&
         isFeishuBotProvider(bot.provider) &&
         Boolean(adapter?.createStreamingReplyCard) &&
@@ -5937,6 +5938,50 @@ export function createBotsService(
           // 停止通知会触发群内其他机器人继续回复；主聊天与话题统一静默，前面的状态清理仍保留。
           return;
         }
+        if (collaborationResult && event.stopReason === "error") {
+          const locale = await readMessageLocale();
+          await sendTaskOutbound(
+            bot,
+            createOutbound(
+              actor,
+              locale === "en-US"
+                ? "This turn failed. Check the task record."
+                : "本轮执行失败，请检查任务记录。",
+            ),
+          );
+          return;
+        }
+        // 终态可能不带 inputId；必须按实际运行来源重读，不能依赖上一个流事件的缓存。
+        const collaborationSilent = Boolean(
+          context.group &&
+          resultSourceCommandId &&
+          isFeishuBotProvider(bot.provider) &&
+          (
+            await collaboration?.inputOrigin(
+              { provider: bot.provider, chatId: context.group.chatId, botId: bot.id },
+              resultSourceCommandId,
+              event.taskId,
+            )
+          )?.silent,
+        );
+        // 群输出在 summary 路径发送前才读取显式静默；失败和阻塞不能被确认意图吞掉。
+        const failedTools = [...toolCalls.values()].some(
+          (tool) => tool.status === "failed" || tool.status === "denied" || Boolean(tool.error),
+        );
+        if (collaborationSilent && !failedTools && event.stopReason !== "error") return;
+        if (collaborationSilent && failedTools) {
+          const locale = await readMessageLocale();
+          await sendTaskOutbound(
+            bot,
+            createOutbound(
+              actor,
+              locale === "en-US"
+                ? "A tool failed or was denied in this turn. Check the task record."
+                : "本轮工具失败或被拒绝，请检查任务记录。",
+            ),
+          );
+          return;
+        }
         const mode = getMode();
         const locale = await readMessageLocale();
         const completedSnapshot = await zcodeTaskService
@@ -5989,6 +6034,18 @@ export function createBotsService(
           });
         }
         if (replyMessages.length === 0 && !sentAnyAssistantReply) {
+          if (collaborationResult) {
+            await sendTaskOutbound(
+              bot,
+              createOutbound(
+                actor,
+                locale === "en-US"
+                  ? "No reportable result was received. Check the task status."
+                  : "未收到可汇报的结果，请检查任务状态。",
+              ),
+            );
+            return;
+          }
           const source = resultSourceCommandId
             ? context.group?.inputs?.[resultSourceCommandId]?.source
             : undefined;
@@ -7177,7 +7234,7 @@ export function createBotsService(
       ack.result.delivery === "queue" ? "waiting" : "working",
     );
     const replies =
-      ack.result.delivery === "queue" && !context.group?.threadId
+      ack.result.delivery === "queue" && !context.group?.threadId && !collaborationContext
         ? [
             createOutbound(
               message.actor,

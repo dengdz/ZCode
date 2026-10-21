@@ -21,3 +21,5 @@ ledger.ts 只定义本模块 Local 持久格式及规范化规则，供同一所
 06：prepareReply 接收 Host 从实际执行来源解析的可信引用，只允许一个匹配当前核验目标的 mention；声明职责必须与当前配置精确相同，否则返回 blocked 并不写交接。Local handoff 保存 requiredDuty，最终发送和输入受理也核对；不做正文语义识别，不因用户选择改职责。
 
 dispatchValidation.ts 是同一模块内的纯职责/引用校验，无 IO 或状态；服务先从实际配置取得目标与职责后调用它，再由原 owner 保存关联和投递。
+
+07：prepareReply 接受 silent，保存当前输入 replyIntent 并返回严格 silent 控制结果，不创建 handoff/delivery；inputOrigin 返回该意图。正式发送尝试先写 visible，后续 silent 拒绝；静默不覆盖已发生投递或错误。调用者在终态按实际输入重读，不跨输入缓存权威意图。

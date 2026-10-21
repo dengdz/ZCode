@@ -39,6 +39,8 @@ export const inputSchema = collaborationScopeSchema
     workspaceIdentity: z.string().optional(),
     requirementId: z.string(),
     revision: z.number(),
+    replyIntent: z.enum(["silent", "visible"]).optional(),
+    silentCalls: z.array(z.string()).optional(),
   })
   .strict();
 export const handoffSchema = collaborationScopeSchema

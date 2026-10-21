@@ -187,3 +187,16 @@ describe("ReplyToChannel", () => {
     expect(await replyToChannelHandler(input, f.context)).toMatchObject({ status: "unknown" });
   });
 });
+
+it('Local silent is an input-bound control result, not a delivery or completion receipt', async () => {
+  const f = fixture();
+  f.reply.mockResolvedValue({ status: 'silent' } as never);
+  const result = await replyToChannelHandler({ parts: [{ type: 'text', text: '' }], collaboration: { kind: 'silent' } }, f.context);
+  expect(result).toEqual({ status: 'silent' });
+  expect(f.reply.mock.calls[0]?.[0]).toMatchObject({ taskId: 'task', inputId: 'input', toolCallId: 'call', collaboration: { kind: 'silent' } });
+  expect(replyToChannelToolEntry.runtimeOutputSchema!.parse(result)).toEqual({ status: 'silent' });
+  expect(() => replyToChannelToolEntry.runtimeOutputSchema!.parse({ status: 'silent', deliveryId: 'forged' })).toThrow();
+  await expect(replyToChannelHandler({ parts: [{ type: 'text', text: '' }], collaboration: { kind: 'silent', targetBotId: 'app' } }, f.context)).rejects.toThrow();
+  const properties = replyToChannelToolEntry.inputSchema!.properties as Record<string, { properties: Record<string, { enum: string[] }> }>;
+  expect(properties.collaboration!.properties.kind!.enum).toContain('silent');
+});

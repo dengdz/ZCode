@@ -10,6 +10,7 @@ import type {
   ChannelContentPart,
   BotGroupDelivery,
   CollaborationBlockedResult,
+  ChannelSilentResult,
 } from "@zcode/shared";
 export type { BotCollaborationPort } from "./port.js";
 export interface BotCollaborationContract {
@@ -31,7 +32,7 @@ export interface BotCollaborationContract {
     scope: CollaborationScope & { botId: string; threadId?: string },
     deliveryId: string,
     trusted: readonly ChannelContentPart[],
-  ): Promise<ChannelContentPart[] | CollaborationBlockedResult | undefined>;
+  ): Promise<ChannelContentPart[] | CollaborationBlockedResult | ChannelSilentResult | undefined>;
   /** 既有投递 owner 的最后检查；等待期间变更配置或收件人授权必须失效。 */
   authorizeDelivery(
     scope: CollaborationScope & { botId: string; threadId?: string },
@@ -42,7 +43,7 @@ export interface BotCollaborationContract {
     scope: CollaborationScope & { botId: string },
     inputId: string,
     taskId: string,
-  ): Promise<{ initiatorId: string; mentionedUserIds: string[] } | undefined>;
+  ): Promise<{ initiatorId: string; mentionedUserIds: string[]; silent: boolean } | undefined>;
   getSettings(): Promise<CollaborationSnapshot>;
   save(request: CollaborationSave): Promise<CollaborationSnapshot>;
   beginVerification(request: CollaborationVerification): Promise<CollaborationChallenge>;

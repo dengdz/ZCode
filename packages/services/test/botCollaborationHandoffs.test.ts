@@ -13,7 +13,10 @@ afterEach(async () => {
   setDataBaseDir(null);
   vi.unstubAllGlobals();
 });
-async function setup(scopeThread?: string) {
+async function setup(
+  scopeThread?: string,
+  replyMode: "summary_changes" | "streaming_card" = "summary_changes",
+) {
   const home = await mkdtemp(join(tmpdir(), "collaboration-handoffs-"));
   setDataBaseDir(home);
   cleanups.push(() => rm(home, { recursive: true, force: true }));
@@ -88,6 +91,7 @@ async function setup(scopeThread?: string) {
     feishuAppId: `cli_${id}`,
     providerUserId: `ou_owner_${id}`,
     credentialRef: "synthetic",
+    replyMode,
   }));
   const repo = new BotsRepo();
   await repo.writeConfig({ version: 3, bots });
@@ -896,3 +900,439 @@ it.each(["sent", "unknown"] as const)(
     expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(2);
   },
 );
+
+it.each([undefined, "omt_silent"])(
+  "明确静默确认不发正文、引用、提及或排队卡，重建仍静默：%s",
+  async (threadId) => {
+    const f = await setup(threadId);
+    const baseline = f.sent.length;
+    await f.service.handleProviderCallback("feishu", {
+      ...f.native("pm", "unused", "om_request", "Thanks"),
+      event: {
+        ...f.native("pm", "unused", "om_request", "Thanks").event,
+        sender: {
+          sender_type: "user",
+          sender_id: { open_id: "ou_owner_pm", union_id: "on_owner" },
+          tenant_key: "tenant",
+        },
+      },
+    });
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+    const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0];
+    expect(f.sent).toHaveLength(baseline);
+    const request = {
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: input.commandId,
+      toolCallId: "silent-ack",
+      parts: [{ type: "text", text: "" }],
+      collaboration: { kind: "silent" },
+    } as Parameters<NonNullable<typeof f.service.replyToChannel>>[0];
+    await f.emit({
+      type: "task_run_started",
+      taskId: "task-pm",
+      inputId: input.commandId,
+    } as ZCodeStreamEvent);
+    await f.emit({
+      type: "agent_message_chunk",
+      taskId: "task-pm",
+      inputId: input.commandId,
+      content: "收到，谢谢。",
+    } as ZCodeStreamEvent);
+    expect(f.sent).toHaveLength(baseline);
+    expect(await f.service.replyToChannel!(request)).toEqual({ status: "silent" });
+    await f.emit({
+      type: "task_complete",
+      taskId: "task-pm",
+      stopReason: "end_turn",
+    } as ZCodeStreamEvent);
+    expect(f.sent).toHaveLength(baseline);
+    await f.service.disposeAllAndWait();
+    expect(await f.create().replyToChannel!(request)).toEqual({ status: "silent" });
+    expect(f.sent).toHaveLength(baseline);
+  },
+);
+
+it("静默声明不能吞掉以 error 结束的确认正文", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0];
+  await f.emit({
+    type: "task_run_started",
+    taskId: "task-pm",
+    inputId: input.commandId,
+  } as ZCodeStreamEvent);
+  await f.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    toolCallId: "silent-error",
+    parts: [{ type: "text", text: "" }],
+    collaboration: { kind: "silent" },
+  });
+  await f.emit({
+    type: "agent_message_chunk",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    content: "收到",
+  } as ZCodeStreamEvent);
+  const baseline = f.sent.length;
+  await f.emit({
+    type: "task_complete",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    stopReason: "error",
+  } as ZCodeStreamEvent);
+  expect(f.sent).toHaveLength(baseline + 1);
+  expect(String(f.sent.at(-1)?.body.content)).toContain("失败");
+  expect(String(f.sent.at(-1)?.body.content)).not.toContain("任务已完成");
+});
+
+it("静默调用的幂等身份不能改成正式发送，也不能重放覆盖后来的工作意图", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0];
+  const request = {
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    toolCallId: "silent-once",
+    parts: [{ type: "text" as const, text: "" }],
+    collaboration: { kind: "silent" as const },
+  };
+  await f.service.replyToChannel!(request);
+  await expect(
+    f.service.replyToChannel!({
+      ...request,
+      parts: [{ type: "text", text: "deliver work" }],
+      collaboration: { kind: "final" },
+    }),
+  ).rejects.toThrow("idempotency");
+  const work = await f.service.replyToChannel!({
+    ...request,
+    toolCallId: "formal-new",
+    parts: [{ type: "text", text: "Completed review" }],
+    collaboration: { kind: "final" },
+  });
+  expect(work.status).toBe("sent");
+  const baseline = f.sent.length;
+  expect(await f.service.replyToChannel!(request)).toEqual({ status: "silent" });
+  await f.emit({
+    type: "task_run_started",
+    taskId: "task-pm",
+    inputId: input.commandId,
+  } as ZCodeStreamEvent);
+  await f.emit({
+    type: "agent_message_chunk",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    content: "A further review result",
+  } as ZCodeStreamEvent);
+  await f.emit({
+    type: "task_complete",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    stopReason: "end_turn",
+  } as ZCodeStreamEvent);
+  expect(f.sent).toHaveLength(baseline + 1);
+  expect(String(f.sent.at(-1)?.body.content)).toContain("A further review result");
+  await expect(
+    f.service.replyToChannel!({ ...request, toolCallId: "late-silent" }),
+  ).rejects.toThrow("outputVisible");
+});
+
+async function silentTurn(f: Awaited<ReturnType<typeof setup>>) {
+  await f.service.handleInboundMessage(f.human());
+  const inputId = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  const base = { taskId: "task-pm", inputId, traceId: "run-silent" };
+  await f.emit({ ...base, type: "task_run_started" } as ZCodeStreamEvent);
+  const request = {
+    workspacePath: "/project",
+    taskId: base.taskId,
+    inputId: base.inputId,
+    toolCallId: "silent-ack",
+    parts: [{ type: "text" as const, text: "" }],
+    collaboration: { kind: "silent" as const },
+  };
+  expect(await f.service.replyToChannel!(request)).toEqual({ status: "silent" });
+  return { base, request };
+}
+
+it.each(["summary_changes", "streaming_card"] as const)(
+  "配置 %s 的协作群空确认与镜像流均不创建可见卡片",
+  async (mode) => {
+    const f = await setup(undefined, mode);
+    const baseline = f.sent.length;
+    const { base } = await silentTurn(f);
+    // continuous 与 remote mirror 使用同一 Bot watcher；长内容也不提前分片发送。
+    await f.emit({
+      ...base,
+      type: "task_stream_mirror_batch",
+      ops: [
+        {
+          kind: "stream_event",
+          event: { ...base, type: "agent_message_chunk", content: "收到。".repeat(2500) },
+        },
+      ],
+    } as unknown as ZCodeStreamEvent);
+    expect(f.sent).toHaveLength(baseline);
+    await f.emit({ ...base, type: "task_complete", stopReason: "end_turn" } as ZCodeStreamEvent);
+    expect(f.sent).toHaveLength(baseline);
+  },
+);
+
+it("明确静默的空输出不补完成消息，而未声明静默的空输出给出结果缺失提示", async () => {
+  const f = await setup();
+  const { base } = await silentTurn(f);
+  const baseline = f.sent.length;
+  await f.emit({ ...base, type: "task_complete", stopReason: "end_turn" } as ZCodeStreamEvent);
+  expect(f.sent).toHaveLength(baseline);
+  await f.service.handleInboundMessage(f.human("pm", "om_next"));
+  const inputId = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0].commandId;
+  await f.emit({ type: "task_run_started", taskId: "task-pm", inputId } as ZCodeStreamEvent);
+  await f.emit({
+    type: "task_complete",
+    taskId: "task-pm",
+    inputId,
+    stopReason: "end_turn",
+  } as ZCodeStreamEvent);
+  expect(f.sent).toHaveLength(baseline + 1);
+  expect(String(f.sent.at(-1)?.body.content)).toContain("未收到可汇报的结果");
+  expect(String(f.sent.at(-1)?.body.content)).not.toContain("任务已完成");
+  expect(String(f.sent.at(-1)?.body.content)).toContain("ou_owner_pm");
+});
+
+it.each(["task_error", "failed", "denied"])("静默轮的 %s 仍可见", async (kind) => {
+  const f = await setup();
+  const { base } = await silentTurn(f);
+  const baseline = f.sent.length;
+  if (kind === "task_error") {
+    await f.emit({
+      ...base,
+      type: "task_error",
+      error: "Synthetic provider failure",
+    } as ZCodeStreamEvent);
+    expect(String(f.sent.at(-1)?.body.content)).toContain("Synthetic provider failure");
+  } else {
+    await f.emit({
+      ...base,
+      type: "tool_call_update",
+      toolId: "failed-work",
+      status: kind,
+      title: "Bash",
+      error: "Synthetic command failure",
+    } as ZCodeStreamEvent);
+    await f.emit({ ...base, type: "task_complete", stopReason: "end_turn" } as ZCodeStreamEvent);
+    expect(String(f.sent.at(-1)?.body.content)).toContain("工具失败或被拒绝");
+  }
+  expect(f.sent).toHaveLength(baseline + 1);
+});
+
+it.each(["permission_request", "elicitation_request"])(
+  "静默轮的阻塞 %s 仍发送原交互卡",
+  async (type) => {
+    const f = await setup();
+    const { base } = await silentTurn(f);
+    const baseline = f.sent.length;
+    const event =
+      type === "permission_request"
+        ? {
+            ...base,
+            type,
+            requestId: "permission-silent",
+            description: "Read file",
+            kind: "read",
+            raw: {},
+            options: [
+              {
+                optionId: "allow",
+                name: "Allow",
+                kind: "allow_once",
+                response: { decision: "allow" },
+              },
+            ],
+          }
+        : {
+            ...base,
+            type,
+            requestId: "question-silent",
+            message: "Choose next step",
+            options: [{ value: "continue", label: "Continue" }],
+          };
+    await f.emit(event as ZCodeStreamEvent);
+    expect(f.sent).toHaveLength(baseline + 1);
+    expect(f.sent.at(-1)?.body.msg_type).toBe("interactive");
+  },
+);
+
+it("静默后正式派单和被拦截的错误收件人仍保持真实结果", async () => {
+  const f = await setup();
+  const { request } = await silentTurn(f);
+  const blocked = await f.service.replyToChannel!({
+    ...request,
+    toolCallId: "wrong-work",
+    collaboration: { kind: "dispatch", targetBotId: "product", requiredDuty: "APP" },
+    parts: [{ type: "text", text: "Build app" }],
+  });
+  expect(blocked).toMatchObject({ status: "blocked", reason: "role_mismatch" });
+  await expect(
+    f.service.replyToChannel!({ ...request, toolCallId: "hide-blocked" }),
+  ).rejects.toThrow("outputVisible");
+  const sent = await f.service.replyToChannel!({
+    ...request,
+    toolCallId: "correct-work",
+    collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+    parts: [{ type: "text", text: "Build app" }],
+  });
+  expect(sent.status).toBe("sent");
+  expect(String(f.sent.at(-1)?.body.content)).toContain("ou_bot_app");
+});
+
+it("普通未启用协作群仍补原完成消息，且不能调用静默意图", async () => {
+  const f = await setup();
+  const snapshot = (await f.service.getCollaborationSettings!())!.groups[0]!;
+  await f.service.saveCollaborationSettings!({
+    provider: "feishu",
+    chatId: "oc_group",
+    enabled: false,
+    expectedRevision: snapshot.config!.revision,
+    pmBotId: "pm",
+    executors: [{ botId: "app", duty: "APP" }],
+    authorizedUserId: snapshot.users[0]!.id,
+    workspaceId: snapshot.workspaces[0]!.id,
+  });
+  await f.service.handleInboundMessage(f.human());
+  const inputId = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  await expect(
+    f.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId,
+      toolCallId: "ordinary-silent",
+      parts: [{ type: "text", text: "" }],
+      collaboration: { kind: "silent" },
+    }),
+  ).rejects.toThrow("unavailable");
+  const baseline = f.sent.length;
+  await f.emit({ type: "task_run_started", taskId: "task-pm", inputId } as ZCodeStreamEvent);
+  await f.emit({
+    type: "task_complete",
+    taskId: "task-pm",
+    inputId,
+    stopReason: "end_turn",
+  } as ZCodeStreamEvent);
+  expect(f.sent).toHaveLength(baseline + 1);
+  expect(String(f.sent.at(-1)?.body.content)).toContain("任务已完成");
+});
+
+it.each([undefined, "omt_ack_chain"])(
+  "正式派单回报后的 PM 纯确认不再回复执行机器人：%s",
+  async (threadId) => {
+    const f = await setup(threadId);
+    await f.service.handleInboundMessage(f.human());
+    const execute = async (botId: string, kind: "dispatch" | "report") => {
+      const inputId = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0].commandId;
+      return f.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: `task-${botId}`,
+        inputId,
+        toolCallId: `chain-${kind}`,
+        parts: [{ type: "text", text: `${kind} work` }],
+        collaboration:
+          kind === "dispatch" ? { kind, targetBotId: "app", requiredDuty: "APP" } : { kind },
+      });
+    };
+    const dispatched = await execute("pm", "dispatch");
+    if (dispatched.status !== "sent") throw Error("Expected real dispatch receipt");
+    await f.service.handleProviderCallback(
+      "feishu",
+      f.native("app", "pm", dispatched.providerMessageId!, "Implement"),
+    );
+    const report = await execute("app", "report");
+    if (report.status !== "sent") throw Error("Expected real report receipt");
+    await f.service.handleProviderCallback(
+      "feishu",
+      f.native("pm", "app", report.providerMessageId!, "Work completed"),
+    );
+    const inputId = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0].commandId;
+    const baseline = f.sent.length;
+    expect(
+      await f.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId,
+        toolCallId: "pm-reviewed-ack",
+        parts: [{ type: "text", text: "" }],
+        collaboration: { kind: "silent" },
+      }),
+    ).toEqual({ status: "silent" });
+    await f.emit({ type: "task_run_started", taskId: "task-pm", inputId } as ZCodeStreamEvent);
+    await f.emit({
+      type: "agent_message_chunk",
+      taskId: "task-pm",
+      inputId,
+      content: "已确认，无需动作。",
+    } as ZCodeStreamEvent);
+    await f.emit({
+      type: "task_complete",
+      taskId: "task-pm",
+      inputId,
+      stopReason: "end_turn",
+    } as ZCodeStreamEvent);
+    expect(f.sent).toHaveLength(baseline);
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(3);
+  },
+);
+
+it("执行者也可静默确认；带内容或收件人的声明不能冒充纯确认", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const inputId = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  const request = {
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId,
+    toolCallId: "not-an-ack",
+    collaboration: { kind: "silent" as const },
+  };
+  for (const parts of [
+    [{ type: "text" as const, text: "Formal work" }],
+    [{ type: "mention" as const, refId: "anything" }],
+  ]) {
+    await expect(f.service.replyToChannel!({ ...request, parts })).rejects.toThrow("silentContent");
+  }
+  const dispatch = await f.service.replyToChannel!({
+    ...request,
+    toolCallId: "dispatch-to-app",
+    parts: [{ type: "text", text: "Build app" }],
+    collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+  });
+  if (dispatch.status !== "sent") throw Error("Expected dispatch");
+  await f.service.handleProviderCallback(
+    "feishu",
+    f.native("app", "pm", dispatch.providerMessageId!, "Confirm"),
+  );
+  const appInput = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0].commandId;
+  const baseline = f.sent.length;
+  expect(
+    await f.service.replyToChannel!({
+      ...request,
+      taskId: "task-app",
+      inputId: appInput,
+      toolCallId: "app-ack",
+      parts: [{ type: "text", text: "" }],
+    }),
+  ).toEqual({ status: "silent" });
+  await f.emit({
+    type: "task_run_started",
+    taskId: "task-app",
+    inputId: appInput,
+  } as ZCodeStreamEvent);
+  await f.emit({
+    type: "task_complete",
+    taskId: "task-app",
+    inputId: appInput,
+    stopReason: "end_turn",
+  } as ZCodeStreamEvent);
+  expect(f.sent).toHaveLength(baseline);
+});

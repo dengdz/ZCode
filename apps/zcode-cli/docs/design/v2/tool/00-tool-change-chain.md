@@ -1830,3 +1830,7 @@ MCP app-only report_view 增加可选 viewId，release_view 释放指定窗口�
 ## Local 派发职责校验（06，2026-10-22）
 
 ReplyToChannel collaboration 增加 requiredDuty；PM 派单/面向执行者追问由 Host 将声明与可信目标当前设置职责精确比较。允许附一个当前可信原生 mention 引用，但必须与 targetBotId 的核验身份一致。缺少角色、职责不符、引用不符返回严格 blocked 结果，明确未发送和纠正原因；不得报告送达、擅改声明或重试成其他职责。提供方 schema、runtime schema、Host RPC 及模型结果共用既有链路；普通会话规则不变。完整候选卡片/续发留在 08，不增加模型分类器或数据库字段。
+
+## Local 静默确认（07，2026-10-22）
+
+ReplyToChannel schema / 模型说明 → executing input identity → existing protocol / Host → bot-collaboration 当前输入意图 → strict silent result。静默无 deliveryId、无外部发送，Host 普通终答/空输出/排队卡统一服从协作群发送边界；实际工作、错误与阻塞保留，普通群不变。Local sidecar 是意图唯一所有者，不新增队列、工具或 SQLite 字段；服务重建和连续输入按 task/input/revision 隔离。

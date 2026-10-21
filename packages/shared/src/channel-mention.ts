@@ -92,7 +92,12 @@ export const channelReplyResultSchema = z.union([
   channelDeliveryResultSchema,
   channelMentionClarificationSchema,
   collaborationBlockedResultSchema,
+  z.object({ status: z.literal("silent") }).strict(),
 ]);
+export type ChannelSilentResult = Extract<
+  z.infer<typeof channelReplyResultSchema>,
+  { status: "silent" }
+>;
 export type ChannelReplyRequest = z.infer<typeof channelReplyRequestSchema>;
 export type ChannelReplyResult = z.infer<typeof channelReplyResultSchema>;
 export function channelContentText(parts: readonly ChannelContentPart[]): string {

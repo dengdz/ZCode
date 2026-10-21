@@ -1,6 +1,6 @@
 # 07: 让纯确认轮真正静默结束
 
-Status: ready-for-agent
+Status: in-progress
 
 Issue-Tracker: local-markdown
 
@@ -35,3 +35,35 @@ Agent 输出契约、Bot 终答与流式投递、Provider 卡片和空输出处�
 
 一次只处理本 issue。实现遵循已确认测试边界和 TDD，保留无关改动；验证记录区分实际执行、合成场景与待真实验收。完成后记录改动、验证结果和既有逻辑影响，再置 done。
 
+
+## Implementation contract
+
+- 复用 ReplyToChannel，新增 `collaboration: {kind: "silent"}`；沿用 parts 非空数组，静默调用只提交一个空 text part，不接受收件人、引用或可见正文。返回严格 `{status: "silent"}`，没有 deliveryId、平台消息或成功完成含义。
+- 唯一状态所有者仍为 bot-collaboration：在当前 revision / workspace / task / input 的 Local 输入记录保存输出意图。静默调用 key 保存在同一输入，重复调用只重放原接受结果、不覆盖后续 visible；同 key 改成正式发送被拒绝，服务重建仍有效；不扩充官网 Bot v3 或 CLI SQLite，不增加执行队列或发送器。
+- 协作群沿既有 summary_changes 路径缓存模型输出，运行完成前不推送正文/工具卡片，也不在 admission 时发排队卡；排队/工作/终态表情保留。即使用户配置 streaming_card，协作群也保持这一发送边界。普通群及私聊原路径不变。
+- 静默只抑制自动成功终答和兜底。正式发送尝试会取消本输入静默；该输入已有正式发送尝试后再声明静默被拒绝，不能将 sent/unknown/blocked 事实改称无事发生。错误、失败/拒绝工具及权限/提问阻塞提示始终可见。需要恢复正式交接可发新的显式 dispatch/report/question/final。
+- Local 未声明静默的空输出不补“任务已完成”，而提示未收到可汇报结果，请检查任务状态；不从确认关键词、空输出或停止原因猜测任务完成。
+- 终态投递按实际 inputId 重读输出意图；另一输入、旧授权、停止输入、普通群或桌面/手机续聊不会继承该静默。桌面 continuous 与手机 replayable 的既有任务事件广播均保留，静默仅控制群侧显示。
+
+```mermaid
+sequenceDiagram
+  participant F as Feishu Provider
+  participant B as Bot / existing delivery owner
+  participant L as Local collaboration owner
+  participant R as Existing runtime
+  F->>B: trusted native input
+  B->>L: bind current task/input/revision
+  B->>R: admit input (no queued message)
+  R-->>B: assistant stream (summary buffer only)
+  R->>L: ReplyToChannel silent via authenticated Host
+  L-->>R: silent (persist intent, no delivery)
+  R-->>B: terminal event
+  B->>L: reread current input intent
+  alt silent + successful acknowledgement
+    B->>B: clean lifecycle; no Provider message/card
+  else error, blocking, formal work or ordinary output
+    B->>F: existing authorized delivery path
+  end
+```
+
+验证边界沿用已确认方案：真实 Bot Service/Repo 与 Feishu Provider HTTP 请求，外部 runtime 受理/流事件受控；CLI 工具入口与严格协议补充验证。真实群与实际模型是否遵循静默说明留待 18，不作本轮已验证声明。
