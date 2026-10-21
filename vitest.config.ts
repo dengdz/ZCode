@@ -9,6 +9,8 @@ const processLifecycleTests = [
   "packages/services/test/zcodeStdioTransport.test.ts",
 ];
 const forkIsolatedTests = [
+  // Local 启动验收真实暂停与终止自有子进程，沿用进程生命周期场景的串行隔离。
+  "packages/desktop/test/localLaunch.test.ts",
   ...processLifecycleTests,
   // 真实显示进程树和独立配置读者都在 5 秒内等待启动；并发调度延迟曾触发截止。
   // 放入串行组保留真实进程和原时限，避免把启动排队误判为资源隔离或读锁失败。
