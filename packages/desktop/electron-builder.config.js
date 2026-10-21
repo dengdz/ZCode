@@ -61,6 +61,12 @@ const macSigningIdentity =
 const shouldEnableMacSigning =
   process.env.ZCODE_ENABLE_MAC_SIGN === "1" && Boolean(macSigningIdentity);
 const isLocalProduct = desktopProductIdentity.flavor === "local";
+const localVersion = isLocalProduct
+  ? /^(\d+)\.(\d+)\.(\d+)-local\.([1-9]\d{0,2})$/.exec(buildMetadata.appVersion)
+  : null;
+if (isLocalProduct && !localVersion) {
+  throw new Error("Local builds require major.minor.patch-local.N with N between 1 and 999");
+}
 const workspaceRoot = resolve(import.meta.dirname, "../..");
 const desktopPackageRoot = import.meta.dirname;
 // Computer Use Helper（macOS .app、Windows runtime）只随真实 producer 打包；开源占位包下跳过随包资源与校验。
@@ -816,6 +822,13 @@ export default {
     },
   ],
   mac: {
+    // macOS 只比较三段数字；把 Local 修订并入第三段，保留完整语义版本作为应用内展示值。
+    ...(localVersion
+      ? {
+          bundleShortVersion: `${localVersion[1]}.${localVersion[2]}.${localVersion[3]}`,
+          bundleVersion: `${localVersion[1]}.${localVersion[2]}.${Number(localVersion[3]) * 1000 + Number(localVersion[4])}`,
+        }
+      : {}),
     target: ["dmg", "zip"],
     category: "public.app-category.developer-tools",
     artifactName: buildDesktopArtifactName("mac"),

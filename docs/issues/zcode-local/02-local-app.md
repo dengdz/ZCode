@@ -40,6 +40,7 @@ Issue-Tracker: local-markdown
 - 本轮只完成 02，汇报后停在 03 之前。父规格保持不变。
 - 构建身份由现有 `desktop-product-identity.mjs` 单独维护：新增 `local` flavor，显式 `ZCODE_LOCAL_IDENTITY=1` 选择；与 Preview 开关同时开启或非法开关值直接拒绝构建。名称 `ZCode Local`、安装标识 `dev.zcode.app.local`，编译期注入身份，安装后无需环境变量保持名称。
 - 后端环境继续由 `ZCODE_ENV` 决定，Local 不伪造官方版本。候选展示 `3.16.2-local.1`，内部平台版本保留合法数字版本。日后版本化维护命令归 14。
+- macOS 的短版本为官方数字基线，构建版本为 `major.minor.(patch × 1000 + Local 修订)`；修订范围 1–999，越界拒绝构建，避免四段版本的末段被系统忽略。本票对应 `3.16.2` / `3.16.2001`，应用内与源码仍显示完整 `3.16.2-local.1`。
 - Local 的更新权限在共享构建能力与更新器入口内关闭；普通检查、直接下载、强更和安装均不得触碰官方更新器。既有 production / Preview 行为保留。
 - 架构不匹配提示仍告知性能影响，但 Local 提示重新构建对应架构的 Local，不提供官网下载按钮。
 - Local macOS 候选采用 ad-hoc 本机签名，不请求付费证书或公证，不改系统安全策略。保留现有资源闭包与原生依赖检查。

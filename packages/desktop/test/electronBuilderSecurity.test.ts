@@ -14,6 +14,8 @@ it("Local macOS 候选使用独立包身份和 ad-hoc 签名，保留正常系�
 
   expect(config.appId).toBe("dev.zcode.app.local");
   expect(config.productName).toBe("ZCode Local");
+  expect(config.mac?.bundleShortVersion).toBe("3.16.2");
+  expect(config.mac?.bundleVersion).toBe("3.16.2001");
   expect(config.extraMetadata?.zcodeProductFlavor).toBe("local");
   expect(config.protocols).toEqual([{ name: "ZCode Local", schemes: ["zcode"] }]);
   expect(config.mac?.identity).toBe("-");
