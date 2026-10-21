@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createAboutSnapshot,
   createSystemAboutPanelOptions,
@@ -8,6 +8,20 @@ import {
 } from "../src/main/about.js";
 
 describe("about", () => {
+  it("Local 关于面板使用独立名称与完整本地版本", async () => {
+    vi.stubGlobal("__ZCODE_PRODUCT_FLAVOR__", "local");
+    vi.resetModules();
+    try {
+      const about = await import("../src/main/about.js");
+      const snapshot = about.createAboutSnapshot({ appVersion: "3.16.2-local.1" });
+      expect(about.createSystemAboutPanelOptions(snapshot, 2026, "zh-CN")).toMatchObject({
+        applicationName: "ZCode Local",
+        applicationVersion: "版本 3.16.2-local.1",
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   const appleSiliconSnapshot = createAboutSnapshot({
     appVersion: "0.1.7",
     environment: "production",
