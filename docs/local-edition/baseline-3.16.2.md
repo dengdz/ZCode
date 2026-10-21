@@ -27,12 +27,14 @@
 | 真实停止 | 上游已有 topic 停止 primitive 与运行时结果观察；跨 Bot 的 PM 停止闭环尚未实现 | `botsService.groups.test.ts` 和原生任务接口；issue 11 的实际停止场景 |
 | 恢复与去重 | 上游已有持久 topic、投递与取消屏障；群重启、私聊投递、删除任务恢复合成回归通过 | `botsService.groups`、`privateSync`、`deletedTask`；跨 Bot、结果不明和卡片恢复仍属 issue 12 |
 | 原需求归属、完整静默、正常长链 | 上游仍会从当前 sender 设置 initiator，部分空输出仍生成完成消息，机器人连续消息仍有五条守卫 | issue 05、07、10；本票不宣称已实现这些父规格行为 |
-| Computer Use | 公开源码 `@zcode/zcode-cua` 明确是 fail-closed 占位包，Computer Use runtime、原生 Helper 等报告 unavailable；启动日志出现该服务 unavailable，与包声明一致 | `packages/zcode-cua/README.md`。这是已确认公开能力缺口；依赖该能力的日常切换须先向用户说明并取得接受，不能以普通启动通过掩盖 |
+| Computer Use | 公开源码 `@zcode/zcode-cua` 明确是 fail-closed 占位包，Computer Use runtime、原生 Helper 等报告 unavailable；启动日志出现该服务 unavailable，与包声明一致 | `packages/zcode-cua/README.md`。这是已确认公开能力缺口；用户于 2026-10-21 已接受首版暂不包含原生桌面控制，具体原文见下文 |
 | 独立 Local 身份、签名与更新 | 当前只有官方/Preview 产品身份；候选使用合成运行时名。尚无 `ZCode Local.app`，普通更新、强更和协议入口仍需完整处理 | issue 02；本票只交付隔离源码候选 |
 | 业务数据共用与凭据 | 业务根 `{base}/.zcode/v2` 与 Electron profile 分开；设置另读 desktop home。3.16.2 的 Bot v3 严格格式新增字段，旧 3.15.1 Reader 可能拒绝。当前 cipher 不按签名绑定，但实际已有凭据访问尚未验证 | `services/src/paths.ts`、`credentialCipherProvider`、`shared/src/bots.ts`、`desktopRuntimeEnv.ts`；issue 03。所有启动均为空白隔离数据 |
 | 双向互斥与不得强杀 | Electron 的共享 userData 单实例锁在正常响应时有可行性；尚未验证两个应用身份的双向顺序。Chromium POSIX 的无响应 owner 路径可能 SIGKILL；失败锁路径后续 ready 与 pre-lock IO 也需核实 | issue 03 必须先用可丢弃进程验证正常、挂起、未就绪和竞争，再决定方案；**日常数据切换暂停**，不能只做两个正常进程就判定通过 |
 
 互斥限制的主要依据：[Electron 41.0.3 锁实现](https://github.com/electron/electron/blob/v41.0.3/shell/browser/api/electron_api_app.cc#L973)、[Electron Chromium singleton patch](https://github.com/electron/electron/blob/v41.0.3/patches/chromium/process_singleton.patch)、[固定 Chromium 146.0.7680.80 的 POSIX 无响应恢复](https://github.com/chromium/chromium/blob/146.0.7680.80/chrome/browser/process_singleton_posix.cc#L874)。Electron 锁依赖 userData 的源码事实不能代替完整的无强杀契约实测。
+
+2026-10-21，用户在得知原生 Computer Use 缺口后确认：「可以，首版优先完成飞书协作」。该接受覆盖首版暂不包含原生桌面控制这一能力边界。业务数据兼容、实际凭据访问和双向无强杀互斥仍由 issue 03 验证，日常数据切换继续受这些门禁约束。
 
 ## 实际执行
 
@@ -140,4 +142,4 @@ JS
 - `startup-3/`、`startup-4/` 和各自 `startup-smoke-*.log` 为最终隔离欢迎页探针；`startup-smoke.mjs`、`smoke-entry.cjs` 保存实际执行 harness。
 - 同目录上一级 `01-upstream-baseline.md` 为上游探索原始报告。
 
-后续继续从该官方锚点实施 issue 02。每日应用、真实登录、既有业务数据和真实机器人继续保持未接管状态；公开 Computer Use 缺口和双向无强杀门禁必须先裁定/验证，才可进入受影响的日常切换。
+后续继续从该官方锚点实施 issue 02。每日应用、真实登录、既有业务数据和真实机器人继续保持未接管状态；用户已接受首版的 Computer Use 能力缺口，业务数据兼容、实际凭据访问和双向无强杀互斥仍须通过 issue 03，才可进入受影响的日常切换。
