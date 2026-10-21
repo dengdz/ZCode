@@ -1,4 +1,5 @@
 import { replyToBotChannel } from "#src/bots/channelReply.js";
+import { createBotCollaboration } from "#src/bot-collaboration/index.js";
 import {
   BotAdminRequiredError,
   BotReplyError,
@@ -30,6 +31,7 @@ import type { IDisposable } from "@zcode/rpc";
 import { completeNewModelSelection } from "@zcode/provider";
 import {
   ALL_BOT_WORKSPACES,
+  ZCODE_PRODUCT_FLAVOR,
   parseRemoteWorkspaceIdentity,
   CONVERSATION_SELECTION_MAX_TEXT_LENGTH,
   generateTraceId,
@@ -326,6 +328,8 @@ function validateBotConfig(config: BotsConfigFile, candidate: BotConfig): void {
 }
 
 interface BotsServiceDeps {
+  /** 宿主能力注入；生产缺省取编译期 Local 身份，合成验收显式注入。 */
+  localCollaborationEnabled?: boolean;
   credentialService: ICredentialService;
   zcodeTaskService: IZCodeTaskService;
   projectService: Pick<IProjectService, "readProjects" | "readTree" | "prepareSession">;
@@ -799,6 +803,65 @@ export function createBotsService(
   const typingIntervals = new Map<string, ReturnType<typeof setInterval>>();
   const typingTargets = new Map<string, { bot: BotConfig; target: BotTypingTarget }>();
   const runningTasks = new Set<string>();
+  const collaboration =
+    (deps.localCollaborationEnabled ?? ZCODE_PRODUCT_FLAVOR === "local")
+      ? createBotCollaboration({
+          file: join(getAppConfigDir(), "..", "local", "v1", "collaboration.json"),
+          readConfig: async () => {
+            const config = await repo.readConfig();
+            const workspaces = await listWorkspaceRefs();
+            // 旧版允许保存项目根路径；协作选项使用项目 ID，须沿用原权限的规范化规则。
+            return {
+              ...config,
+              bots: config.bots.map((bot) => ({
+                ...bot,
+                allowedWorkspaces: normalizeConfiguredAllowedWorkspaces(
+                  bot.allowedWorkspaces,
+                  workspaces,
+                ),
+              })),
+            };
+          },
+          readStates: async () => Object.values((await repo.readState()).bots),
+          listWorkspaces: () => listWorkspaceRefs(),
+          canUseWorkspace: (bot, workspaceId) =>
+            isWorkspaceAllowed(workspaceId, bot.allowedWorkspaces),
+          isIdle: async (scope, current) => {
+            const config = await repo.readConfig();
+            const states = Object.values((await repo.readState()).bots).filter(
+              (context) =>
+                context.group?.chatId === scope.chatId &&
+                config.bots.some(
+                  (bot) => bot.id === context.botId && bot.provider === scope.provider,
+                ),
+            );
+            for (const context of states) {
+              const taskIds = new Set(
+                [
+                  context.activeTaskId,
+                  ...Object.values(context.group?.inputs ?? {}).map((input) => input.taskId),
+                ].filter((id): id is string => Boolean(id)),
+              );
+              for (const taskId of taskIds) {
+                if (runningTasks.has(taskId)) return false;
+                const target = context.group?.taskWorkspaces?.[taskId] ?? context;
+                const tasks = await resolveZCodeTaskServiceForContext({ ...context, ...target });
+                if (
+                  !tasks.getBotGroupTaskBlockReason ||
+                  (await tasks.getBotGroupTaskBlockReason({ ...target, taskId }))
+                )
+                  return false;
+              }
+            }
+            if (current) {
+              if (!deps.zcodeTaskService.listActiveTaskIds) return false;
+              const active = await deps.zcodeTaskService.listActiveTaskIds(current.workspace);
+              if (!Array.isArray(active) || active.length) return false;
+            }
+            return true;
+          },
+        })
+      : undefined;
   const topicContinuations = new Map<
     string,
     ReturnType<typeof createTopicContinuation<PreparedTopicMessage>>
@@ -6276,8 +6339,89 @@ export function createBotsService(
         reply: [createOutbound(message.actor, msg(locale, "privateChatOnly"))],
       };
     }
-    const groupContext =
+    let groupContext =
       message.actor.chatType === "group" ? await readContext(message.actor, bot) : null;
+    const binding =
+      collaboration && message.actor.chatType === "group" && message.actor.chatId
+        ? await collaboration.readBinding({
+            provider: bot.provider as "feishu" | "lark",
+            chatId: message.actor.chatId,
+          })
+        : undefined;
+    if (
+      binding &&
+      groupContext?.group &&
+      !groupContext.group.authorizationId?.startsWith(`local:${binding.revision}:`)
+    ) {
+      // Local 配置版本变化必须同时使旧群卡片失效；只保存 revision 不会改变原 v3 卡片授权。
+      groupContext = {
+        ...groupContext,
+        group: {
+          ...groupContext.group,
+          authorizationId: `local:${binding.revision}:${randomUUID()}`,
+        },
+      };
+      await writeContext(groupContext);
+    }
+    if (binding?.enabled) {
+      const member = [binding.pm, ...binding.executors].find((member) => member.botId === bot.id);
+      if (member) {
+        const unavailable = () => ({
+          ok: false as const,
+          reply: [createOutbound(message.actor, msg(locale, "collaborationBindingUnavailable"))],
+        });
+        if (member.appId !== bot.feishuAppId || member.ownerOpenId !== bot.providerUserId)
+          return unavailable();
+        if (requestedCommand === "workspace")
+          return {
+            ok: false,
+            reply: [createOutbound(message.actor, msg(locale, "collaborationProjectFixed"))],
+          };
+        const workspaces = await listWorkspaceRefs();
+        const selected = workspaces.find(
+          (workspace) =>
+            workspace.id === binding.workspace.id &&
+            workspace.projectId === binding.workspace.projectId &&
+            workspace.hostId === "local" &&
+            workspace.workspacePath === binding.workspace.workspacePath &&
+            workspace.workspaceIdentity === binding.workspace.workspaceIdentity,
+        );
+        if (
+          !selected ||
+          !isWorkspaceAllowed(
+            selected.id,
+            normalizeConfiguredAllowedWorkspaces(bot.allowedWorkspaces, workspaces),
+          )
+        )
+          return unavailable();
+        if (
+          groupContext?.group &&
+          (groupContext.projectId !== selected.projectId ||
+            getWorkspaceKey(groupContext.workspacePath, groupContext.workspaceIdentity) !==
+              getWorkspaceKey(selected.workspacePath, selected.workspaceIdentity))
+        ) {
+          if (groupContext.activeTaskId) {
+            const tasks = await resolveZCodeTaskServiceForContext(groupContext);
+            if (
+              !tasks.getBotGroupTaskBlockReason ||
+              (await tasks.getBotGroupTaskBlockReason({
+                ...groupContext,
+                taskId: groupContext.activeTaskId,
+              }))
+            )
+              return unavailable();
+          }
+          const resolved = await bindProject(selected);
+          if (
+            resolved.workspacePath !== binding.workspace.workspacePath ||
+            resolved.workspaceIdentity !== binding.workspace.workspaceIdentity
+          )
+            return unavailable();
+          groupContext = { ...groupContext, ...resolved, mode: "draft", activeTaskId: null };
+          await writeContext(groupContext);
+        }
+      }
+    }
     if (message.actor.chatType === "group") {
       if (!groupContext?.group?.enabled || groupContext.group.ownerId !== bot.providerUserId) {
         return {
@@ -8535,6 +8679,19 @@ export function createBotsService(
         };
       });
     },
+    async getCollaborationSettings() {
+      return collaboration ? collaboration.getSettings() : null;
+    },
+    async saveCollaborationSettings(request) {
+      if (!collaboration) throw new Error("collaboration.unavailable");
+      const saved = await collaboration.save(request);
+      await deps.broadcastService?.send({ channel: "bots:collaboration-settings", payload: {} });
+      return saved;
+    },
+    async beginCollaborationVerification(request) {
+      if (!collaboration) throw new Error("collaboration.unavailable");
+      return collaboration.beginVerification(request);
+    },
     async reconcileGroupResult(params: {
       botId: string;
       chatId: string;
@@ -8655,6 +8812,35 @@ export function createBotsService(
     watchAutomationRun,
     async handleInboundMessage(message: BotInboundMessage) {
       if (shutdownPromise) return [];
+      const verification = await collaboration?.observeInbound(message);
+      if (verification) {
+        // 机器人不能完成真人核验；拒绝控制输入时也不回消息，避免制造新的机器人唤醒。
+        if (message.senderType === "app") return [];
+        if (verification.kind === "verified") {
+          // 核验命令由本机设置发起并经绑定用户原生确认，接入仍只走既有群激活入口。
+          await handleGroupActivation(message, true);
+          const context = (await repo.readState()).bots[
+            getBotConversationKey({
+              ...message.actor,
+              threadId: undefined,
+              conversationThreadId: undefined,
+            })
+          ];
+          if (context?.group?.enabled)
+            return [
+              createOutbound(
+                message.actor,
+                msg(await readMessageLocale(), "collaborationIdentityVerified"),
+              ),
+            ];
+        }
+        return [
+          createOutbound(
+            message.actor,
+            msg(await readMessageLocale(), "collaborationIdentityRejected"),
+          ),
+        ];
+      }
       if (message.senderType === "app") {
         // 机器人只能使用真人已启用的群/话题；原生 @ 可触发普通群输入，不能获取控制权限。
         if (
@@ -9864,6 +10050,11 @@ export function createBotsService(
       return shutdownPromise;
     },
   };
+  if (collaboration) {
+    const receive = service.handleInboundMessage;
+    service.handleInboundMessage = (message) =>
+      collaboration.withInbound(message, () => receive(message));
+  }
   if (runStartupBackgroundTasks) {
     // 远端连接没有 Bot 专属事件源；只检查已存在的连接，不建立额外连接或重放历史。
     privateRecoveryTimer = setInterval(() => {

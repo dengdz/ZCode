@@ -1,4 +1,5 @@
 export { cloudContentPayloadSchema, contentBundleSchema } from "./cloudContent.js";
+export * from "./local-collaboration/index.js";
 export * from "./networkCapture.js";
 export type {
   CloudContentPayload,

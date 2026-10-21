@@ -14,6 +14,11 @@ const messages = {
     groupEnabled:
       "群聊已启用。话题历史默认开启，同一工作区的文件共享，可能发生并发修改。\n\n使用话题前，请应用管理员确认已开通相关权限：\n1. 打开[开放平台后台]({permissionsUrl})，选择当前机器人应用。\n2. 在权限管理中开通应用身份的消息读取权限，包括 `im:message.group_msg`（获取用户群消息）。接收其他机器人的 @ 还需 `im:message.group_at_msg.include_bot:readonly`；若需接收话题内未 @ 的机器人消息，开通 `im:message.group_msg.include_bot:read`。\n3. 可选：开通 `im:chat.members:read`（查看群成员），用于显示发送者用户名；缺少此权限不影响任务执行。\n4. 发布生效后，在话题内 @机器人提交需求。\n\n群启用不代表应用权限已开通；缺少话题历史读取权限时不会执行话题任务。",
     groupDisabled: "群聊已停用。已接收的任务保留在 Desktop。",
+    collaborationIdentityVerified: "身份核验及群接入完成，请回到设置刷新并保存协作配置。",
+    collaborationIdentityRejected:
+      "身份核验或群接入未完成。请由已绑定用户原生 @对应机器人发送有效核验命令，并确认平台身份字段和群权限完整。",
+    collaborationBindingUnavailable: "本群固定项目或身份已失效，请在协作设置中重新核对。",
+    collaborationProjectFixed: "本群使用固定项目，请在协作设置中修改绑定。",
     privateChatOnly: "Bots 暂不支持群聊，请在私聊中使用。",
     bindPrivateOnly: "Bots 只允许在私聊中绑定。",
     userNotBound: "当前 bot 未绑定。请先在 zcode UI 生成绑定码，然后发送 **/bind <code>**。",
@@ -139,6 +144,14 @@ const messages = {
     groupEnabled:
       "Group enabled. Topic history defaults on. Workspace files are shared and may be edited concurrently.\n\nBefore using topics, ask the app administrator to confirm the required permissions:\n1. Open the [developer console]({permissionsUrl}) and select this bot app.\n2. In permission management, enable application-identity message read permissions, including `im:message.group_msg` (read user group messages). To receive mentions from other bots, also enable `im:message.group_at_msg.include_bot:readonly`; for bot messages without mentions in topics, enable `im:message.group_msg.include_bot:read`.\n3. Optional: enable `im:chat.members:read` (view group members) to display sender names. Missing this permission does not block task execution.\n4. Publish the changes, then mention the bot in a topic.\n\nEnabling the group does not grant app permissions; topic tasks will not execute without topic history read permissions.",
     groupDisabled: "Group disabled. Accepted work remains in Desktop.",
+    collaborationIdentityVerified:
+      "Identity verified and group connected. Refresh settings and save the collaboration configuration.",
+    collaborationIdentityRejected:
+      "Identity verification or group connection was not completed. The bound user must natively mention the matching bot with a valid command. Check platform identity fields and group permissions.",
+    collaborationBindingUnavailable:
+      "The fixed project or identity is unavailable. Check this group's collaboration settings.",
+    collaborationProjectFixed:
+      "This group uses a fixed project. Change its binding in collaboration settings.",
     privateChatOnly: "Bots do not support group chats yet. Please use a private chat.",
     bindPrivateOnly: "Bots can only bind in a private chat.",
     userNotBound:

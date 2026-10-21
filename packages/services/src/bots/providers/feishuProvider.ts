@@ -853,6 +853,12 @@ function readFeishuTextMessage(
   return {
     botId,
     text,
+    ...(readString(sender, "sender_type") === "user"
+      ? {
+          senderUnionId: readString(senderId, "union_id") || undefined,
+          tenantKey: readString(sender, "tenant_key") || undefined,
+        }
+      : {}),
     ...(groupMessage
       ? {
           ...(isFeishuBotSender(readString(sender, "sender_type"))

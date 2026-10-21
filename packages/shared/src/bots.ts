@@ -571,6 +571,9 @@ export interface SelectionPrompt {
 }
 
 export interface BotInboundMessage {
+  /** Provider 原始用户/租户标识；跨应用授权不能比较应用内 open_id。 */
+  senderUnionId?: string;
+  tenantKey?: string;
   /** 仅供命令/纯唤醒识别；原文 text 和 contentParts 保持完整。 */
   commandText?: string;
   /** Provider 核验的当前机器人身份，不从正文推断。 */

@@ -46,6 +46,7 @@ import {
 } from "@/BotsDialog/BotSummaryCard.js";
 import { ProviderSettingsCard } from "@/BotsDialog/ProviderSettingsCard.js";
 import { BoundGroupsCard } from "@/BotsDialog/BoundGroupsCard.js";
+import { BotCollaborationSettings } from "@/bot-collaboration-settings/index.js";
 import { WorkspaceAccessCard } from "@/BotsDialog/WorkspaceAccessCard.js";
 import { SettingsGroupCard } from "@/settings/SettingsPageParts.js";
 import {
@@ -1229,10 +1230,16 @@ export function BotsDialog({
                 </SettingsGroupCard>
 
                 {isFeishuBotProvider(selectedBot.provider) && (
-                  <BoundGroupsCard
-                    key={selectedBot.id + ":" + selectedBot.providerUserId}
-                    bot={selectedBot}
-                  />
+                  <>
+                    <BoundGroupsCard
+                      key={selectedBot.id + ":" + selectedBot.providerUserId}
+                      bot={selectedBot}
+                    />
+                    <BotCollaborationSettings
+                      key={selectedBot.id}
+                      provider={selectedBot.provider}
+                    />
+                  </>
                 )}
 
                 <BotDangerCard onDelete={() => void handleDelete()} />

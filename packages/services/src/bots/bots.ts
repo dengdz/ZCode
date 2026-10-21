@@ -163,6 +163,14 @@ export interface IBotsService {
   createBindCode(params: BotCreateBindCodeParams): Promise<BotBindCodeResult>;
   getGroupMemberNames?(params: { botId: string; chatId: string }): Promise<Record<string, string>>;
   getBotStates(): Promise<BotContextState[]>;
+  /** Local 专属设置；非 Local 返回不可用，不修改官网 v3 文件。 */
+  getCollaborationSettings?(): Promise<import("@zcode/shared").CollaborationSnapshot | null>;
+  saveCollaborationSettings?(
+    request: import("@zcode/shared").CollaborationSave,
+  ): Promise<import("@zcode/shared").CollaborationSnapshot>;
+  beginCollaborationVerification?(
+    request: import("@zcode/shared").CollaborationVerification,
+  ): Promise<import("@zcode/shared").CollaborationChallenge>;
   retryTopicPreparation?(params: {
     botId: string;
     chatId: string;

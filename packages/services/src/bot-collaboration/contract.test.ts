@@ -1,0 +1,24 @@
+import { mkdtemp, rm, stat } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { expect, it } from "vitest";
+import { createBotCollaboration } from "./index.js";
+import type { BotCollaborationContract } from "./contract.js";
+it("只读空配置不生成默认授权或覆盖业务文件", async () => {
+  const root = await mkdtemp(join(tmpdir(), "collaboration-contract-"));
+  const file = join(root, "local/v1/collaboration.json");
+  try {
+    const service: BotCollaborationContract = createBotCollaboration({
+      file,
+      readConfig: async () => ({ version: 3, bots: [] }),
+      readStates: async () => [],
+      listWorkspaces: async () => [],
+      canUseWorkspace: () => false,
+      isIdle: async () => true,
+    });
+    expect(await service.getSettings()).toEqual({ groups: [] });
+    await expect(stat(file)).rejects.toMatchObject({ code: "ENOENT" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

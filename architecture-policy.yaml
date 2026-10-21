@@ -746,6 +746,43 @@ modules:
       adapters: .
     owner: local-edition
 
+  - id: local-collaboration
+    roots:
+      - packages/shared/src/local-collaboration
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - packages/shared/src/local-collaboration/index.ts
+      - packages/shared/src/local-collaboration/contract.ts
+    layers:
+      domain: .
+    owner: local-edition
+  # bot-collaboration：由 architecture:adopt 登记
+  - id: bot-collaboration
+    roots:
+      - packages/services/src/bot-collaboration
+    managed: true
+    requires: [shared]
+    publicEntrypoints:
+      - packages/services/src/bot-collaboration/index.ts
+      - packages/services/src/bot-collaboration/contract.ts
+    layers:
+      adapters: .
+    owner: local-edition
+  # bot-collaboration-settings：由 architecture:adopt 登记
+  - id: bot-collaboration-settings
+    roots:
+      - packages/ui/src/bot-collaboration-settings
+      - packages/ui/src/hooks/bot-collaboration
+    managed: true
+    requires: [ui, services, shared]
+    publicEntrypoints:
+      - packages/ui/src/bot-collaboration-settings/index.tsx
+      - packages/ui/src/bot-collaboration-settings/contract.ts
+    layers:
+      ui: .
+    owner: local-edition
+
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。
   # 基于领先 staging 很多的分支开工时，merge-base 之前的"新增"文件不应被追溯。

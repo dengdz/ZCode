@@ -521,6 +521,48 @@ const enUS: Record<string, string> = {
   "bots.boundGroups.loadFailed": "Could not load groups. Refresh to retry.",
   "bots.boundGroups.saveFailed": "The group change could not be confirmed. Refresh and retry.",
   "bots.boundGroups.refresh": "Refresh",
+  "bots.collaboration.title": "PM group collaboration",
+  "bots.collaboration.description":
+    "Save a PM, executor responsibilities, authorized user and fixed project for each group.",
+  "bots.collaboration.group": "Collaboration group",
+  "bots.collaboration.enable": "Enable PM collaboration",
+  "bots.collaboration.pm": "PM bot",
+  "bots.collaboration.executors": "Executors and responsibilities",
+  "bots.collaboration.executor": "Executor: {name}",
+  "bots.collaboration.duty": "Responsibility: {name}",
+  "bots.collaboration.dutyHint": "Describe this bot's responsibilities",
+  "bots.collaboration.user": "Authorized user",
+  "bots.collaboration.workspace": "Bound project",
+  "bots.collaboration.choose": "Select an option",
+  "bots.collaboration.revision": "Configuration revision: {revision}",
+  "bots.collaboration.save": "Save collaboration settings",
+  "bots.collaboration.saving": "Saving…",
+  "bots.collaboration.refresh": "Refresh",
+  "bots.collaboration.identityHint":
+    "The same bound user natively confirms each verification and connects the bot to this group. Renaming does not change its role.",
+  "bots.collaboration.verified": "Verified",
+  "bots.collaboration.verify": "Verify {name}",
+  "bots.collaboration.challenge":
+    "Natively mention @{name} in the selected group and send the command below within 10 minutes, then refresh.",
+  "bots.collaboration.command": "Identity verification command",
+  "bots.collaboration.empty":
+    "No bound groups. First natively mention a bot in the group and send /enable.",
+  "bots.collaboration.busy":
+    "Group work is active or its state is unconfirmed. Finish or actually stop the work, then refresh.",
+  "bots.collaboration.stale":
+    "Another window changed this configuration. Refresh and check it again.",
+  "bots.collaboration.duplicateRole": "A bot cannot be both PM and executor or appear twice.",
+  "bots.collaboration.identityUnavailable":
+    "Verify the selected identities and check project access before saving.",
+  "bots.collaboration.workspaceUnavailable":
+    "The bound project is unavailable. Refresh and select again.",
+  "bots.collaboration.groupUnavailable": "The group binding is unavailable. Refresh and check it.",
+  "bots.collaboration.unavailable": "This host does not provide Local collaboration settings.",
+  "bots.collaboration.loadFailed": "Could not load collaboration settings. Refresh to retry.",
+  "bots.collaboration.saveFailed":
+    "Saving was not confirmed. Refresh to check the saved configuration.",
+  "bots.collaboration.verificationFailed":
+    "Could not create a verification command. Check the group and bot bindings.",
   "bots.topic.open": "Open topic in Feishu / Lark",
   "bots.topic.details": "Topic details",
   "bots.topic.loading": "Loading context…",
