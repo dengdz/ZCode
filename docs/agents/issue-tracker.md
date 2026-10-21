@@ -19,3 +19,5 @@
 ## 当前 Issue
 
 - [桌面本地消息 TTFT 分阶段遥测](../monitoring/ttft-stage-telemetry.md)
+- [ZCode Local：项目群 PM 协作与本地版本维护](../local-edition/spec.md)
+- [ZCode Local：18 项实现子工单](../issues/zcode-local/README.md)
