@@ -850,3 +850,49 @@ it("已发送调用改写成错误角色时不能把既有投递误说成未发�
   ).rejects.toThrow("idempotency conflict");
   expect(f.sent).toHaveLength(1);
 });
+
+it.each(["sent", "unknown"] as const)(
+  "原生引用后来失效，同参重放仍保留%s事实且不重发",
+  async (status) => {
+    const f = await setup();
+    const first = f.human("pm", "om_with_ref");
+    first.contentParts = [
+      {
+        type: "channelMention",
+        refId: "app-earlier",
+        name: "APP",
+        channel: "feishu",
+        targetId: "ou_bot_app",
+        idType: "open_id",
+        entityType: "bot",
+      },
+      { type: "text", text: "Reference APP" },
+    ];
+    await f.service.handleInboundMessage(first);
+    const firstInput = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+    await f.service.handleInboundMessage(f.human("pm", "om_followup"));
+    const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+    const request = {
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: input.commandId,
+      toolCallId: "same-ref-call",
+      parts: [
+        { type: "mention" as const, refId: "app-earlier" },
+        { type: "text" as const, text: "Build APP" },
+      ],
+      collaboration: { kind: "dispatch" as const, targetBotId: "app", requiredDuty: "APP" },
+    };
+    const receipt = await f.service.replyToChannel!(request);
+    if (receipt.status !== "sent") throw Error("initial send failed");
+    const state = await f.repo.readState();
+    const group = Object.values(state.bots).find((context) => context.botId === "pm")!.group!;
+    group.inputs![firstInput.commandId]!.progress = { status: "stopped" };
+    group.deliveries![receipt.deliveryId]!.status = status;
+    await f.repo.writeState(state);
+    const replay = await f.service.replyToChannel!(request);
+    expect(replay).toMatchObject({ status, deliveryId: receipt.deliveryId });
+    expect(f.sent).toHaveLength(1);
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(2);
+  },
+);

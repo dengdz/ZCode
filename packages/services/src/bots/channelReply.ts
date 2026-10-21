@@ -175,6 +175,9 @@ export async function replyToBotChannel(
     }
     return receipt(saved, id);
   };
+  // 同参重放读取原投递事实；新发送校验不能把已有 sent/unknown 改说成“未发送”。
+  const previous = await replay(binding.group.deliveries?.[id]);
+  if (previous) return previous;
   let parts = await deps.prepare?.(
     request,
     {
@@ -187,8 +190,6 @@ export async function replyToBotChannel(
     binding.trusted,
   );
   if (parts && !Array.isArray(parts)) return parts;
-  const previous = await replay(binding.group.deliveries?.[id]);
-  if (previous) return previous;
   if (!parts && request.parts.some((part) => part.type === "mentionName")) {
     if (bot.provider !== "feishu" && bot.provider !== "lark")
       throw new Error("Unsupported mention channel");
