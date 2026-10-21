@@ -1,5 +1,11 @@
 import { z } from "zod";
 const id = z.string().trim().min(1).max(250);
+export const collaborationReplyIntentSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("dispatch"), targetBotId: id }).strict(),
+  z.object({ kind: z.literal("report") }).strict(),
+  z.object({ kind: z.literal("question"), targetBotId: id.optional() }).strict(),
+  z.object({ kind: z.literal("final") }).strict(),
+]);
 export const collaborationScopeSchema = z
   .object({ provider: z.enum(["feishu", "lark"]), chatId: id })
   .strict();

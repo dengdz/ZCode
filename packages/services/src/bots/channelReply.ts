@@ -10,9 +10,15 @@ import {
   type BotsConfigFile,
   type BotConfig,
   type BotGroupDelivery,
+  type ChannelContentPart,
 } from "@zcode/shared";
 
 interface ChannelReplyDependencies {
+  prepare?(
+    request: ChannelReplyHostRequest,
+    scope: { provider: "feishu" | "lark"; chatId: string; botId: string; threadId?: string },
+    deliveryId: string,
+  ): Promise<ChannelContentPart[] | undefined>;
   readState(): Promise<BotsStateFile>;
   readConfig(): Promise<BotsConfigFile>;
   listMembers?(bot: BotConfig, chatId: string): Promise<Record<string, string>>;
@@ -122,6 +128,7 @@ export async function replyToBotChannel(
   deps: ChannelReplyDependencies,
 ): Promise<ChannelReplyResult> {
   const request = channelReplyHostRequestSchema.parse(value);
+  if (request.collaboration && !deps.prepare) throw new Error("collaboration.unavailable");
   let binding = await readBinding(request, deps);
   const { bot } = binding;
   const id = createHash("sha256")
@@ -138,13 +145,15 @@ export async function replyToBotChannel(
   const requestHash = createHash("sha256")
     .update(
       JSON.stringify(
-        request.parts.map((part) =>
-          part.type === "text"
-            ? [part.type, part.text]
-            : part.type === "mention"
-              ? [part.type, part.refId]
-              : [part.type, part.name, part.candidateRef ?? null],
-        ),
+        request.collaboration
+          ? [request.parts, request.collaboration]
+          : request.parts.map((part) =>
+              part.type === "text"
+                ? [part.type, part.text]
+                : part.type === "mention"
+                  ? [part.type, part.refId]
+                  : [part.type, part.name, part.candidateRef ?? null],
+            ),
       ),
     )
     .digest("hex");
@@ -160,10 +169,19 @@ export async function replyToBotChannel(
     }
     return receipt(saved, id);
   };
+  let parts = await deps.prepare?.(
+    request,
+    {
+      provider: bot.provider as "feishu" | "lark",
+      chatId: binding.group.chatId,
+      threadId: binding.group.threadId,
+      botId: bot.id,
+    },
+    id,
+  );
   const previous = await replay(binding.group.deliveries?.[id]);
   if (previous) return previous;
-  let parts;
-  if (request.parts.some((part) => part.type === "mentionName")) {
+  if (!parts && request.parts.some((part) => part.type === "mentionName")) {
     if (bot.provider !== "feishu" && bot.provider !== "lark")
       throw new Error("Unsupported mention channel");
     let members: Record<string, string> | undefined;
@@ -193,7 +211,7 @@ export async function replyToBotChannel(
     );
     if ("status" in resolved) return resolved;
     parts = resolved.parts;
-  } else parts = resolveChannelReplyParts(request.parts, binding.trusted);
+  } else if (!parts) parts = resolveChannelReplyParts(request.parts, binding.trusted);
   if (parts.some((part) => part.type === "channelMention" && part.channel !== bot.provider))
     throw new Error("Channel mention provider mismatch");
   if (!channelContentText(parts).trim() || channelContentText(parts).length > 2000)

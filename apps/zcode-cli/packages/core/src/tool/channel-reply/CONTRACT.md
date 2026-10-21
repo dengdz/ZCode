@@ -8,3 +8,5 @@
 - 澄清结果不表示已发送；恢复或重试不合成用户授权。
 
 运行时回归位于 `tests/reply-to-channel.test.ts`。
+
+Local 协作输入可声明 dispatch/report/question/final 意图及本机目标 botId，正文仅 text parts；真实原需求用户、平台目标和方向由 Host 重读 Local 归属与配置确认。没有 Local 能力的宿主拒绝该意图，不能降级为普通发送；普通群原接口不变。

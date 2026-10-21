@@ -783,6 +783,31 @@ modules:
       ui: .
     owner: local-edition
 
+  - id: bot-channel-reply
+    roots:
+      - packages/services/src/bot-channel-reply
+      - packages/services/src/bots/channelReply.ts
+    managed: true
+    requires: [shared, services]
+    publicEntrypoints:
+      - packages/services/src/bot-channel-reply/index.ts
+      - packages/services/src/bot-channel-reply/contract.ts
+      - packages/services/src/bots/channelReply.ts
+    layers: {app: .}
+    owner: conversation
+  - id: channel-mentions
+    roots:
+      - packages/shared/src/channel-mentions
+      - packages/shared/src/channel-mention.ts
+    managed: true
+    requires: [shared, local-collaboration]
+    publicEntrypoints:
+      - packages/shared/src/channel-mentions/index.ts
+      - packages/shared/src/channel-mentions/contract.ts
+      - packages/shared/src/channel-mention.ts
+    layers: {domain: .}
+    owner: conversation
+
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。
   # 基于领先 staging 很多的分支开工时，merge-base 之前的"新增"文件不应被追溯。

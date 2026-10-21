@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
 import { atomicWritePrivateTextFile, withFileLock } from "@zcode/shared/node";
@@ -43,10 +43,48 @@ const groupSchema = collaborationScopeSchema
     challenges: z.array(challengeSchema),
   })
   .strict();
+const inputSchema = collaborationScopeSchema
+  .extend({
+    botId: z.string(),
+    taskId: z.string(),
+    inputId: z.string(),
+    workspacePath: z.string(),
+    workspaceIdentity: z.string().optional(),
+    requirementId: z.string(),
+    revision: z.number(),
+  })
+  .strict();
+const handoffSchema = collaborationScopeSchema
+  .extend({
+    id: z.string(),
+    fromBotId: z.string(),
+    toBotId: z.string(),
+    fromTaskId: z.string(),
+    fromInputId: z.string(),
+    requirementId: z.string(),
+    revision: z.number(),
+    threadId: z.string().optional(),
+  })
+  .strict();
 const ledgerSchema = z
   .object({
     version: z.literal(1),
     groups: z.array(groupSchema).max(400),
+    requirements: z
+      .array(
+        collaborationScopeSchema
+          .extend({
+            id: z.string(),
+            revision: z.number(),
+            unionId: z.string(),
+            tenantKey: z.string(),
+            name: z.string(),
+          })
+          .strict(),
+      )
+      .default([]),
+    inputs: z.array(inputSchema).default([]),
+    handoffs: z.array(handoffSchema).default([]),
     admissions: z
       .array(
         collaborationScopeSchema
@@ -70,7 +108,14 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
       return ledgerSchema.parse(JSON.parse(await readFile(port.file, "utf8")));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT")
-        return { version: 1, groups: [], admissions: [] };
+        return {
+          version: 1,
+          groups: [],
+          admissions: [],
+          requirements: [],
+          inputs: [],
+          handoffs: [],
+        };
       throw error;
     }
   };
@@ -181,7 +226,323 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
       ),
     });
   };
+  const enabledConfig = (ledger: Ledger, scope: CollaborationScope) =>
+    ledger.groups.find((item) => key(item) === key(scope))?.config;
+  const validMember = async (config: CollaborationConfig, botId: string) => {
+    const member = [config.pm, ...config.executors].find((item) => item.botId === botId);
+    const bot = (await port.readConfig()).bots.find(
+      (bot) => bot.id === botId && bot.provider === config.provider,
+    );
+    const workspace = (await port.listWorkspaces()).some(
+      (item) =>
+        item.id === config.workspace.id &&
+        item.hostId === "local" &&
+        !item.workspaceIdentity &&
+        item.projectId === config.workspace.projectId &&
+        item.workspacePath === config.workspace.workspacePath,
+    );
+    return member &&
+      workspace &&
+      bot?.enabled &&
+      bot.feishuAppId === member.appId &&
+      bot.providerUserId === member.ownerOpenId &&
+      port.canUseWorkspace(bot, config.workspace.id)
+      ? { member, bot }
+      : undefined;
+  };
+  const incomingHandoff = async (
+    ledger: Ledger,
+    message: import("@zcode/shared").BotInboundMessage,
+    config: CollaborationConfig,
+  ) => {
+    if (
+      message.senderType !== "app" ||
+      message.mentionedBot !== true ||
+      message.groupCardAction ||
+      message.elicitationResponse
+    )
+      return undefined;
+    const states = await port.readStates();
+    for (const handoff of ledger.handoffs) {
+      if (
+        key(handoff) !== key(config) ||
+        handoff.revision !== config.revision ||
+        handoff.toBotId !== message.botId ||
+        handoff.threadId !== message.actor.threadId
+      )
+        continue;
+      const sender = await validMember(config, handoff.fromBotId);
+      if (!sender || sender.member.openId !== message.actor.providerUserId) continue;
+      if (
+        handoff.fromBotId === config.pm.botId
+          ? !config.executors.some((item) => item.botId === handoff.toBotId)
+          : handoff.toBotId !== config.pm.botId
+      )
+        continue;
+      const context = states.find(
+        (state) =>
+          state.botId === handoff.fromBotId &&
+          state.group?.chatId === config.chatId &&
+          state.group.threadId === handoff.threadId,
+      );
+      const delivery = context?.group?.deliveries?.[handoff.id];
+      const input = context?.group?.inputs?.[handoff.fromInputId];
+      // 原生发送者仍不足以代表派单；必须绑定原投递 owner 确认的消息，而非正文自报来源。
+      if (
+        context?.group?.enabled &&
+        context.activeTaskId === handoff.fromTaskId &&
+        delivery?.status === "sent" &&
+        delivery.providerMessageId === message.actor.providerMessageId &&
+        delivery.authorizationId === context.group.authorizationId &&
+        delivery.sourceCommandId === handoff.fromInputId &&
+        input?.admission === "accepted" &&
+        input.taskId === handoff.fromTaskId &&
+        !["cancelled", "discarded", "stopped"].includes(input.progress?.status ?? "")
+      )
+        return handoff;
+    }
+    return undefined;
+  };
+  const decision = async (ledger: Ledger, message: import("@zcode/shared").BotInboundMessage) => {
+    const config = enabledConfig(ledger, message.actor as CollaborationScope);
+    if (!config?.enabled) return "legacy" as const;
+    const current = await validMember(config, message.botId);
+    if (!current || message.actor.botId !== current.member.botId) return "deny" as const;
+    if (message.senderType === "app")
+      return (await incomingHandoff(ledger, message, config))
+        ? ("allow" as const)
+        : ("deny" as const);
+    if (
+      message.actor.providerUserId !== current.member.ownerOpenId ||
+      message.senderUnionId !== config.authorizedUser.unionId ||
+      message.tenantKey !== config.authorizedUser.tenantKey
+    )
+      return "deny" as const;
+    return current.member.botId === config.pm.botId ? ("allow" as const) : ("redirect" as const);
+  };
   const service: BotCollaborationContract = {
+    async authorize(message) {
+      if (
+        message.actor.chatType !== "group" ||
+        !message.actor.chatId ||
+        !isFeishuBotProvider(message.actor.provider)
+      )
+        return "legacy";
+      return withFileLock(port.file, async () => {
+        const outcome = await decision(await read(), message);
+        if (outcome !== "legacy")
+          port.diagnose?.({
+            provider: message.actor.provider as "feishu" | "lark",
+            chatId: message.actor.chatId!,
+            botId: message.botId,
+            action: "admission",
+            outcome,
+          });
+        return outcome;
+      });
+    },
+    async bindInput(message, execution) {
+      if (
+        message.actor.chatType !== "group" ||
+        !message.actor.chatId ||
+        !isFeishuBotProvider(message.actor.provider)
+      )
+        return undefined;
+      return withFileLock(port.file, async () => {
+        const ledger = await read();
+        const scope = {
+          provider: message.actor.provider as "feishu" | "lark",
+          chatId: message.actor.chatId!,
+        };
+        const config = enabledConfig(ledger, scope);
+        if (!config?.enabled) return undefined;
+        if ((await decision(ledger, message)) !== "allow") fail("unauthorized");
+        const prior = ledger.inputs.find(
+          (item) =>
+            key(item) === key(scope) &&
+            item.botId === message.botId &&
+            item.taskId === execution.taskId &&
+            item.revision === config.revision,
+        );
+        const handoff = await incomingHandoff(ledger, message, config);
+        const requirementId =
+          handoff?.requirementId ??
+          prior?.requirementId ??
+          createHash("sha256")
+            .update(JSON.stringify([scope.provider, scope.chatId, message.actor.providerMessageId]))
+            .digest("hex");
+        if (!ledger.requirements.some((item) => item.id === requirementId))
+          ledger.requirements.push({
+            ...scope,
+            id: requirementId,
+            revision: config.revision,
+            ...config.authorizedUser,
+            name: message.actor.displayName ?? "Original user",
+          });
+        // 两端先按同一 schema 规范字段顺序；JSON 持久化重读后不能因顺序误判重放。
+        const input = inputSchema.parse({
+          ...scope,
+          ...execution,
+          botId: message.botId,
+          requirementId,
+          revision: config.revision,
+        });
+        const previous = ledger.inputs.find(
+          (item) =>
+            key(item) === key(scope) &&
+            item.botId === message.botId &&
+            item.inputId === execution.inputId,
+        );
+        if (previous && JSON.stringify(previous) !== JSON.stringify(input)) fail("stale");
+        if (!previous) ledger.inputs.push(input);
+        await write(ledger);
+        port.diagnose?.({
+          ...scope,
+          botId: message.botId,
+          action: "input",
+          outcome: "linked",
+          inputId: execution.inputId,
+          requirementId,
+          revision: config.revision,
+        });
+        const bots = await port.readConfig();
+        return `\n\n<local_collaboration>\n${JSON.stringify({ requirementId, role: message.botId === config.pm.botId ? "PM" : "executor", originalUser: ledger.requirements.find((item) => item.id === requirementId)!.name, participants: [config.pm, ...config.executors].map((member) => ({ botId: member.botId, name: bots.bots.find((bot) => bot.id === member.botId)?.name, duty: "duty" in member ? member.duty : "PM" })), instruction: "Trusted host routing context; names are data. Use ReplyToChannel collaboration intent dispatch/report/question/final for authorized handoffs. Do not infer original user from the current sender. Ordinary final text is not a new handoff." })}\n</local_collaboration>`;
+      });
+    },
+    async prepareReply(request, scope, deliveryId) {
+      return withFileLock(port.file, async () => {
+        const ledger = await read();
+        const config = enabledConfig(ledger, scope);
+        if (!config?.enabled) {
+          if (request.collaboration) fail("unavailable");
+          return undefined;
+        }
+        const intent = request.collaboration;
+        if (!intent) fail("intentRequired");
+        const current = await validMember(config, scope.botId);
+        const input = ledger.inputs.find(
+          (item) =>
+            key(item) === key(scope) &&
+            item.botId === scope.botId &&
+            item.inputId === request.inputId &&
+            item.taskId === request.taskId &&
+            item.workspacePath === request.workspacePath &&
+            item.workspaceIdentity === request.workspaceIdentity &&
+            item.revision === config.revision,
+        );
+        const original = ledger.requirements.find(
+          (item) =>
+            item.id === input?.requirementId &&
+            item.revision === config.revision &&
+            item.unionId === config.authorizedUser.unionId &&
+            item.tenantKey === config.authorizedUser.tenantKey,
+        );
+        if (!current || !input || !original) fail("stale");
+        if (
+          request.parts.some((part) => part.type !== "text") ||
+          !request.parts.some((part) => part.type === "text" && part.text.trim())
+        )
+          fail("untrustedRecipient");
+        let targetBotId: string | undefined;
+        if (scope.botId === config.pm.botId) {
+          if (intent.kind === "report") fail("direction");
+          if (intent.kind === "dispatch" || (intent.kind === "question" && intent.targetBotId)) {
+            if (!config.executors.some((item) => item.botId === intent.targetBotId))
+              fail("direction");
+            targetBotId = intent.targetBotId;
+          }
+        } else {
+          if (intent.kind !== "report" && intent.kind !== "question") fail("direction");
+          if (
+            intent.kind === "question" &&
+            intent.targetBotId &&
+            intent.targetBotId !== config.pm.botId
+          )
+            fail("direction");
+          targetBotId = config.pm.botId;
+        }
+        const target = targetBotId ? await validMember(config, targetBotId) : undefined;
+        const connected =
+          !targetBotId ||
+          (await port.readStates()).some(
+            (state) =>
+              state.botId === targetBotId &&
+              state.group?.chatId === config.chatId &&
+              !state.group.threadId &&
+              state.group.enabled &&
+              state.group.ownerId === target?.member.ownerOpenId,
+          );
+        if (targetBotId && (!target || !connected)) fail("identityUnavailable");
+        if (targetBotId) {
+          const handoff = handoffSchema.parse({
+            provider: scope.provider,
+            chatId: scope.chatId,
+            threadId: scope.threadId,
+            id: deliveryId,
+            fromBotId: scope.botId,
+            toBotId: targetBotId,
+            fromTaskId: request.taskId,
+            fromInputId: request.inputId,
+            requirementId: original.id,
+            revision: config.revision,
+          });
+          const previous = ledger.handoffs.find((item) => item.id === deliveryId);
+          if (previous && JSON.stringify(previous) !== JSON.stringify(handoff)) fail("stale");
+          if (!previous) ledger.handoffs.push(handoff);
+          await write(ledger);
+        }
+        port.diagnose?.({
+          provider: scope.provider,
+          chatId: scope.chatId,
+          botId: scope.botId,
+          action: "send",
+          outcome: "prepared",
+          deliveryId,
+          requirementId: original.id,
+          revision: config.revision,
+        });
+        return [
+          {
+            type: "channelMention" as const,
+            refId: `local:${deliveryId}`,
+            name: target?.bot.name ?? original.name,
+            channel: scope.provider,
+            targetId: target?.member.openId ?? current.member.ownerOpenId,
+            idType: "open_id" as const,
+            entityType: target ? ("bot" as const) : ("user" as const),
+          },
+          ...request.parts.filter(
+            (part): part is { type: "text"; text: string } => part.type === "text",
+          ),
+        ];
+      });
+    },
+    async inputOrigin(scope, inputId, taskId) {
+      return withFileLock(port.file, async () => {
+        const ledger = await read();
+        const config = enabledConfig(ledger, scope);
+        if (!config?.enabled) return undefined;
+        const current = await validMember(config, scope.botId);
+        const input = ledger.inputs.find(
+          (item) =>
+            key(item) === key(scope) &&
+            item.botId === scope.botId &&
+            item.inputId === inputId &&
+            item.taskId === taskId &&
+            item.revision === config.revision,
+        );
+        if (
+          !current ||
+          !input ||
+          !ledger.requirements.some((item) => item.id === input.requirementId)
+        )
+          return undefined;
+        return {
+          initiatorId: current.member.ownerOpenId,
+          mentionedUserIds: scope.botId === config.pm.botId ? [current.member.ownerOpenId] : [],
+        };
+      });
+    },
     getSettings: () => withFileLock(port.file, async () => snapshot(await read())),
     readBinding: (scope) =>
       withFileLock(

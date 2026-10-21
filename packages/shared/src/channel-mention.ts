@@ -1,5 +1,6 @@
 import { zcodeProtocolTraceSchema } from "./zcode-protocol/trace.js";
 import { z } from "zod";
+import { collaborationReplyIntentSchema } from "./local-collaboration/index.js";
 
 export const channelMentionSchema = z
   .object({
@@ -44,6 +45,7 @@ export const channelReplyRequestSchema = z
     authorizationId: z.string().min(1).optional(),
     toolCallId: z.string().min(1),
     parts: channelReplyPartsSchema,
+    collaboration: collaborationReplyIntentSchema.optional(),
   })
   .strict();
 const channelDeliveryResultSchema = z

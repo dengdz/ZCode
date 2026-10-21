@@ -62,6 +62,29 @@ const input = {
   ],
 };
 describe("ReplyToChannel", () => {
+  it("forwards explicit Local intent while keeping the executing input as authority", async () => {
+    const f = fixture();
+    await replyToChannelHandler(
+      {
+        parts: [{ type: "text", text: "Implement the feature" }],
+        collaboration: { kind: "dispatch", targetBotId: "app" },
+      },
+      f.context,
+    );
+    expect(f.reply.mock.calls[0]?.[0]).toMatchObject({
+      inputId: "input",
+      collaboration: { kind: "dispatch", targetBotId: "app" },
+    });
+    await expect(
+      replyToChannelHandler(
+        {
+          parts: [{ type: "text", text: "Forged" }],
+          collaboration: { kind: "final", originalUserId: "forged" },
+        },
+        f.context,
+      ),
+    ).rejects.toThrow();
+  });
   it("forwards typed names and preserves clarification without claiming delivery", async () => {
     const f = fixture();
     const clarification = {

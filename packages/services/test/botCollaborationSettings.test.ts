@@ -223,6 +223,9 @@ it("另一个Host设置窗口也不能在群输入接收期间更换授权", asy
     return [];
   });
   const inbound = service.handleInboundMessage({
+    senderType: "user",
+    senderUnionId: "on_same_person",
+    tenantKey: "tenant",
     botId: "feishu-1",
     text: "/status",
     actor: {
@@ -255,12 +258,22 @@ it("群请求使用保存的固定项目，群内workspace命令不能更改绑�
     chatType: "group" as const,
     chatId: "oc_project",
   };
-  const reply = await service.handleInboundMessage({ botId: actor.botId, actor, text: "/status" });
+  const reply = await service.handleInboundMessage({
+    senderType: "user",
+    senderUnionId: "on_same_person",
+    tenantKey: "tenant",
+    botId: actor.botId,
+    actor,
+    text: "/status",
+  });
   expect(tasks.listTasks).toHaveBeenCalledWith(
     expect.objectContaining({ workspacePath: "/other" }),
   );
   expect(reply[0]?.text).toContain("other");
   const blocked = await service.handleInboundMessage({
+    senderType: "user",
+    senderUnionId: "on_same_person",
+    tenantKey: "tenant",
     botId: actor.botId,
     actor,
     text: "/workspace",
@@ -275,6 +288,9 @@ it("关闭既有群开关后，协作设置不会在下一条消息自动重开�
   const { service } = await configured();
   await service.setGroupEnabled!({ botId: "feishu-1", chatId: "oc_project", enabled: false });
   const replies = await service.handleInboundMessage({
+    senderType: "user",
+    senderUnionId: "on_same_person",
+    tenantKey: "tenant",
     botId: "feishu-1",
     text: "/status",
     actor: {
@@ -295,6 +311,9 @@ it("角色授权版本改变后旧群卡片不能沿用原授权", async () => {
     executors: [{ botId: "executor", duty: "new duty" }],
   });
   const replies = await service.handleInboundMessage({
+    senderType: "user",
+    senderUnionId: "on_same_person",
+    tenantKey: "tenant",
     botId: "feishu-1",
     text: "/status",
     groupCardAction: true,

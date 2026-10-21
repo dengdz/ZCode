@@ -807,6 +807,7 @@ export function createBotsService(
     (deps.localCollaborationEnabled ?? ZCODE_PRODUCT_FLAVOR === "local")
       ? createBotCollaboration({
           file: join(getAppConfigDir(), "..", "local", "v1", "collaboration.json"),
+          diagnose: (event) => botsLogger.info(undefined, "Local collaboration routing", event),
           readConfig: async () => {
             const config = await repo.readConfig();
             const workspaces = await listWorkspaceRefs();
@@ -5110,6 +5111,7 @@ export function createBotsService(
     let resultInputOrigin: "desktop" | "mobile" = "desktop";
     let resultPart = 0;
     let resultMentionedUserIds: string[] | undefined;
+    let collaborationResult = false;
     const terminalRuns = new Set<string>();
     const sendTaskOutbound = async (
       targetBot: BotConfig,
@@ -5158,9 +5160,10 @@ export function createBotsService(
                 groupSourceCommandId: resultSourceCommandId,
                 groupCard: groupCardFor(actor, context),
                 replyToMessageId: actor.providerMessageId,
-                mentionedUserIds:
-                  message.mentionedUserIds ??
-                  (message.selection || resultPart === 0 ? resultMentionedUserIds : undefined),
+                mentionedUserIds: collaborationResult
+                  ? resultMentionedUserIds
+                  : (message.mentionedUserIds ??
+                    (message.selection || resultPart === 0 ? resultMentionedUserIds : undefined)),
                 ...(!message.selection && resultRunId
                   ? {
                       deliveryId: createHash("sha256")
@@ -5609,6 +5612,16 @@ export function createBotsService(
               ]
             : undefined;
           if (!resultMentionedUserIds?.length) resultMentionedUserIds = undefined;
+          const collaborationOrigin =
+            source && event.inputId && isFeishuBotProvider(bot.provider)
+              ? await collaboration?.inputOrigin(
+                  { provider: bot.provider, chatId: latest.group.chatId, botId: bot.id },
+                  event.inputId,
+                  latest.activeTaskId!,
+                )
+              : undefined;
+          collaborationResult = Boolean(collaborationOrigin);
+          if (collaborationOrigin) resultMentionedUserIds = collaborationOrigin.mentionedUserIds;
           actor = {
             ...actor,
             providerUserId: source?.senderId ?? latest.group.ownerId,
@@ -5623,7 +5636,10 @@ export function createBotsService(
                 ? (latest.group.threadId ?? null)
                 : undefined,
           };
-          context.group = { ...latest.group, initiatorId: source?.senderId };
+          context.group = {
+            ...latest.group,
+            initiatorId: collaborationOrigin?.initiatorId ?? source?.senderId,
+          };
         }
         if (event.type === "task_run_started") {
           await updateGroupInputReaction(bot, context, actor.providerMessageId, "working");
@@ -6361,7 +6377,8 @@ export function createBotsService(
           authorizationId: `local:${binding.revision}:${randomUUID()}`,
         },
       };
-      await writeContext(groupContext);
+      // 版本轮换属于显式授权更新；普通写入会按旧授权防护丢弃它，导致合法首条输入无法受理。
+      await writeContext(groupContext, true);
     }
     if (binding?.enabled) {
       const member = [binding.pm, ...binding.executors].find((member) => member.botId === bot.id);
@@ -7039,6 +7056,12 @@ export function createBotsService(
       ...(messages ? { messages } : {}),
       ...(topicContext ? { topicContext } : {}),
     };
+    const collaborationContext = await collaboration?.bindInput(message, {
+      taskId: context.activeTaskId,
+      inputId: commandId,
+      workspacePath: context.workspacePath,
+      workspaceIdentity: context.workspaceIdentity,
+    });
     const isFirstTaskInput = !Object.values(context.group.inputs ?? {}).some(
       (input) => input.taskId === context.activeTaskId,
     );
@@ -7057,7 +7080,7 @@ export function createBotsService(
     const ack = await service.submitBotGroupInput({
       taskId: context.activeTaskId,
       commandId,
-      content: prepared.content,
+      content: prepared.content + (collaborationContext ?? ""),
       ...(topicBatch
         ? {
             conversationQuotes: messages?.flatMap((entry) => entry.conversationQuotes ?? []) ?? [],
@@ -7489,7 +7512,9 @@ export function createBotsService(
       if (
         message.senderType === "app" &&
         (guard.consecutive >= 5 ||
-          (message.actor.threadId ? group.topicActive !== true : message.mentionedBot !== true))
+          (message.actor.threadId
+            ? group.topicActive !== true && (await collaboration?.authorize(message)) !== "allow"
+            : message.mentionedBot !== true))
       )
         return;
       group.autoReplyGuard = {
@@ -8645,6 +8670,9 @@ export function createBotsService(
     },
     async replyToChannel(request) {
       return replyToBotChannel(request, {
+        prepare: collaboration
+          ? (request, scope, id) => collaboration.prepareReply(request, scope, id)
+          : undefined,
         readState: () => repo.readState(),
         readConfig: () => repo.readConfig(),
         listMembers: async (bot, chatId) => {
@@ -8841,6 +8869,21 @@ export function createBotsService(
           ),
         ];
       }
+      const collaborationAdmission = await collaboration?.authorize(message);
+      if (collaborationAdmission === "redirect" || collaborationAdmission === "deny") {
+        if (message.senderType === "app") return [];
+        return [
+          createOutbound(
+            message.actor,
+            msg(
+              await readMessageLocale(),
+              collaborationAdmission === "redirect"
+                ? "collaborationViaPm"
+                : "collaborationUnauthorized",
+            ),
+          ),
+        ];
+      }
       if (message.senderType === "app") {
         // 机器人只能使用真人已启用的群/话题；原生 @ 可触发普通群输入，不能获取控制权限。
         if (
@@ -8849,12 +8892,20 @@ export function createBotsService(
           message.elicitationResponse
         )
           return [];
-        const topic = (await repo.readState()).bots[
-          getBotConversationKey({ ...message.actor, conversationThreadId: undefined })
-        ];
+        const botState = (await repo.readState()).bots;
+        let topic =
+          botState[getBotConversationKey({ ...message.actor, conversationThreadId: undefined })];
+        if (!topic && message.actor.threadId && collaborationAdmission === "allow") {
+          // 首次可信派单可沿既有 readContext 创建话题；显式停用的已有话题不可借此重开。
+          const bot = findBot(await repo.readConfig(), message.botId);
+          if (bot)
+            topic =
+              (await readContext({ ...message.actor, conversationThreadId: undefined }, bot)) ??
+              undefined;
+        }
         if (!topic?.group?.enabled) return [];
         if (message.actor.threadId) {
-          if (topic.group.topicActive !== true) return [];
+          if (topic.group.topicActive !== true && collaborationAdmission !== "allow") return [];
         } else if (message.mentionedBot !== true || topic.group.chatMode === "topic") {
           return [];
         }

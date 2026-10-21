@@ -1633,6 +1633,8 @@ TUI 与 headless（`--prompt`、`--target`）没有 Host 下发灰度 mode，改
 
 ## ReplyToChannel（2026-09-23）
 
+2026-10-21 Local 05：工具增加可选 collaboration 意图（dispatch/report/question/final，派单显式目标本机 botId）；严格 schema 沿 handler → TopicResourcePort → Host channelReply 传递，执行 inputId 仍从工具所属 assistant 的实际 parent 输入解析。启用协作的群必须提供意图，Host 从 Local 原需求/输入归属及当前配置选择原生收件人，拒绝模型传平台 ID、冒充原用户或跨方向发送；原普通群无意图调用保持兼容。正文只允许 text parts，由 Host 构造提及，具体职责声明校验归后续 06。普通终答不自动视作交接；不新增 accepted queue 或第二个投递所有者。
+
 工具用当前任务绑定会话已确认的 mention refId 发送原生提及，包括客户端续聊引用历史目标；不接收群 ID、应用 ID 或裸用户 ID。
 2026-10-08：新增 mentionName（name、可选 candidateRef），由 Host 在当前授权会话查询真实身份。
 输入 schema/模型工具 schema/描述 → 当前执行输入 → 现有 reply port/协议 → Host 查询与复核

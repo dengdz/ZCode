@@ -1,10 +1,19 @@
 import { z } from "zod";
-import { channelReplyPartsSchema, channelReplyResultSchema } from "@zcode/shared";
+import {
+  channelReplyPartsSchema,
+  channelReplyResultSchema,
+  collaborationReplyIntentSchema,
+} from "@zcode/shared";
 import type { SessionId } from "@zcode/contracts";
 
 import type { ToolEntry, ToolHandler } from "../types.js";
 
-const inputSchema = z.object({ parts: channelReplyPartsSchema }).strict();
+const inputSchema = z
+  .object({
+    parts: channelReplyPartsSchema,
+    collaboration: collaborationReplyIntentSchema.optional(),
+  })
+  .strict();
 const TIMEOUT_MS = 60_000;
 // 最多 50 个名字各返回 10 个候选，预算需容纳完整澄清结果，避免截断后误报匹配。
 const OUTPUT_BYTES = 2 * 1024 * 1024;
@@ -44,6 +53,7 @@ export const replyToChannelHandler: ToolHandler = async (input, context) => {
       inputId: identity.data.sourceCommandId,
       toolCallId: context.toolCallId,
       parts: parsed.parts,
+      ...(parsed.collaboration ? { collaboration: parsed.collaboration } : {}),
     },
     { signal: context.abortSignal, trace: context.traceContext },
   );
@@ -54,6 +64,7 @@ export const replyToChannelToolEntry: ToolEntry = {
     shouldDefer: true,
     name: "ReplyToChannel",
     description:
+      "When trusted Local collaboration context is present, use collaboration dispatch/report/question/final with text-only parts and configured targetBotId. These group handoffs are authorized by the configured user; Host verifies the executing input, direction and original recipient. Do not invent platform IDs, origin or task linkage. Outside that Local context, follow the ordinary reply rules below. " +
       "Send an additional reply to the current Feishu/Lark conversation ONLY when the user explicitly asks you to send or mention someone. No additional tool approval is needed for this authorized conversation. Prefer trusted mention refIds; when the user supplies only a name, use mentionName and let Host resolve the current group directory and trusted task mentions. Preserve spaces inside a full name (Alex Smith is one recipient); split multiple recipients only on explicit list delimiters such as 、, commas, or newlines, never whitespace alone. Host uses name containment and automatically selects a unique candidate or a unique exact name among multiple matches. Never guess platform IDs. needs_clarification lists ALL unresolved names after checking every requested name and means NOTHING was sent. Only report the returned facts; never claim delivery or invent a match. Keep all original recipients when retrying after clarification: show candidate labels and ask the user to choose; never select an ambiguous candidate yourself. After an explicit choice use a new call with name and the returned candidateRef. For not_found/unavailable/selection_expired or truncated candidates, explain the issue and ask for a native @ mention. Group member APIs do not enumerate bots; unknown bots need a native mention first. Normal final answers are delivered automatically. After sent, do not duplicate that request. A sent message does not mean another bot responded.",
     readOnly: false,
     destructive: false,
@@ -71,6 +82,23 @@ export const replyToChannelToolEntry: ToolEntry = {
     additionalProperties: false,
     required: ["parts"],
     properties: {
+      collaboration: {
+        type: "object",
+        additionalProperties: false,
+        required: ["kind"],
+        description:
+          "Only with trusted Local collaboration context. Host derives origin and native recipient; use text-only parts. dispatch requires targetBotId; report goes to PM; final goes to original user. Do not invent origin or platform IDs.",
+        properties: {
+          kind: { type: "string", enum: ["dispatch", "report", "question", "final"] },
+          targetBotId: {
+            type: "string",
+            minLength: 1,
+            maxLength: 250,
+            description:
+              "Configured botId from trusted Local context; required for dispatch, optional for PM question to executor.",
+          },
+        },
+      },
       parts: {
         type: "array",
         minItems: 1,
