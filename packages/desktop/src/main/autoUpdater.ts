@@ -9,6 +9,7 @@ import {
   DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   PlatformChannels,
   ZCODE_VERSION,
+  ZCODE_PRODUCT_FLAVOR,
   desktopMenuMessageIds,
   formatDesktopMenuMessage,
   getDesktopMenuMessage,
@@ -172,7 +173,8 @@ function isDevAutoUpdateEnabled(): boolean {
 }
 
 function canUseAutoUpdaterInCurrentRuntime(): boolean {
-  return app.isPackaged || isDevAutoUpdateEnabled();
+  // Local 必须在更新器自身拒绝官方包，避免漏改入口或开发态开关绕过主进程策略。
+  return ZCODE_PRODUCT_FLAVOR !== "local" && (app.isPackaged || isDevAutoUpdateEnabled());
 }
 
 function shouldRelaunchForDevAutoUpdateInstall(): boolean {
@@ -439,6 +441,10 @@ function buildDownloadProgressState(
 }
 
 async function quitAndInstallUpdate(rejectUnavailable = false) {
+  if (ZCODE_PRODUCT_FLAVOR === "local") {
+    if (rejectUnavailable) throw new Error("Official updates are disabled for ZCode Local");
+    return;
+  }
   if (quitAndInstallState !== "idle") {
     logger.info("[auto-update] quitAndInstall already in flight");
     return;
@@ -1606,7 +1612,7 @@ export async function acknowledgePostUpdateReleaseNotes(
 }
 
 export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Promise<void> {
-  if (options.enabled === false) {
+  if (options.enabled === false || ZCODE_PRODUCT_FLAVOR === "local") {
     autoUpdaterDisabledForProductFlavor = true;
     if (autoUpdatePollTimer) {
       clearInterval(autoUpdatePollTimer);

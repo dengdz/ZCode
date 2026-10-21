@@ -12,6 +12,35 @@ import {
 } from "../scripts/desktop-product-identity.mjs";
 
 describe("desktop product identity", () => {
+  it("Local 构建在两个后端环境均使用独立安装身份", () => {
+    for (const backend of ["production", "test"]) {
+      const env = { ZCODE_ENV: backend, ZCODE_LOCAL_IDENTITY: "1" };
+      expect(resolveDesktopProductIdentity(env)).toEqual({
+        flavor: "local",
+        appId: "dev.zcode.app.local",
+        productName: "ZCode Local",
+        linuxExecutableName: "zcode-local",
+        linuxPackageName: "zcode-local",
+        cuaHelperInstallVariant: "local",
+      });
+      expect(resolveWindowsAppUserModelId(env)).toBe("dev.zcode.app.local");
+    }
+  });
+
+  it("Local 开关拒绝歧义身份与非法拼写，关闭时保留原身份", () => {
+    for (const flag of ["true", "yes", "2"]) {
+      expect(() => resolveDesktopProductFlavor({ ZCODE_LOCAL_IDENTITY: flag })).toThrow(
+        /expected 1 or 0/,
+      );
+    }
+    expect(() =>
+      resolveDesktopProductFlavor({ ZCODE_LOCAL_IDENTITY: "1", ZCODE_PREVIEW_IDENTITY: "1" }),
+    ).toThrow(/mutually exclusive/);
+    expect(
+      resolveDesktopProductFlavor({ ZCODE_ENV: "production", ZCODE_LOCAL_IDENTITY: "0" }),
+    ).toBe("production");
+  });
+
   it("根锁文件的发布版本与构建版本一致", () => {
     // 合并上游发布提交只对齐当前版本，不恢复上游旧版本，也不重算依赖锁。
     const readRootJson = (name: string) =>

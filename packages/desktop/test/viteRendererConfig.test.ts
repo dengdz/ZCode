@@ -148,4 +148,19 @@ describe("desktop renderer Vite dependency aliases", () => {
       __ZCODE_PRODUCT_FLAVOR__: JSON.stringify("preview"),
     });
   });
+  it("Local renderer 与 Main 使用相同的编译身份", async () => {
+    vi.stubEnv("ZCODE_ENV", "production");
+    vi.stubEnv("ZCODE_LOCAL_IDENTITY", "1");
+    const desktopRoot = resolve(import.meta.dirname, "..");
+    const result = await loadConfigFromFile(
+      { command: "build", mode: "production", isPreview: false, isSsrBuild: false },
+      resolve(desktopRoot, "vite.config.ts"),
+      desktopRoot,
+      "silent",
+    );
+    expect(result?.config.define).toMatchObject({
+      __ZCODE_ENV__: JSON.stringify("production"),
+      __ZCODE_PRODUCT_FLAVOR__: JSON.stringify("local"),
+    });
+  });
 });

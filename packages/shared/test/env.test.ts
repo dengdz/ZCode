@@ -6,6 +6,17 @@ async function importFreshEnvModule() {
 }
 
 describe("shared runtime env", () => {
+  it("Local 的编译身份不会降为官方版，即使注入更新能力也保持关闭", async () => {
+    vi.stubGlobal("__ZCODE_ENV__", "production");
+    vi.stubGlobal("__ZCODE_PRODUCT_FLAVOR__", "local");
+    vi.stubGlobal("__ZCODE_AUTO_UPDATE_ENABLED__", true);
+
+    const env = await importFreshEnvModule();
+
+    expect(env.ZCODE_PRODUCT_FLAVOR).toBe("local");
+    expect(env.ZCODE_ENV).toBe("production");
+    expect(env.ZCODE_AUTO_UPDATE_ENABLED).toBe(false);
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
   });

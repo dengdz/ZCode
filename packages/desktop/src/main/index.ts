@@ -2202,8 +2202,8 @@ app.whenReady().then(async () => {
   logWindowsBundledRuntimeIntegrityDiagnostic();
 
   // 启动自动更新检查（后台执行，不阻塞主界面）
-  // Preview 身份无论连接哪个后端都不自动更新：stable feed 上只分发正式 ZCode 安装包，
-  // 不向 Preview 渠道提供更新。构建期未启用自动更新时同样不更新
+  // 仅官方身份可以接收官方包；Preview 和 Local 均不能通过官方更新器替换自身。
+  // 构建期未启用自动更新时同样不更新。
   // （见 docs/desktop/build-time-optional-capabilities.md）。
   void initAutoUpdater({
     enabled: ZCODE_PRODUCT_FLAVOR === "production" && ZCODE_AUTO_UPDATE_ENABLED,
@@ -2531,7 +2531,7 @@ app.whenReady().then(async () => {
         })
       : { blocked: false };
   if (ZCODE_PRODUCT_FLAVOR !== "production") {
-    logger.info("[force-update] Preview 跳过远端强制升级检查");
+    logger.info(`[force-update] ${ZCODE_PRODUCT_FLAVOR} 跳过远端强制升级检查`);
   } else if (skipForceUpdateForLocalDevRuntime) {
     logger.info("[force-update] 本地 dev 构建（未打包）跳过远端强制升级检查");
   }

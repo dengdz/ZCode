@@ -8,6 +8,7 @@ const envMock = vi.hoisted(() => ({
   isPackaged: false,
   locale: "en-US",
   preferredSystemLanguages: [] as string[],
+  productFlavor: undefined as string | undefined,
 }));
 
 vi.mock("electron", () => ({
@@ -100,7 +101,7 @@ vi.mock("@zcode/shared", () => ({
   },
   // 身份跟随后端环境的旧单轴语义：test → preview，production → production。
   get ZCODE_PRODUCT_FLAVOR() {
-    return envMock.value === "production" ? "production" : "preview";
+    return envMock.productFlavor ?? (envMock.value === "production" ? "production" : "preview");
   },
   getDesktopMenuMessage: (_locale: string, id: string) => {
     const enLabels: Record<string, string> = {
@@ -241,6 +242,21 @@ describe("desktopApplicationMenu endpoint submenu", () => {
       -1,
     )?.[0] as Electron.MenuItemConstructorOptions[];
     expect(findMenuItem(template, undefined, "check-for-update")).toBeTruthy();
+  });
+
+  it("连接生产后端的 Local 菜单不提供官方更新入口", async () => {
+    envMock.value = "production";
+    envMock.productFlavor = "local";
+    try {
+      const { rebuildApplicationMenu } = await import("../src/main/desktopApplicationMenu.js");
+      rebuildApplicationMenu({ currentApplicationLocale: "en-US", executeDesktopCommand: vi.fn() });
+      const template = buildFromTemplateMock.mock.calls.at(
+        -1,
+      )?.[0] as Electron.MenuItemConstructorOptions[];
+      expect(findMenuItem(template, undefined, "check-for-update")).toBeUndefined();
+    } finally {
+      envMock.productFlavor = undefined;
+    }
   });
 
   it("开发运行形态也隐藏已下线的压测开关", async () => {

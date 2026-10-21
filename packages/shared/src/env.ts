@@ -2,7 +2,7 @@ import type { ZCodeRuntimeEnv } from "./runtimeEnv.js";
 
 export type ZCodeEnv = "test" | "production";
 /** 安装包身份：决定应用名、app id、Electron 数据目录与更新策略；与后端环境 `ZCodeEnv` 是两个轴。 */
-export type ZCodeProductFlavor = "production" | "preview";
+export type ZCodeProductFlavor = "production" | "preview" | "local";
 export type ArmsRumEnv = "local" | "prod";
 
 // 非构建环境（如 e2e 测试的 mocha）下 define 不存在，用 typeof 检查 + fallback 避免 ReferenceError
@@ -22,7 +22,7 @@ export const ZCODE_ENV = normalizeZCodeEnv(
 
 /**
  * 身份缺省跟随后端环境（test → preview，production → production）。
- * 桌面构建通过 `ZCODE_PREVIEW_IDENTITY=1` 显式注入 preview，得到连接生产后端的 Preview 包；
+ * 桌面构建可显式注入 preview / local 身份，两者均独立于后端环境；
  * 未注入 define 的 bundle（web、CLI、测试）沿用旧的单轴语义。
  */
 export function normalizeZCodeProductFlavor(
@@ -30,7 +30,7 @@ export function normalizeZCodeProductFlavor(
   zcodeEnv: ZCodeEnv,
 ): ZCodeProductFlavor {
   const normalized = value?.trim().toLowerCase();
-  if (normalized === "production" || normalized === "preview") {
+  if (normalized === "production" || normalized === "preview" || normalized === "local") {
     return normalized;
   }
   return zcodeEnv === "production" ? "production" : "preview";
@@ -59,7 +59,8 @@ export const ZCODE_TELEMETRY_REPORT_ENDPOINT: string =
     : "";
 /** 桌面自动更新是否启用。 */
 export const ZCODE_AUTO_UPDATE_ENABLED: boolean =
-  typeof __ZCODE_AUTO_UPDATE_ENABLED__ !== "undefined" ? __ZCODE_AUTO_UPDATE_ENABLED__ : false;
+  ZCODE_PRODUCT_FLAVOR !== "local" &&
+  (typeof __ZCODE_AUTO_UPDATE_ENABLED__ !== "undefined" ? __ZCODE_AUTO_UPDATE_ENABLED__ : false);
 
 /** 将本地运行态与编译期 ZCODE_ENV 映射为 ARMS 控制台识别的上报环境标签 */
 export function mapZCodeEnvToArmsRumEnv(runtimeEnv: ZCodeRuntimeEnv): ArmsRumEnv {

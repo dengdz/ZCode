@@ -989,6 +989,22 @@ describe("desktopRuntimeEnv runtime identity", () => {
     expect(runtimeSessionDataPath).toBe(join("/mock/appData", "ZCode Preview", "session"));
   });
 
+  it("Local 安装后无需构建开关，名称、缓存与 Helper 身份保持独立", async () => {
+    appMock.isPackaged = true;
+    Object.defineProperty(process, "resourcesPath", {
+      value: "/mock/resources",
+      configurable: true,
+    });
+    productFlavorMock.value = "local";
+    const env = await import("../src/main/desktopRuntimeEnv.js");
+
+    expect(env.runtimeApplicationName).toBe("ZCode Local");
+    expect(env.runtimeUserDataPath).toBe(join("/mock/appData", "ZCode Local"));
+    expect(env.runtimeSessionDataPath).toBe(join("/mock/appData", "ZCode Local", "session"));
+    expect(env.isPreviewPackagedRuntime).toBe(false);
+    expect(env.buildHostProcessEnv({}).ZCODE_CUA_HELPER_INSTALL_VARIANT).toBe("local");
+  });
+
   it("e2e 可保留 Chromedriver 注入的 Electron userData 目录", async () => {
     process.env["ZCODE_DESKTOP_USE_ELECTRON_DEFAULT_USER_DATA"] = "1";
     appMock.getPath.mockImplementation((name: string) => {

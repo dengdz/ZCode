@@ -4,6 +4,7 @@
  * 可与正式版并排安装的 `ZCode Preview`。
  */
 export const ZCODE_PREVIEW_IDENTITY_ENV = "ZCODE_PREVIEW_IDENTITY";
+export const ZCODE_LOCAL_IDENTITY_ENV = "ZCODE_LOCAL_IDENTITY";
 
 const PRODUCTION_IDENTITY = Object.freeze({
   flavor: "production",
@@ -23,9 +24,19 @@ const PREVIEW_IDENTITY = Object.freeze({
   cuaHelperInstallVariant: "preview",
 });
 
+const LOCAL_IDENTITY = Object.freeze({
+  flavor: "local",
+  appId: "dev.zcode.app.local",
+  productName: "ZCode Local",
+  linuxExecutableName: "zcode-local",
+  linuxPackageName: "zcode-local",
+  cuaHelperInstallVariant: "local",
+});
+
 export const desktopProductIdentities = Object.freeze({
   production: PRODUCTION_IDENTITY,
   preview: PREVIEW_IDENTITY,
+  local: LOCAL_IDENTITY,
 });
 
 function normalizeDesktopZCodeEnv(env) {
@@ -38,26 +49,37 @@ function normalizeDesktopZCodeEnv(env) {
  * 避免 `true` 之类在 YAML 路由层漏匹配、却在脚本层被当成开启，把 Preview 包打进生产验收目录。
  */
 export function isPreviewIdentityRequested(env = process.env) {
-  const value = env[ZCODE_PREVIEW_IDENTITY_ENV]?.trim() ?? "";
+  return isIdentityRequested(env, ZCODE_PREVIEW_IDENTITY_ENV);
+}
+
+function isIdentityRequested(env, name) {
+  const value = env[name]?.trim() ?? "";
   if (value === "1") {
     return true;
   }
   if (value === "" || value === "0") {
     return false;
   }
-  throw new Error(
-    `invalid ${ZCODE_PREVIEW_IDENTITY_ENV}=${env[ZCODE_PREVIEW_IDENTITY_ENV]}; expected 1 or 0`,
-  );
+  throw new Error(`invalid ${name}=${env[name]}; expected 1 or 0`);
 }
 
 /**
  * 产品身份（flavor）与后端环境（`ZCODE_ENV`）是两个轴：
- * - `ZCODE_ENV=test` 一律是 Preview，测试后端不能顶着正式 `ZCode` 身份覆盖用户的正式安装；
+ * - 显式 `ZCODE_LOCAL_IDENTITY=1` 使用独立 Local 身份，与 Preview 开关互斥；
+ * - 未选 Local 的 `ZCODE_ENV=test` 使用 Preview，测试后端不能覆盖正式安装；
  * - `ZCODE_ENV=production` 默认是正式身份，显式 `ZCODE_PREVIEW_IDENTITY=1` 时改用 Preview 身份。
  * 未知 `ZCODE_ENV` 继续按 test 处理，和共享层 normalizeZCodeEnv 的 fail-safe 默认值一致。
  */
 export function resolveDesktopProductFlavor(env = process.env) {
-  if (isPreviewIdentityRequested(env)) {
+  const local = isIdentityRequested(env, ZCODE_LOCAL_IDENTITY_ENV);
+  const preview = isPreviewIdentityRequested(env);
+  if (local && preview) {
+    throw new Error("Local and Preview identities are mutually exclusive");
+  }
+  if (local) {
+    return "local";
+  }
+  if (preview) {
     return "preview";
   }
   return normalizeDesktopZCodeEnv(env) === "production" ? "production" : "preview";
@@ -86,7 +108,7 @@ export function resolveWindowsAppUserModelIdForFlavor(flavor, runtime = { isPack
   if (runtime.isPackaged === false) {
     return "cn.aminer.zcode";
   }
-  return desktopProductIdentities[flavor === "preview" ? "preview" : "production"].appId;
+  return (desktopProductIdentities[flavor] ?? PRODUCTION_IDENTITY).appId;
 }
 
 export function resolveWindowsAppUserModelId(env = process.env, runtime = { isPackaged: true }) {

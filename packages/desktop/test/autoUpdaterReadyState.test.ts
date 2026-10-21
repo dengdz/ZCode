@@ -261,6 +261,32 @@ describe("autoUpdater ready state sync", () => {
     );
   });
 
+  it("Local 直接调用更新入口也不能检查、下载或强更官方包", async () => {
+    vi.stubGlobal("__ZCODE_PRODUCT_FLAVOR__", "local");
+    try {
+      process.env["ZCODE_AUTO_UPDATE_DEV"] = "1";
+      const updater = await import("../src/main/autoUpdater.js");
+      await updater.initAutoUpdater({ enabled: true });
+      updater.downloadAvailableUpdate("local-probe");
+      updater.requestForceAutoUpdate(vi.fn());
+      updater.requestAutoUpdateCheckWithoutWindow();
+      updater.refreshAutoUpdaterReleaseChannel(false);
+      updater.checkForUpdateMenuClick({
+        isDestroyed: () => false,
+        webContents: { send: vi.fn() },
+      } as never);
+
+      expect(autoUpdaterMock.setFeedURL).not.toHaveBeenCalled();
+      expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled();
+      expect(autoUpdaterMock.downloadUpdate).not.toHaveBeenCalled();
+      expect(autoUpdaterMock.quitAndInstall).not.toHaveBeenCalled();
+      expect(ipcMainHandle).not.toHaveBeenCalled();
+      expect(ipcMainOn).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("Preview 禁用更新器后，漏改的手动检查入口也不能触碰未初始化的 updater", async () => {
     // Bugfix: 托盘/命令入口若仍按 ZCODE_ENV 放行，会对占位 feed 发真实 checkForUpdates；
     // 禁用语义必须在 autoUpdater 模块内 fail-closed，而不是依赖每个调用点各自判断。
