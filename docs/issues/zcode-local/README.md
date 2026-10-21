@@ -4,7 +4,7 @@
 
 父规格：[ZCode Local spec](../../local-edition/spec.md)。[已确认拆分](../../local-edition/ticket-plan.md)。父 Issue 保持不变，执行状态以各子工单为准。
 
-当前集成分支：`3.16.2-local.1`。01–04 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 正在实施；日常安装与数据切换继续受后续工单门禁约束。
+当前集成分支：`3.16.2-local.1`。01–05 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)；日常安装与数据切换继续受后续工单门禁约束。
 
 执行策略：按编号一次一票。用户于 2026-10-21 请求「继续 05」，10-22 再确认「继续」；本轮只处理 05，不自动进入 06。普通提交沿用既有授权；远端 fork 尚未配置，不向官方 origin 推送，真实切换和用户验收遵守 spec 条件。
 
@@ -30,6 +30,8 @@
 | 18 | [完成整体回归与真实群只读验收](18-end-to-end-acceptance.md) | 13、17 |
 
 ## Progress
+
+- 2026-10-22：05 完成。实现 `7317fa0e`，补正 `1a46a276`；可信用户→PM→执行者→PM→用户短链、原需求归属与最终原生提及落地；默认群/话题及发送前撤销覆盖。339 项相关回归、15 项 CLI、类型/Lint/架构、固定官网 Reader 通过；两路审查全部关闭。一次全量 20023 通过、3 环境失败、10 跳过（既有固定 5173 被其他项目占用），未记全绿。未更新安装候选；按逐票要求结束，06 未开始。
 
 - 2026-10-21：04 完成。实现 `862ae473`，补正 `766cec7d`；群角色/职责/可信用户/固定项目设置、原生核验及安全撤销落地。31 项定向、295 项相关回归、5 项 Electron/生产 RPC 界面场景及固定官网 Reader 通过，类型/Lint/架构通过；两路审查全部关闭。全量 19998 通过、3 失败、10 跳过，失败为其他项目占用既有测试固定端口，未记全绿。未更新 02 安装候选，05 未开始。
 - 2026-10-21：03 完成。用户接受两版均经受控入口，原始官网应用保留；启动保护含 home 与显式业务根。17 项相关测试、43 项既有存储回归、固定官网 Reader 与八次实际应用启动通过。全量曾有 1 项既有文件监听超时，独立重跑通过，原始失败如实保留；两路审查 1 项 P2 已补正关闭。本轮按逐票要求结束，04 未开始。

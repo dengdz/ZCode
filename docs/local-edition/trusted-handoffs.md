@@ -1,8 +1,8 @@
 # 05 可信交接与原需求用户归属
 
-Status: in-progress
+Status: done
 
-工单：[05](../issues/zcode-local/05-trusted-handoffs.md)。父规格固定 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387`，未改写。源码起点 `d17b18ce`，集成分支 `3.16.2-local.1`。
+工单：[05](../issues/zcode-local/05-trusted-handoffs.md)。父规格固定 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387`，未改写。源码起点 `d17b18ce`，集成分支 `3.16.2-local.1`。实现 `7317fa0e`，审查补正 `1a46a276`；本报告及工单归档另行正常提交。
 
 ## 交付行为
 
@@ -35,22 +35,33 @@ Node 24.14.0、pnpm 10.33.2；全部使用临时存储及虚构身份。Provider
 | 固定官网 Reader | 对默认群及话题真实短链产生的隔离 Bot v3 文件，以官方 3c5b2276 独立 worktree Repo 读取并写回；Local 读回及索引逐字保留均通过。只验证 Bot 文件，SQLite 沿用 03/04 证据 |
 | 类型/Lint/架构 | 补正后根类型检查、CLI core 类型通过；根 Lint 0 errors、96 条既有警告，CLI Lint 0 errors、69 条警告（另 13 项原样上游行数存量）；架构 0 新违规，代码格式通过 |
 | 全量 | 实现检查点启动的一次全量：2059 文件通过、1 文件失败、2 文件跳过；20023 项通过、3 项失败、10 项跳过，347.49 秒。3 项均为既有 webRemoteControlAuthGateFixture 固定 5173 被其他项目开发进程占用；未改测试、未停止其他项目，未记全绿。随后审查补正以 339 项相关回归验证，未重复全量 |
-| 两路审查 | 首轮 Standards 2 项 P2、Spec 1 项 P1，补正后待独立复审 |
+| 两路审查 | 首轮 Standards 2 项 P2、Spec 1 项 P1，补正后独立复审全部关闭，最终 0 项遗留；Spec 原竞态探针不改断言独立重跑 1 项通过 |
 
-本机原日志位于 `~/.local/share/zcode-local/research/issue-05/`。红证据包含 `authorization-red.log`、`pm-admission-red.log`、`dispatch-red.log`、`chain-red.log`、`thread-replay-red.log`、`stopped-red.log`、`target-red.log`；夹具准备失败不当作产品红证据，最终结果以对应 green/最终日志为准。
+本机原日志位于 `~/.local/share/zcode-local/research/issue-05/`。红证据包含 `authorization-red.log`、`pm-admission-red.log`、`dispatch-red.log`、`chain-red.log`、`thread-replay-red.log`、`stopped-red.log`、`target-red.log`；夹具准备失败不当作产品红证据，最终结果以对应 green/最终日志为准。补正回归 `related-review.log`，身份红证据 `identity-red.log`，发送竞态 `send-race-red.log` 与 `review-second-green.log`；独立竞态复审 `spec-race-probe/retest.log`。固定 Reader 为 `frozen-group.log`、`frozen-topic.log`、`local-group-reader.log`、`local-topic-reader.log`；全量和端口归属分别为 `full-unit.log`、`full-failure-port-owner.log`。类型、Lint、架构、格式见 `typecheck-final-head.log`、`lint-review.log`、`cli-lint.log`、`architecture-review-second.log`、`format-review.log`、`cli-format.log`。
 
 ## Standards
 
-首轮 2 项 P2：工作区身份原值比较误拒等价 key，逐消息诊断使用 info。已沿用统一身份 key 并补三类发送回归，日志改为 debug。生产结果仍可从原投递事实及 Local 关联记录核查。独立复审待收尾。
+首轮 2 项 P2：工作区身份原值比较误拒等价 key，逐消息诊断使用 info。已沿用统一身份 key 并补三类发送回归，日志改为 debug。生产结果仍可从原投递事实及 Local 关联记录核查。独立复审确认两项关闭，无新增规范问题。
 
 ## Spec
 
-首轮 1 项 P1：准备后目标授权撤销仍可能实际发送。现由原投递 owner 在最后发送检查中重读 Local 版本、来源及目标授权，撤销进入 invalidated 终态；同一 owner 不再将授权失效当作网络 failed 重试。三类并发撤销从红转绿，独立复审待收尾。
+首轮 1 项 P1：准备后目标授权撤销仍可能实际发送。现由原投递 owner 在最后发送检查中重读 Local 版本、来源及目标授权，撤销进入 invalidated 终态；同一 owner 不再将授权失效当作网络 failed 重试。三类并发撤销从红转绿，独立复审确认关闭，原仓库外探针实际 0 次发送、invalidated 回执，退出码 0。
 
-审查汇总：Standards 首轮 2 项 P2，Spec 首轮 1 项 P1；补正后待复审关闭。
+审查汇总：Standards 首轮 2 项 P2，最终 0 项；Spec 首轮 1 项 P1，最终 0 项。全量的环境失败独立保留。
 
 ## 本票边界
 
 合成短链证明机制，不能证明真实 PM 模型已能正确拆单、审核或长期推进。职责语义校验、完整静默、候选卡片、项目串行、长链、真实停止、恢复及用户验收仍在 06–13/18。本票不改变桌面持续流与手机可恢复链、Host owner/lease 或 CLI CommandInbox。
 
 未连接真实群、未读取日常凭据、未安装或重启日常应用。02 已签名候选仍是 02 源码，不包含 04/05；日常安装与切换按后续工单推进。
+
+## 复验入口
+
+在本机固定 Node 24.14.0 与 pnpm 10.33.2 后，从仓库运行以下范围；测试默认使用临时数据，不接管日常机器人。
+
+```sh
+pnpm exec vitest run packages/services/test/botCollaborationHandoffs.test.ts packages/services/test/botCollaborationSettings.test.ts packages/services/test/channelReply.test.ts packages/services/test/botGroupDelivery.test.ts
+pnpm --dir apps/zcode-cli --filter @zcode/core exec vitest run tests/reply-to-channel.test.ts tests/channel-reply-permission.test.ts
+```
+
+首条补正后为 95 项，CLI 为 15 项。完整 339 项相关范围见私有日志；全量未通过的原因与结果保持上述披露，不以定向通过替代全量通过。
