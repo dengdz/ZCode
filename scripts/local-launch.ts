@@ -15,12 +15,12 @@ async function main() {
     }
     if (arg === "--help") {
       console.log(
-        "local:launch --edition official|local [--home PATH] [--official-app PATH] [--local-app PATH] -- [application arguments]",
+        "local:launch --edition official|local [--home PATH] [--data-root PATH] [--official-app PATH] [--local-app PATH] -- [application arguments]",
       );
       return;
     }
     if (
-      !["--edition", "--home", "--official-app", "--local-app"].includes(arg) ||
+      !["--edition", "--home", "--data-root", "--official-app", "--local-app"].includes(arg) ||
       !args[i + 1] ||
       args[i + 1]!.startsWith("--")
     )
@@ -34,6 +34,7 @@ async function main() {
   const result = await localLaunch.run({
     edition: edition as LocalLaunchEdition,
     home: values["--home"] ?? homedir(),
+    dataRoot: values["--data-root"],
     applications: {
       official: values["--official-app"] ?? "/Applications/ZCode.app",
       local: values["--local-app"] ?? "/Applications/ZCode Local.app",
@@ -43,9 +44,11 @@ async function main() {
   console.log(JSON.stringify(result));
   if (result.kind === "blocked")
     console.error(
-      result.reason === "occupied"
-        ? "另一版本仍占用业务数据，请完全退出后重试；所选应用未启动。"
-        : "启动状态未确认，拒绝接管；请先核对原应用与启动入口状态。",
+      result.reason === "data-root-mismatch"
+        ? "设置的数据目录与本次选择不一致，请用 --data-root 显式指定；所选应用未启动。"
+        : result.reason === "occupied"
+          ? "另一版本仍占用业务数据，请完全退出后重试；所选应用未启动。"
+          : "启动状态未确认，拒绝接管；请先核对原应用与启动入口状态。",
     );
   if (result.kind === "unconfirmed")
     console.error("应用已退出，但子进程状态未确认；占用记录保留，禁止启动另一版。");

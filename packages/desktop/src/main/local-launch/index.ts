@@ -121,6 +121,41 @@ async function processGroupEnded(pid: number): Promise<boolean> {
   return false;
 }
 
+async function canonicalPath(path: string): Promise<string> {
+  return realpath(path).catch((error) => {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return resolve(path);
+    throw error;
+  });
+}
+
+async function selectedDataRoot(home: string, requested: string | undefined) {
+  let settings: { dataBaseDir?: unknown } = {};
+  try {
+    settings = JSON.parse(await readFile(join(home, ".zcode/v2/setting.json"), "utf8"));
+    if (!settings || typeof settings !== "object" || Array.isArray(settings))
+      throw new Error("Unconfirmed bootstrap settings");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  // 官网 bootstrap 的 setDataBaseDir 优先于环境变量；未显式选择的重定向不能加载到候选。
+  const saved = settings.dataBaseDir;
+  if (saved !== undefined && (typeof saved !== "string" || !saved.trim()))
+    throw new Error("Unconfirmed saved data root");
+  const actual = await canonicalPath(
+    resolve(home, typeof saved === "string" ? saved.trim() : home),
+  );
+  return actual === (await canonicalPath(resolve(home, requested ?? home))) ? actual : null;
+}
+
+async function withOwnerLocks<T>(
+  files: readonly string[],
+  operation: () => Promise<T>,
+): Promise<T> {
+  const next = (index: number): Promise<T> =>
+    index === files.length ? operation() : withFileLock(files[index]!, () => next(index + 1));
+  return next(0);
+}
+
 export const localLaunch: LocalLaunchContract = {
   async run(input) {
     if (process.platform !== "darwin")
@@ -128,7 +163,18 @@ export const localLaunch: LocalLaunchContract = {
     const executable = await resolveApplication(input.applications[input.edition], input.edition);
     await mkdir(input.home, { recursive: true });
     const home = await realpath(input.home);
-    const file = join(home, ".zcode", "local", "launch-owner.json");
+    const dataRoot = await selectedDataRoot(home, input.dataRoot);
+    if (dataRoot === null) return { kind: "blocked", reason: "data-root-mismatch" };
+    const directories = await Promise.all(
+      [home, dataRoot].map(async (root) => {
+        const directory = join(root, ".zcode/local");
+        await mkdir(directory, { recursive: true, mode: 0o700 });
+        return realpath(directory);
+      }),
+    );
+    const files = [
+      ...new Set(directories.map((directory) => join(directory, "launch-owner.json"))),
+    ].sort();
     const owner: Owner = {
       version: 1,
       token: randomUUID(),
@@ -136,23 +182,25 @@ export const localLaunch: LocalLaunchContract = {
       launcherPid: process.pid,
       phase: "preparing",
     };
-    const admitted = await withFileLock(file, async () => {
-      let current: Owner | null;
-      try {
-        current = await readOwner(file);
-      } catch {
-        return { kind: "blocked", reason: "unconfirmed" } as const;
+    const admitted = await withOwnerLocks(files, async () => {
+      for (const file of files) {
+        let current: Owner | null;
+        try {
+          current = await readOwner(file);
+        } catch {
+          return { kind: "blocked", reason: "unconfirmed" } as const;
+        }
+        if (current)
+          return {
+            kind: "blocked",
+            reason:
+              current.phase === "unconfirmed" ||
+              (!isProcessAlive(current.launcherPid) && !isProcessAlive(current.childPid))
+                ? "unconfirmed"
+                : "occupied",
+            edition: current.edition,
+          } as const;
       }
-      if (current)
-        return {
-          kind: "blocked",
-          reason:
-            current.phase === "unconfirmed" ||
-            (!isProcessAlive(current.launcherPid) && !isProcessAlive(current.childPid))
-              ? "unconfirmed"
-              : "occupied",
-          edition: current.edition,
-        } as const;
       let unmanaged: LocalLaunchEdition | null;
       try {
         unmanaged = await runningApplication(input.applications);
@@ -161,21 +209,21 @@ export const localLaunch: LocalLaunchContract = {
       }
       if (unmanaged) return { kind: "blocked", reason: "occupied", edition: unmanaged } as const;
       // native singleton 在无响应时可能强杀持有者；占用必须先持久化，之后才允许子进程访问业务数据。
-      await atomicWritePrivateTextFile(file, JSON.stringify(owner));
+      for (const file of files) await atomicWritePrivateTextFile(file, JSON.stringify(owner));
       return null;
     });
     if (admitted) return admitted;
-    const finish = async (clean: boolean) =>
-      withFileLock(file, async () => {
-        const current = await readOwner(file);
-        if (current?.token !== owner.token)
-          throw new Error("Launch ownership changed unexpectedly");
-        if (clean) await rm(file);
-        else
-          await atomicWritePrivateTextFile(
-            file,
-            JSON.stringify({ ...current, phase: "unconfirmed" }),
-          );
+    const transition = async (phase: Owner["phase"] | null) =>
+      withOwnerLocks(files, async () => {
+        for (const file of files) {
+          const current = await readOwner(file);
+          if (current?.token !== owner.token)
+            throw new Error("Launch ownership changed unexpectedly");
+        }
+        for (const file of files) {
+          if (phase === null) await rm(file);
+          else await atomicWritePrivateTextFile(file, JSON.stringify({ ...owner, phase }));
+        }
       });
     try {
       const profile = join(home, ".zcode", "local", "profiles", input.edition);
@@ -183,7 +231,7 @@ export const localLaunch: LocalLaunchContract = {
       const env: NodeJS.ProcessEnv = {
         ...process.env,
         HOME: home,
-        ZCODE_DATA_BASE_DIR: home,
+        ZCODE_DATA_BASE_DIR: dataRoot,
         ZCODE_DESKTOP_HOME_DIR: home,
         ZCODE_DESKTOP_USER_DATA_DIR: profile,
         ZCODE_DESKTOP_SESSION_DATA_DIR: join(profile, "session"),
@@ -204,15 +252,8 @@ export const localLaunch: LocalLaunchContract = {
         child.once("error", (error) => resolve({ code: null, signal: null, error }));
         child.once("exit", (code, signal) => resolve({ code, signal }));
       });
-      await withFileLock(file, async () => {
-        const current = await readOwner(file);
-        if (current?.token !== owner.token)
-          throw new Error("Launch ownership changed unexpectedly");
-        await atomicWritePrivateTextFile(
-          file,
-          JSON.stringify({ ...owner, phase: "running", childPid: child.pid }),
-        );
-      });
+      owner.childPid = child.pid;
+      await transition("running");
       const { code, signal, error } = await outcome;
       if (error) throw error;
       const clean =
@@ -221,11 +262,11 @@ export const localLaunch: LocalLaunchContract = {
         child.pid !== undefined &&
         (await processGroupEnded(child.pid)) &&
         (await runningApplication(input.applications)) === null;
-      await finish(clean);
+      await transition(clean ? null : "unconfirmed");
       if (code === 0 && !clean) return { kind: "unconfirmed", edition: input.edition };
       return { kind: "exited", code, signal };
     } catch (error) {
-      await finish(false);
+      await transition("unconfirmed");
       throw error;
     }
   },

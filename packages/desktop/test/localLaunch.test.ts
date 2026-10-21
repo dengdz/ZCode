@@ -38,7 +38,12 @@ async function fixture() {
     );
     await chmod(binary, 0o700);
   }
-  const launch = (edition: string, appArgs: string[] = [], requestedHome = home) => {
+  const launch = (
+    edition: string,
+    appArgs: string[] = [],
+    requestedHome = home,
+    dataRoot?: string,
+  ) => {
     const child = spawn(
       process.execPath,
       [
@@ -52,6 +57,7 @@ async function fixture() {
         join(root, "official.app"),
         "--local-app",
         join(root, "local.app"),
+        ...(dataRoot ? ["--data-root", dataRoot] : []),
         "--",
         ...appArgs,
       ],
@@ -82,8 +88,9 @@ async function observed(home: string, edition: string) {
 
 afterEach(async () => {
   for (const root of roots)
-    for (const edition of ["official", "local"])
-      await writeFile(join(root, "home", `release-${edition}`), "exit");
+    for (const name of ["home", "second-home"])
+      for (const edition of ["official", "local"])
+        await writeFile(join(root, name, `release-${edition}`), "exit").catch(() => {});
   await new Promise((r) => setTimeout(r, 100));
   for (const child of children)
     if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
@@ -301,5 +308,79 @@ it.skipIf(process.platform !== "darwin")("同时请求两版时只启动一个�
     code: "ENOENT",
   });
   await writeFile(join(home, `release-${winner}`), "exit");
+  expect((await (winner === "official" ? a : b).done).code).toBe(0);
+});
+
+it.skipIf(process.platform !== "darwin")(
+  "未显式选择保存的自定义根时不启动也不创建该根",
+  async () => {
+    const { root, home, launch } = await fixture();
+    const dataRoot = join(root, "custom-data");
+    await mkdir(join(home, ".zcode/v2"), { recursive: true });
+    await writeFile(
+      join(home, ".zcode/v2/setting.json"),
+      JSON.stringify({ dataBaseDir: dataRoot }),
+    );
+    const result = await launch("local").done;
+    expect(result, result.output).toMatchObject({ code: 2 });
+    expect(result.output).toContain('"reason":"data-root-mismatch"');
+    await expect(readFile(join(home, "observed-local.json"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(realpath(dataRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  },
+);
+
+it.skipIf(process.platform !== "darwin")(
+  "显式选择自定义根时保留home上下文并规范化业务根别名",
+  async () => {
+    const { root, home, launch } = await fixture();
+    const dataRoot = join(root, "custom-data"),
+      alias = join(root, "custom-alias");
+    await mkdir(dataRoot);
+    await symlink(dataRoot, alias);
+    await mkdir(join(home, ".zcode/v2"), { recursive: true });
+    await writeFile(join(home, ".zcode/v2/setting.json"), JSON.stringify({ dataBaseDir: alias }));
+    const result = await launch("local", [], home, dataRoot).done;
+    expect(result, result.output).toMatchObject({ code: 0 });
+    expect(await observed(home, "local")).toMatchObject({
+      home,
+      data: dataRoot,
+      desktopHome: home,
+    });
+    for (const base of [home, dataRoot])
+      await expect(readFile(join(base, ".zcode/local/launch-owner.json"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+  },
+);
+
+it.skipIf(process.platform !== "darwin")("不同home指向同一业务根时并发也只能启动一版", async () => {
+  const { root, home, launch } = await fixture();
+  const otherHome = join(root, "second-home"),
+    dataRoot = join(root, "custom-data");
+  for (const candidate of [home, otherHome]) {
+    await mkdir(join(candidate, ".zcode/v2"), { recursive: true });
+    await writeFile(
+      join(candidate, ".zcode/v2/setting.json"),
+      JSON.stringify({ dataBaseDir: dataRoot }),
+    );
+  }
+  const a = launch("official", ["--hold"], home, dataRoot);
+  const b = launch("local", ["--hold"], otherHome, dataRoot);
+  const loser = await Promise.race([
+    a.done.then((result) => ({ edition: "official", result })),
+    b.done.then((result) => ({ edition: "local", result })),
+  ]);
+  expect(loser.result, loser.result.output).toMatchObject({ code: 2 });
+  expect(loser.result.output).toContain('"reason":"occupied"');
+  const winner = loser.edition === "official" ? "local" : "official";
+  const winnerHome = winner === "official" ? home : otherHome;
+  await observed(winnerHome, winner);
+  const owner = JSON.parse(
+    await readFile(join(dataRoot, ".zcode/local/launch-owner.json"), "utf8"),
+  );
+  expect(owner.edition).toBe(winner);
+  await writeFile(join(winnerHome, `release-${winner}`), "exit");
   expect((await (winner === "official" ? a : b).done).code).toBe(0);
 });
