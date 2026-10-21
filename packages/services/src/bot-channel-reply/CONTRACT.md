@@ -5,3 +5,5 @@
 Local prepare 端口只负责协作方向与原需求目标，不自行发送。明确协作意图在非 Local 宿主拒绝；未声明意图的普通群行为和既有幂等 hash 保持。查询外部目录后继续重读授权，不接受裸平台 ID。
 
 同一边界同时登记既有 groupResultDelivery owner，保留旧公开导入路径。最终发送前调用协作 authorizeDelivery 校验当前版本、来源及目标；撤销以 deliveryInvalidated 错误标记进入原 owner 的 invalidated 终态，不按网络 failed 重试，也不新建发送路径。
+
+06：Host 将当前真实执行输入的可信引用传入 prepare；其 blocked 结果直接返回模型，不调用投递 owner。普通会话沿用原 ref/name 解析。

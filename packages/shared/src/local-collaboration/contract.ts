@@ -1,9 +1,18 @@
 import { z } from "zod";
 const id = z.string().trim().min(1).max(250);
+const duty = z.string().trim().min(1).max(500);
 export const collaborationReplyIntentSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("dispatch"), targetBotId: id }).strict(),
+  z
+    .object({ kind: z.literal("dispatch"), targetBotId: id, requiredDuty: duty.optional() })
+    .strict(),
   z.object({ kind: z.literal("report") }).strict(),
-  z.object({ kind: z.literal("question"), targetBotId: id.optional() }).strict(),
+  z
+    .object({
+      kind: z.literal("question"),
+      targetBotId: id.optional(),
+      requiredDuty: duty.optional(),
+    })
+    .strict(),
   z.object({ kind: z.literal("final") }).strict(),
 ]);
 export const collaborationScopeSchema = z
@@ -83,3 +92,21 @@ export interface CollaborationChallenge {
   command: string;
   expiresAt: number;
 }
+
+/** 校验未通过而非外部投递失败；此结果没有消息或 deliveryId。 */
+export const collaborationBlockedResultSchema = z
+  .object({
+    status: z.literal("blocked"),
+    reason: z.enum([
+      "required_duty_missing",
+      "role_mismatch",
+      "recipient_mismatch",
+      "reference_unavailable",
+    ]),
+    message: z.string().min(1).max(1000),
+    targetBotId: id.optional(),
+    requiredDuty: duty.optional(),
+    actualDuty: duty.optional(),
+  })
+  .strict();
+export type CollaborationBlockedResult = z.infer<typeof collaborationBlockedResultSchema>;

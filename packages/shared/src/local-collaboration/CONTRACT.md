@@ -5,3 +5,5 @@ Local 群协作配置的共享运行时协议，独立于官网 Bots v3。设置
 授权用户选项 key 统一由 collaborationUserId 生成，只关联同租户、同提供方的可信 union_id；不把应用内 open_id 当作全局身份。connected 表示既有群接入状态，与可信身份证明 verified 分开。
 
 05 增加严格的 ReplyToChannel 协作意图 union（dispatch/report/question/final），只接收本机机器人选项，不接受平台 ID、原需求用户或任意扩展字段。未传意图仍兼容原渠道协议；是否必须使用意图由 Host 按群配置决定。
+
+06：requiredDuty 是 PM 对派单或执行者追问的职责声明，按当前配置精确比较；协议保留缺省以便 Host 返回 required_duty_missing。严格 blocked 结果表示尚未发送，携带 reason/message 及必要的职责比较信息，不是投递回执。

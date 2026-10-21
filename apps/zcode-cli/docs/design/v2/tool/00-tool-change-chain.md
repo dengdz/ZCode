@@ -1826,3 +1826,7 @@ MCP isError 和历史 hydration 不触发创建。工具执行、权限、原始
 ### 文档插件多窗口视图修复（2026-10-16）
 
 MCP app-only report_view 增加可选 viewId，release_view 释放指定窗口；模型 get_view 可选 viewId，缺省且存在多个上报窗口时返回歧义与清单。状态唯一归属 DocumentOwner，不由页面决定其他窗口的视图；旧客户端缺省 viewId 仍走 legacy 槽。show_in_viewer 保持专用 surface 路由并明确工具描述。导入仍为 app-only workspace 副作用；串行 admission、10 分钟未活动过期与部分文件清扫归 importer，完成副本不清理。覆盖 schema 到真实 MCP/AppBridge 的多窗口回归。
+
+## Local 派发职责校验（06，2026-10-22）
+
+ReplyToChannel collaboration 增加 requiredDuty；PM 派单/面向执行者追问由 Host 将声明与可信目标当前设置职责精确比较。允许附一个当前可信原生 mention 引用，但必须与 targetBotId 的核验身份一致。缺少角色、职责不符、引用不符返回严格 blocked 结果，明确未发送和纠正原因；不得报告送达、擅改声明或重试成其他职责。提供方 schema、runtime schema、Host RPC 及模型结果共用既有链路；普通会话规则不变。完整候选卡片/续发留在 08，不增加模型分类器或数据库字段。

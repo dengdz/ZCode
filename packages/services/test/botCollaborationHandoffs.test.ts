@@ -296,7 +296,7 @@ it("执行者不能向兄弟执行者派单，明确回报只能发给PM", async
     inputId: first.commandId,
     toolCallId: "dispatch",
     parts: [{ type: "text", text: "Work" }],
-    collaboration: { kind: "dispatch", targetBotId: "app" },
+    collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
   });
   if (sent.status !== "sent") throw Error("dispatch failed");
   await f.service.handleProviderCallback(
@@ -312,7 +312,7 @@ it("执行者不能向兄弟执行者派单，明确回报只能发给PM", async
       inputId: input.commandId,
       toolCallId: "wrong",
       parts: [{ type: "text", text: "Work" }],
-      collaboration: { kind: "dispatch", targetBotId: "product" },
+      collaboration: { kind: "dispatch", targetBotId: "product", requiredDuty: "Product" },
     }),
   ).rejects.toThrow("collaboration.direction");
   expect(f.sent).toHaveLength(count);
@@ -339,7 +339,7 @@ it.each([undefined, "omt_replay"])(
       inputId: input.commandId,
       toolCallId: "dispatch-1",
       parts: [{ type: "text" as const, text: "Implement APP feature" }],
-      collaboration: { kind: "dispatch" as const, targetBotId: "app" },
+      collaboration: { kind: "dispatch" as const, targetBotId: "app", requiredDuty: "APP" },
     };
     const receipt = await service.replyToChannel!(request);
     expect(receipt.status).toBe("sent");
@@ -375,7 +375,7 @@ it.each(["workspace", "group"])("目标执行者收回授权后，发送前拦�
       inputId: input.commandId,
       toolCallId: "restricted",
       parts: [{ type: "text", text: "Work" }],
-      collaboration: { kind: "dispatch", targetBotId: "app" },
+      collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
     }),
   ).rejects.toThrow("collaboration.identityUnavailable");
   expect(f.sent).toHaveLength(0);
@@ -394,7 +394,8 @@ it.each([undefined, "omt_project"])(
         inputId: input.commandId,
         toolCallId: call,
         parts: [{ type: "text", text: `${kind} work` }],
-        collaboration: kind === "dispatch" ? { kind, targetBotId: "app" } : { kind },
+        collaboration:
+          kind === "dispatch" ? { kind, targetBotId: "app", requiredDuty: "APP" } : { kind },
       });
     };
     const started = await service.handleInboundMessage(f.human());
@@ -459,7 +460,7 @@ it.each(["sender", "message", "unknown", "stopped"])(
       inputId: input.commandId,
       toolCallId: "boundary",
       parts: [{ type: "text", text: "Work" }],
-      collaboration: { kind: "dispatch", targetBotId: "app" },
+      collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
     });
     if (receipt.status !== "sent") throw Error("dispatch failed");
     if (boundary === "unknown" || boundary === "stopped") {
@@ -504,7 +505,7 @@ it.each([false, true])("可信派单首次接入话题并尊重显式停用：%s
     inputId: input.commandId,
     toolCallId: "new-topic",
     parts: [{ type: "text" as const, text: "Work" }],
-    collaboration: { kind: "dispatch" as const, targetBotId: "app" },
+    collaboration: { kind: "dispatch" as const, targetBotId: "app", requiredDuty: "APP" },
   };
   if (disabled) {
     await expect(f.service.replyToChannel!(request)).rejects.toThrow(
@@ -592,7 +593,7 @@ it.each(["group", "permission", "revision"])(
       inputId: input.commandId,
       toolCallId: "revocation-race",
       parts: [{ type: "text", text: "Work" }],
-      collaboration: { kind: "dispatch", targetBotId: "app" },
+      collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
     });
     expect(revoked).toBe(true);
     expect({ sent: f.sent.length, status: receipt.status }).toEqual({
@@ -601,3 +602,251 @@ it.each(["group", "permission", "revision"])(
     });
   },
 );
+
+it("派单未声明职责时明确保持未发送", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  const result = await f.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    toolCallId: "missing-duty",
+    parts: [{ type: "text", text: "Build feature" }],
+    collaboration: { kind: "dispatch", targetBotId: "app" },
+  });
+  expect(result).toMatchObject({ status: "blocked", reason: "required_duty_missing" });
+  expect(f.sent).toHaveLength(0);
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+});
+
+it("合法执行者身份不等于职责匹配，选错目标保持原职责且可纠正", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  const before = (await f.service.getCollaborationSettings!())!.groups[0]!.config;
+  const request = {
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    toolCallId: "wrong-role",
+    parts: [{ type: "text" as const, text: "Build APP feature" }],
+    collaboration: { kind: "dispatch" as const, targetBotId: "product", requiredDuty: "APP" },
+  };
+  expect(await f.service.replyToChannel!(request)).toMatchObject({
+    status: "blocked",
+    reason: "role_mismatch",
+    targetBotId: "product",
+    requiredDuty: "APP",
+    actualDuty: "Product",
+  });
+  expect(f.sent).toHaveLength(0);
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+  expect((await f.service.getCollaborationSettings!())!.groups[0]!.config).toEqual(before);
+  const corrected = await f.service.replyToChannel!({
+    ...request,
+    toolCallId: "correct-role",
+    collaboration: { ...request.collaboration, targetBotId: "app" },
+  });
+  expect(corrected.status).toBe("sent");
+  expect(JSON.stringify(f.sent[0]!.body)).toContain("ou_bot_app");
+});
+
+it("原生事件中的合法引用指向产品机器人时不能承接APP职责", async () => {
+  const f = await setup();
+  const payload = f.native("pm", "pm", "om_native_ref", "Build APP @_user_2");
+  payload.event.sender.sender_type = "user";
+  payload.event.sender.sender_id.open_id = "ou_owner_pm";
+  payload.event.message.mentions.push({
+    key: "@_user_2",
+    name: "APP renamed product",
+    id: { open_id: "ou_bot_product" },
+  });
+  await f.service.handleProviderCallback("feishu", {
+    ...payload,
+    event: {
+      ...payload.event,
+      sender: {
+        ...payload.event.sender,
+        sender_id: { ...payload.event.sender.sender_id, union_id: "on_owner" },
+      },
+    },
+  });
+  const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  const part = input.source.contentParts?.find(
+    (part) => part.type === "channelMention" && part.targetId === "ou_bot_product",
+  );
+  if (part?.type !== "channelMention") throw Error("native reference missing");
+  const sentBeforeDispatch = f.sent.length;
+  const request = {
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    toolCallId: "native-role",
+    parts: [
+      { type: "mention" as const, refId: part.refId },
+      { type: "text" as const, text: "Build APP" },
+    ],
+    collaboration: { kind: "dispatch" as const, targetBotId: "product", requiredDuty: "APP" },
+  };
+  expect(await f.service.replyToChannel!(request)).toMatchObject({
+    status: "blocked",
+    reason: "role_mismatch",
+  });
+  expect(f.sent).toHaveLength(sentBeforeDispatch);
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+  const matched = await f.service.replyToChannel!({
+    ...request,
+    toolCallId: "native-match",
+    parts: [
+      { type: "mention", refId: part.refId },
+      { type: "text", text: "Review product requirements" },
+    ],
+    collaboration: { ...request.collaboration, requiredDuty: "Product" },
+  });
+  expect(matched.status).toBe("sent");
+  expect(JSON.stringify(f.sent.at(-1)!.body)).toContain("ou_bot_product");
+});
+
+it.each(["wrong_target", "missing", "unresolved_choice", "multiple"])(
+  "引用不能跳过可信目标与职责共同检查：%s",
+  async (kind) => {
+    const f = await setup();
+    const human = f.human();
+    human.contentParts = [
+      {
+        type: "channelMention",
+        refId: "product-ref",
+        name: "APP",
+        channel: "feishu",
+        targetId: "ou_bot_product",
+        idType: "open_id",
+        entityType: "bot",
+      },
+      { type: "text", text: "Build APP" },
+    ];
+    await f.service.handleInboundMessage(human);
+    const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+    const refs =
+      kind === "unresolved_choice"
+        ? [{ type: "mentionName" as const, name: "Product", candidateRef: "opaque-choice" }]
+        : [
+            {
+              type: "mention" as const,
+              refId: kind === "missing" ? "different-group-ref" : "product-ref",
+            },
+          ];
+    const result = await f.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: input.commandId,
+      toolCallId: kind,
+      parts: [...refs, ...(kind === "multiple" ? refs : []), { type: "text", text: "Build APP" }],
+      collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+    });
+    expect(result).toMatchObject({
+      status: "blocked",
+      reason: kind === "wrong_target" ? "recipient_mismatch" : "reference_unavailable",
+    });
+    expect(f.sent).toHaveLength(0);
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+  },
+);
+
+it.each(["question", "rename", "exact"])(
+  "PM追问、改名与职责精确匹配不放宽角色授权：%s",
+  async (kind) => {
+    const f = await setup();
+    const config = await f.repo.readConfig();
+    if (kind === "rename")
+      await f.repo.writeConfig({
+        ...config,
+        bots: config.bots.map((bot) => (bot.id === "product" ? { ...bot, name: "APP" } : bot)),
+      });
+    await f.service.handleInboundMessage(f.human());
+    const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+    const result = await f.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: input.commandId,
+      toolCallId: kind,
+      parts: [{ type: "text", text: "APP followup" }],
+      collaboration: {
+        kind: kind === "question" ? "question" : "dispatch",
+        targetBotId: "product",
+        requiredDuty: kind === "exact" ? "product" : "APP",
+      },
+    });
+    expect(result).toMatchObject({
+      status: "blocked",
+      reason: "role_mismatch",
+      actualDuty: "Product",
+    });
+    expect(f.sent).toHaveLength(0);
+  },
+);
+
+it("准备后修改职责使旧交接失效，不能按旧职责实际发送", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  const write = f.repo.writeState.bind(f.repo);
+  let changed = false;
+  f.repo.writeState = async (state) => {
+    const pm = Object.values(state.bots).find((context) => context.botId === "pm")!;
+    if (
+      !changed &&
+      Object.values(pm.group?.deliveries ?? {}).some((delivery) => delivery.status === "unknown")
+    ) {
+      changed = true;
+      const group = (await f.service.getCollaborationSettings!())!.groups[0]!;
+      await f.service.saveCollaborationSettings!({
+        provider: "feishu",
+        chatId: "oc_group",
+        expectedRevision: 1,
+        enabled: true,
+        pmBotId: "pm",
+        executors: [
+          { botId: "app", duty: "Operations" },
+          { botId: "product", duty: "Product" },
+        ],
+        authorizedUserId: group.users[0]!.id,
+        workspaceId: group.workspaces[0]!.id,
+      });
+    }
+    await write(state);
+  };
+  const result = await f.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    toolCallId: "changed-duty",
+    parts: [{ type: "text", text: "Build APP" }],
+    collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+  });
+  expect(changed).toBe(true);
+  expect(result.status).toBe("invalidated");
+  expect(f.sent).toHaveLength(0);
+});
+
+it("已发送调用改写成错误角色时不能把既有投递误说成未发送", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  const request = {
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    toolCallId: "same-call",
+    parts: [{ type: "text" as const, text: "Build APP" }],
+    collaboration: { kind: "dispatch" as const, targetBotId: "app", requiredDuty: "APP" },
+  };
+  expect((await f.service.replyToChannel!(request)).status).toBe("sent");
+  await expect(
+    f.service.replyToChannel!({
+      ...request,
+      collaboration: { ...request.collaboration, targetBotId: "product" },
+    }),
+  ).rejects.toThrow("idempotency conflict");
+  expect(f.sent).toHaveLength(1);
+});

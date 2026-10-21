@@ -4,5 +4,5 @@ export const exampleChannelReply = channelReplyRequestSchema.parse({
   inputId: "input",
   toolCallId: "call",
   parts: [{ type: "text", text: "Implement the feature" }],
-  collaboration: { kind: "dispatch", targetBotId: "app" },
+  collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
 });

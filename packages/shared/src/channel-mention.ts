@@ -1,6 +1,9 @@
 import { zcodeProtocolTraceSchema } from "./zcode-protocol/trace.js";
 import { z } from "zod";
-import { collaborationReplyIntentSchema } from "./local-collaboration/index.js";
+import {
+  collaborationReplyIntentSchema,
+  collaborationBlockedResultSchema,
+} from "./local-collaboration/index.js";
 
 export const channelMentionSchema = z
   .object({
@@ -88,6 +91,7 @@ export const channelMentionClarificationSchema = z
 export const channelReplyResultSchema = z.union([
   channelDeliveryResultSchema,
   channelMentionClarificationSchema,
+  collaborationBlockedResultSchema,
 ]);
 export type ChannelReplyRequest = z.infer<typeof channelReplyRequestSchema>;
 export type ChannelReplyResult = z.infer<typeof channelReplyResultSchema>;

@@ -17,3 +17,7 @@ withInbound 在同一锁内持久登记接收调用令牌，再调用一次原�
 authorizeDelivery 由既有投递 owner 在最终发送前重读 Local 配置、来源索引及目标接入/权限；准备后失效返回 false，由原 owner 记录 invalidated。它不重试、不发送、不复制结果状态，普通未启用群保持原路径。
 
 ledger.ts 只定义本模块 Local 持久格式及规范化规则，供同一所有者读写与幂等比较复用，不提供第二个业务服务。
+
+06：prepareReply 接收 Host 从实际执行来源解析的可信引用，只允许一个匹配当前核验目标的 mention；声明职责必须与当前配置精确相同，否则返回 blocked 并不写交接。Local handoff 保存 requiredDuty，最终发送和输入受理也核对；不做正文语义识别，不因用户选择改职责。
+
+dispatchValidation.ts 是同一模块内的纯职责/引用校验，无 IO 或状态；服务先从实际配置取得目标与职责后调用它，再由原 owner 保存关联和投递。

@@ -11,6 +11,7 @@ import {
   type BotConfig,
   type BotGroupDelivery,
   type ChannelContentPart,
+  type CollaborationBlockedResult,
 } from "@zcode/shared";
 
 interface ChannelReplyDependencies {
@@ -18,7 +19,8 @@ interface ChannelReplyDependencies {
     request: ChannelReplyHostRequest,
     scope: { provider: "feishu" | "lark"; chatId: string; botId: string; threadId?: string },
     deliveryId: string,
-  ): Promise<ChannelContentPart[] | undefined>;
+    trusted: readonly ChannelContentPart[],
+  ): Promise<ChannelContentPart[] | CollaborationBlockedResult | undefined>;
   readState(): Promise<BotsStateFile>;
   readConfig(): Promise<BotsConfigFile>;
   listMembers?(bot: BotConfig, chatId: string): Promise<Record<string, string>>;
@@ -157,6 +159,10 @@ export async function replyToBotChannel(
       ),
     )
     .digest("hex");
+  // 已投递的调用先核对参数，不能被新角色校验的 blocked 结果掩盖既有发送事实。
+  const savedRequestHash = binding.group.deliveries?.[id]?.channelReplyRequestHash;
+  if (savedRequestHash && savedRequestHash !== requestHash)
+    throw new Error("Channel reply idempotency conflict");
   const replay = async (saved: BotGroupDelivery | undefined) => {
     if (!saved?.channelReplyRequestHash) return undefined;
     if (saved.channelReplyRequestHash !== requestHash)
@@ -178,7 +184,9 @@ export async function replyToBotChannel(
       botId: bot.id,
     },
     id,
+    binding.trusted,
   );
+  if (parts && !Array.isArray(parts)) return parts;
   const previous = await replay(binding.group.deliveries?.[id]);
   if (previous) return previous;
   if (!parts && request.parts.some((part) => part.type === "mentionName")) {

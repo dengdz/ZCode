@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { replyToChannelHandler } from "../src/tool/handlers/reply-to-channel.js";
+import {
+  replyToChannelHandler,
+  replyToChannelToolEntry,
+} from "../src/tool/handlers/reply-to-channel.js";
 import type { ToolExecutionContext } from "../src/tool/types.js";
 
 function fixture() {
@@ -62,18 +65,49 @@ const input = {
   ],
 };
 describe("ReplyToChannel", () => {
+  it("returns a strict blocked result without claiming delivery or rewriting duty", async () => {
+    const f = fixture();
+    const blocked = {
+      status: "blocked",
+      reason: "role_mismatch",
+      message: "Nothing sent. Select an APP executor.",
+      requiredDuty: "APP",
+      actualDuty: "Product",
+      targetBotId: "product",
+    };
+    f.reply.mockResolvedValue(blocked as never);
+    const result = await replyToChannelHandler(
+      {
+        parts: [{ type: "text", text: "Build APP" }],
+        collaboration: { kind: "dispatch", targetBotId: "product", requiredDuty: "APP" },
+      },
+      f.context,
+    );
+    expect(result).toEqual(blocked);
+    expect(replyToChannelToolEntry.runtimeOutputSchema!.parse(result)).toEqual(blocked);
+    expect(f.reply).toHaveBeenCalledTimes(1);
+    expect(f.reply.mock.calls[0]?.[0]).toMatchObject({
+      collaboration: { requiredDuty: "APP", targetBotId: "product" },
+    });
+    expect(() =>
+      replyToChannelToolEntry.runtimeOutputSchema!.parse({
+        ...blocked,
+        providerMessageId: "forged",
+      }),
+    ).toThrow();
+  });
   it("forwards explicit Local intent while keeping the executing input as authority", async () => {
     const f = fixture();
     await replyToChannelHandler(
       {
         parts: [{ type: "text", text: "Implement the feature" }],
-        collaboration: { kind: "dispatch", targetBotId: "app" },
+        collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
       },
       f.context,
     );
     expect(f.reply.mock.calls[0]?.[0]).toMatchObject({
       inputId: "input",
-      collaboration: { kind: "dispatch", targetBotId: "app" },
+      collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
     });
     await expect(
       replyToChannelHandler(

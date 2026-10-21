@@ -8683,7 +8683,7 @@ export function createBotsService(
     async replyToChannel(request) {
       return replyToBotChannel(request, {
         prepare: collaboration
-          ? (request, scope, id) => collaboration.prepareReply(request, scope, id)
+          ? (request, scope, id, trusted) => collaboration.prepareReply(request, scope, id, trusted)
           : undefined,
         readState: () => repo.readState(),
         readConfig: () => repo.readConfig(),

@@ -2,7 +2,10 @@ import { requestVerificationReasons } from "../request-security-edition/verifica
 import { zcodeProtocolTraceSchema } from "./trace.js";
 // Bot 反向回复的名字解析/待澄清结果与 App、CLI 使用同一严格 schema。
 export { channelReplyRequestSchema, channelReplyResultSchema } from "../channel-mention.js";
-export { collaborationReplyIntentSchema } from "../local-collaboration/index.js";
+export {
+  collaborationReplyIntentSchema,
+  collaborationBlockedResultSchema,
+} from "../local-collaboration/index.js";
 export { zcodeProtocolTraceSchema, type ZCodeProtocolTrace } from "./trace.js";
 import {
   databaseMigrationFactsSchema,

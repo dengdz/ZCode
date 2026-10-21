@@ -9,6 +9,7 @@ import type {
   ChannelReplyHostRequest,
   ChannelContentPart,
   BotGroupDelivery,
+  CollaborationBlockedResult,
 } from "@zcode/shared";
 export type { BotCollaborationPort } from "./port.js";
 export interface BotCollaborationContract {
@@ -29,7 +30,8 @@ export interface BotCollaborationContract {
     request: ChannelReplyHostRequest,
     scope: CollaborationScope & { botId: string; threadId?: string },
     deliveryId: string,
-  ): Promise<ChannelContentPart[] | undefined>;
+    trusted: readonly ChannelContentPart[],
+  ): Promise<ChannelContentPart[] | CollaborationBlockedResult | undefined>;
   /** 既有投递 owner 的最后检查；等待期间变更配置或收件人授权必须失效。 */
   authorizeDelivery(
     scope: CollaborationScope & { botId: string; threadId?: string },

@@ -46,6 +46,7 @@ export const handoffSchema = collaborationScopeSchema
     id: z.string(),
     fromBotId: z.string(),
     toBotId: z.string(),
+    requiredDuty: z.string().trim().min(1).max(500).optional(),
     fromTaskId: z.string(),
     fromInputId: z.string(),
     requirementId: z.string(),
