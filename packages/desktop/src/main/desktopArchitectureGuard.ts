@@ -1,6 +1,7 @@
 import type { BrowserWindow, NativeImage } from "electron";
 import {
   DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+  ZCODE_PRODUCT_FLAVOR,
   buildZCodeEndpointUrls,
   type Locale,
 } from "@zcode/shared";
@@ -61,7 +62,7 @@ interface ArchitectureMismatchDialogText {
   title: string;
   message: string;
   detail: string;
-  downloadButton: string;
+  downloadButton: string | null;
   dismissButton: string;
 }
 
@@ -70,6 +71,17 @@ export function formatArchitectureMismatchDialogText(
   locale: Locale,
 ): ArchitectureMismatchDialogText {
   const isZh = locale === "zh-CN";
+  if (ZCODE_PRODUCT_FLAVOR === "local") {
+    return {
+      title: isZh ? "架构不匹配" : "Architecture Mismatch",
+      message: isZh ? "当前安装的不是适配本机的版本" : "The installed build does not match your machine",
+      detail: isZh
+        ? `当前 ${mismatch.binaryArch} 版本通过系统转译运行，性能和耗电可能受影响。请从本地源码重新构建 ${mismatch.nativeArch} 架构的 ZCode Local 候选包。`
+        : `This ${mismatch.binaryArch} build uses system translation, which may affect performance and power usage. Rebuild ZCode Local from your local source for ${mismatch.nativeArch}.`,
+      downloadButton: null,
+      dismissButton: isZh ? "暂不处理" : "Not now",
+    };
+  }
   if (isZh) {
     return {
       title: "架构不匹配",
@@ -126,9 +138,9 @@ export async function maybeWarnArchitectureMismatch(options: {
   const text = formatArchitectureMismatchDialogText(mismatch, options.locale);
   const dialogOptions = {
     type: "warning" as const,
-    buttons: [text.downloadButton, text.dismissButton],
+    buttons: text.downloadButton ? [text.downloadButton, text.dismissButton] : [text.dismissButton],
     defaultId: 0,
-    cancelId: 1,
+    cancelId: text.downloadButton ? 1 : 0,
     title: text.title,
     message: text.message,
     detail: text.detail,
@@ -140,7 +152,7 @@ export async function maybeWarnArchitectureMismatch(options: {
       ? await dialog.showMessageBox(options.parentWindow, dialogOptions)
       : await dialog.showMessageBox(dialogOptions);
 
-  if (response === 0) {
+  if (response === 0 && text.downloadButton) {
     const url = resolveArchitectureDownloadUrl(options.locale);
     options.logger.info(`[architecture] 用户选择前往下载：${url}`);
     await shell.openExternal(url);

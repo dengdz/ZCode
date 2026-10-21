@@ -1,9 +1,38 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   detectArchitectureMismatch,
   formatArchitectureMismatchDialogText,
   resolveArchitectureDownloadUrl,
 } from "../src/main/desktopArchitectureGuard.js";
+
+const { showMessageBox, openExternal } = vi.hoisted(() => ({
+  showMessageBox: vi.fn(async () => ({ response: 0 })),
+  openExternal: vi.fn(),
+}));
+vi.mock("electron", () => ({
+  app: { runningUnderARM64Translation: true },
+  dialog: { showMessageBox },
+  shell: { openExternal },
+}));
+
+it("Local 架构不匹配只提示重建 Local，不引导安装官网包", async () => {
+  const platform = process.platform;
+  Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
+  vi.stubGlobal("__ZCODE_PRODUCT_FLAVOR__", "local");
+  vi.resetModules();
+  try {
+    const { maybeWarnArchitectureMismatch } = await import("../src/main/desktopArchitectureGuard.js");
+    await maybeWarnArchitectureMismatch({ locale: "zh-CN", logger: { info: vi.fn(), warn: vi.fn() } });
+    expect(openExternal).not.toHaveBeenCalled();
+    expect(showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+      buttons: ["暂不处理"],
+      detail: expect.stringContaining("ZCode Local"),
+    }));
+  } finally {
+    Object.defineProperty(process, "platform", { value: platform, configurable: true });
+    vi.unstubAllGlobals();
+  }
+});
 
 describe("detectArchitectureMismatch", () => {
   it("Apple 芯片上运行 x64 包（Rosetta 转译）应判定为不匹配", () => {
