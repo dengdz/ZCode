@@ -1,19 +1,12 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import {
-  chmod,
-  copyFile,
-  mkdir,
-  mkdtemp,
-  readFile,
-  realpath,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { chmod, mkdir, mkdtemp, readFile, realpath, symlink, writeFile } from "node:fs/promises";
+import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { botsConfigFileSchema } from "@zcode/shared";
 
+const execute = promisify(execFile);
 const repo = resolve(import.meta.dirname, "../../..");
 const roots: string[] = [];
 const children: ChildProcess[] = [];
@@ -84,6 +77,42 @@ async function observed(home: string, edition: string) {
     await new Promise((r) => setTimeout(r, 25));
   }
   throw new Error("application did not start");
+}
+
+async function prepareNativeHolder(root: string) {
+  const source = join(root, "native-holder.c");
+  const app = join(root, "official.app");
+  const binary = join(app, "Contents/MacOS/fixture");
+  // 系统二进制的原签名不适用于临时应用包；使用自有程序，并为完整 bundle 签名。
+  await writeFile(
+    source,
+    String.raw`
+#include <signal.h>
+#include <stdio.h>
+#include <unistd.h>
+static volatile sig_atomic_t stopping = 0;
+static void stop(int signal_number) { (void)signal_number; stopping = 1; }
+int main(int argc, char **argv) {
+  if (argc != 3) return 64;
+  signal(SIGTERM, stop);
+  signal(SIGINT, stop);
+  FILE *ready = fopen(argv[1], "w");
+  if (!ready) return 73;
+  fprintf(ready, "{\"pid\":%d}\n", getpid());
+  if (fclose(ready) != 0) return 74;
+  unsigned polls = 0;
+  const unsigned max_polls = 1200;
+  while (!stopping && access(argv[2], F_OK) != 0) {
+    if (++polls > max_polls) return 75;
+    usleep(25000);
+  }
+  return 0;
+}
+`,
+  );
+  await execute("/usr/bin/xcrun", ["clang", "-Wall", "-Wextra", "-Werror", source, "-o", binary]);
+  await execute("/usr/bin/codesign", ["--force", "--sign", "-", "--timestamp=none", app]);
+  return { app, binary };
 }
 
 afterEach(async () => {
@@ -178,19 +207,34 @@ it.skipIf(process.platform !== "darwin")(
 
 it.skipIf(process.platform !== "darwin")("首次使用入口也会拒绝已经直接运行的原始应用", async () => {
   const { root, home, launch } = await fixture();
-  const binary = join(root, "official.app/Contents/MacOS/fixture");
-  await copyFile("/bin/sleep", binary);
-  const raw = spawn(binary, ["30"], { stdio: "ignore", detached: true });
+  const { app, binary } = await prepareNativeHolder(root);
+  // 原夹具签名异常曾弹出系统损坏/崩溃提示；签名不完整时必须在实际启动前失败。
+  await execute("/usr/bin/codesign", ["--verify", "--deep", "--strict", app]);
+  const release = join(home, "release-official");
+  const raw = spawn(binary, [join(home, "observed-official.json"), release], {
+    stdio: "ignore",
+    detached: true,
+  });
   children.push(raw);
-  await new Promise<void>((resolve, reject) => {
-    raw.once("spawn", resolve);
-    raw.once("error", reject);
+  const exited = new Promise((resolve) => {
+    raw.once("error", (error) => resolve({ error }));
+    raw.once("exit", (code, signal) => resolve({ code, signal }));
   });
-  const result = await launch("local").done;
-  expect(result, result.output).toMatchObject({ code: 2 });
-  await expect(readFile(join(home, "observed-local.json"))).rejects.toMatchObject({
-    code: "ENOENT",
-  });
+  try {
+    const running = await observed(home, "official");
+    expect(running.pid).toBe(raw.pid);
+    const result = await launch("local").done;
+    expect(result, result.output).toMatchObject({ code: 2 });
+    expect(result.output).toContain('"reason":"occupied"');
+    expect(() => process.kill(running.pid, 0)).not.toThrow();
+    expect(raw.exitCode).toBeNull();
+    await expect(readFile(join(home, "observed-local.json"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  } finally {
+    await writeFile(release, "exit");
+    expect(await exited).toEqual({ code: 0, signal: null });
+  }
 });
 
 it.skipIf(process.platform !== "darwin").each(["official", "local"])(

@@ -99,3 +99,7 @@ pnpm local:launch --edition local \
 - 真实应用：`controlled-final-pair.log`、`controlled-final-official-first/`、`controlled-final-local-first/`；自定义根另见 `controlled-custom-pair.log` 与两组 `controlled-custom-*/`。各组含两版 result、exit、welcome 截图、进程日志和占用拒绝日志。
 - 兼容与凭据：`frozen-reader.log`、`frozen-reader-final.log`、`official-reader-checkout.log`、`official-reader-install.log`、`official-storage-diff.txt`（空差异）、`credential-readability.log`。
 - 工程检查：`typecheck-post-review.log`、`lint-post-review.log`、`architecture-post-review.log`；全量原始结果在 `full-unit.log`，唯一失败文件独立重跑见 `full-failure-rerun.log`。代码格式检查通过，原 `package.json` 的 license 排序会触发 formatter，保留原顺序以免无关重排。
+
+## 测试夹具补正（2026-10-22）
+
+原始应用占用用例曾复制系统签名程序到临时应用包，造成系统损坏/崩溃提示；此前断言通过未覆盖这一副作用。补正不修改生产入口，见 [03a 修复记录](launch-fixture-popup-fix.md)。
