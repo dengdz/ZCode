@@ -1,6 +1,6 @@
 # 03a: 修复启动保护测试引起的 macOS 系统弹窗
 
-Status: in-progress
+Status: done
 
 Issue-Tracker: local-markdown
 
@@ -20,10 +20,10 @@ Issue-Tracker: local-markdown
 
 ## Acceptance criteria
 
-- [ ] 临时原生测试 app 在启动前通过完整签名验证，系统签名程序不再被复制进去。
-- [ ] 原始应用已运行时，受控入口仍拒绝启动第二版且不终止持有者；测试程序就绪与退出被真实观察。
-- [ ] 定向与整文件重复运行不新增 fixture 的签名异常/崩溃诊断；全量亦核对报告，已安装官网应用签名保持有效。
-- [ ] 类型、Lint、架构与独立两轴审查完成，证据区分系统记录与人工屏幕观察；不宣称自动读取了 macOS 对话框。
+- [x] 临时原生测试 app 在启动前通过完整签名验证，系统签名程序不再被复制进去。
+- [x] 原始应用已运行时，受控入口仍拒绝启动第二版且不终止持有者；测试程序就绪与退出被真实观察。
+- [x] 定向与整文件重复运行不新增 fixture 的签名异常/崩溃诊断；全量亦核对报告，已安装官网应用签名保持有效。
+- [x] 类型、Lint、架构与独立两轴审查完成，证据区分系统记录与人工屏幕观察；不宣称自动读取了 macOS 对话框。
 
 ```mermaid
 sequenceDiagram
@@ -37,3 +37,11 @@ sequenceDiagram
     T->>A: 核对仍存活，写release
     A-->>T: 正常退出0/无signal
 ```
+
+## Completion（2026-10-22）
+
+实现 `e277a9fe`；[修复报告](../../local-edition/launch-fixture-popup-fix.md)。启动前签名校验红→绿留档；原单项通过，完整启动与契约 17 项共三轮通过；一次全量包含修正用例，20043 项通过、3 项失败、10 项跳过，349.14 秒。失败仍为既有 Web 测试固定 5173 被其他项目占用，未改测试、未终止其他项目、未记全绿。
+
+全量后诊断增量为 0（fixture 仍为修复前 10 份），本次全量生成的临时应用通过 deep/strict，Identifier=dev.zcode.app、Signature=adhoc；已安装官网应用签名也通过。证据为 `~/.local/share/zcode-local/research/issue-03a/audit-final.json`。这是签名/进程/系统记录证据，不是自动屏幕观察；旧弹窗可能仍需用户关闭。
+
+根类型、Lint（96 条既有警告、零错误）、架构、格式及两轴独立审查完成，Standards 0 / Spec 0。生产逻辑与安装应用未改，07 未开始。
