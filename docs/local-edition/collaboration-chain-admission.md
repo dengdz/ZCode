@@ -2,7 +2,7 @@
 
 Status: done
 
-工单：[10](../issues/zcode-local/10-collaboration-chain-admission.md)，基线 `63b229f2`，分支 `3.16.2-local.1`。父规格冻结 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 不变。
+工单：[10](../issues/zcode-local/10-collaboration-chain-admission.md)，基线 `63b229f2`，分支 `3.16.2-local.1`。实现提交 `c8b8f4570ababb8be49ea1f8e822f5ef3adb8770`。父规格冻结 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 不变。
 
 ## 行为与兼容
 
