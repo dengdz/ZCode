@@ -2,7 +2,7 @@
 
 Status: done
 
-工单：[11](../issues/zcode-local/11-stop-execution.md)，基线 `0a118c696d04c8d58a273295c6a8aea8ad51754d`，分支 `3.16.2-local.1`。实现提交待本地入库后回填。父规格冻结 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 保持不变。
+工单：[11](../issues/zcode-local/11-stop-execution.md)，基线 `0a118c696d04c8d58a273295c6a8aea8ad51754d`，分支 `3.16.2-local.1`。实现提交 `e36b48d65240e35cfff123f7af966d8f2fd9c441`。父规格冻结 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 保持不变。
 
 ## 行为与所有者
 
