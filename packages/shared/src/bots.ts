@@ -554,6 +554,7 @@ export interface SelectionPrompt {
   showCancel?: boolean;
   action:
     | "queue.cancel"
+    | "channel.recipient"
     | "workspace.set"
     | "model.provider.set"
     | "model.set"
@@ -591,6 +592,8 @@ export interface BotInboundMessage {
   };
   groupCard?: BotGroupCard;
   groupCardAction?: boolean;
+  /** 原生回调 context 中的实际卡片消息；不取按钮参数或回调事件 ID。 */
+  groupCardMessageId?: string;
   botId: string;
   actor: BotActor;
   text: string;

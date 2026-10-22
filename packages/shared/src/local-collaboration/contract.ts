@@ -3,7 +3,11 @@ const id = z.string().trim().min(1).max(250);
 const duty = z.string().trim().min(1).max(500);
 export const collaborationReplyIntentSchema = z.discriminatedUnion("kind", [
   z
-    .object({ kind: z.literal("dispatch"), targetBotId: id, requiredDuty: duty.optional() })
+    .object({
+      kind: z.literal("dispatch"),
+      targetBotId: id.optional(),
+      requiredDuty: duty.optional(),
+    })
     .strict(),
   z.object({ kind: z.literal("report") }).strict(),
   z

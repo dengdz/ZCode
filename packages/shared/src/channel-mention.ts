@@ -88,7 +88,17 @@ export const channelMentionClarificationSchema = z
       .max(50),
   })
   .strict();
+export const channelSelectionResultSchema = z
+  .object({
+    status: z.literal("awaiting_selection"),
+    selectionId: z.string().min(1),
+    state: z.enum(["awaiting", "resuming", "closed"]),
+  })
+  .strict();
+export type ChannelSelectionResult = z.infer<typeof channelSelectionResultSchema>;
+
 export const channelReplyResultSchema = z.union([
+  channelSelectionResultSchema,
   channelDeliveryResultSchema,
   channelMentionClarificationSchema,
   collaborationBlockedResultSchema,

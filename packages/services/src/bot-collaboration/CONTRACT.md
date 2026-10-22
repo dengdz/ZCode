@@ -10,7 +10,7 @@ withInbound 在同一锁内持久登记接收调用令牌，再调用一次原�
 
 核验成功由 Bot 服务复用原群激活流程，connected 仍只从原 Repo 读取，普通消息不会自动重开群。配置版本变更后原群卡片授权轮换，原格式只写既有字符串字段。
 
-05：同一所有者在 Local 文件保存原需求、执行输入关联及渠道交接索引，不保存正文或执行队列。入站只接受授权真人→PM、已确认发送的PM→执行者/执行者→PM；交接必须核对原生消息ID、身份、群/线程与当前版本。ReplyToChannel 明确意图后由所有者重读 inputId/taskId/workspace 与原需求，生成唯一原生收件人并关联既有 deliveryId；发送与结果仍由原渠道投递 owner 维护。新归属不写官网 Bot v3；CLI 获得精简上下文材料，不把模型声明当作身份事实。
+05：同一所有者在 Local 文件保存原需求、执行输入关联及渠道交接索引，不保存执行队列；05 交接索引不保存正文，08 原待发消息按其契约另存原文。入站只接受授权真人→PM、已确认发送的PM→执行者/执行者→PM；交接必须核对原生消息ID、身份、群/线程与当前版本。ReplyToChannel 明确意图后由所有者重读 inputId/taskId/workspace 与原需求，生成唯一原生收件人并关联既有 deliveryId；发送与结果仍由原渠道投递 owner 维护。新归属不写官网 Bot v3；CLI 获得精简上下文材料，不把模型声明当作身份事实。
 
 构造端口单独声明于 port.ts，与提供给调用方的业务接口分离；两者仍由同一服务实现，不增加所有者。首次可信派单可沿既有话题创建入口接入，显式停用不重开；来源输入已停止/取消/丢弃或投递结果未知时不受理迟到交接。发送前核对目标群及当前项目目录与权限。
 
@@ -23,3 +23,7 @@ ledger.ts 只定义本模块 Local 持久格式及规范化规则，供同一所
 dispatchValidation.ts 是同一模块内的纯职责/引用校验，无 IO 或状态；服务先从实际配置取得目标与职责后调用它，再由原 owner 保存关联和投递。
 
 07：prepareReply 接受 silent，保存当前输入 replyIntent 并返回严格 silent 控制结果，不创建 handoff/delivery；inputOrigin 返回该意图。正式发送尝试先写 visible，后续 silent 拒绝；静默不覆盖已发生投递或错误。调用者在终态按实际输入重读，不跨输入缓存权威意图。
+
+08：候选选择按 08-recipient-selection 工单合同执行。Local sidecar 是原待发请求与选择领取的唯一 owner，Bot 投递记录仍为唯一外部送达事实；awaiting_selection 不表示送达。recipientSelection 的 present/render/respond 命令分别领取卡片、投影原卡和核对原生选择，属于同一能力，不新建状态服务。
+
+replyRouting.ts 是同一 owner 的私有实现：沿原 ledger/read/write 与同一 file lock 处理回复准备和 present/render/respond。卡片使用公开 SELECTION_CARD_PREFIX 稳定 key，经既有投递 owner 发送；领取状态不代表外部送达，真实结果仅查原 Bot 投递记录。

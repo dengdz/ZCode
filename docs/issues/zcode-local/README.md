@@ -6,7 +6,7 @@
 
 当前集成分支：`3.16.2-local.1`。01–07 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)；日常安装与数据切换继续受后续工单门禁约束。
 
-执行策略：按编号一次一票。用户于 2026-10-22 请求「继续 07」；07 已完成；03a 测试弹窗修复继续有效。下一票为 08，尚未开始。普通提交沿用既有授权；远端 fork 尚未配置，不向官方 origin 推送，真实切换和用户验收遵守 spec 条件。
+执行策略：按编号一次一票。用户于 2026-10-22 请求「继续 07」；07 已完成；03a 测试弹窗修复继续有效。当前按用户「继续 08」实施 08；09 尚未开始。普通提交沿用既有授权；远端 fork 尚未配置，不向官方 origin 推送，真实切换和用户验收遵守 spec 条件。
 
 | 编号 | Issue | 直接前置 |
 |---|---|---|

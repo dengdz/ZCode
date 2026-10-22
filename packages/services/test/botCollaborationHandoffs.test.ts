@@ -16,6 +16,7 @@ afterEach(async () => {
 async function setup(
   scopeThread?: string,
   replyMode: "summary_changes" | "streaming_card" = "summary_changes",
+  locale: "zh-CN" | "en-US" = "zh-CN",
 ) {
   const home = await mkdtemp(join(tmpdir(), "collaboration-handoffs-"));
   setDataBaseDir(home);
@@ -164,6 +165,7 @@ async function setup(
       credentialService: f.createCredentialService({ synthetic: "synthetic-value" }),
       zcodeTaskService: tasks,
       localCollaborationEnabled: local,
+      settingService: f.createSettingService({ locale }),
       runStartupBackgroundTasks: false,
     });
     cleanups.push(() => service.disposeAllAndWait());
@@ -748,11 +750,12 @@ it.each(["wrong_target", "missing", "unresolved_choice", "multiple"])(
       parts: [...refs, ...(kind === "multiple" ? refs : []), { type: "text", text: "Build APP" }],
       collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
     });
-    expect(result).toMatchObject({
-      status: "blocked",
-      reason: kind === "wrong_target" ? "recipient_mismatch" : "reference_unavailable",
-    });
-    expect(f.sent).toHaveLength(0);
+    // 08 将未决身份转为候选卡；原工作仍不得发给错误目标或进入执行者任务。
+    expect(result).toMatchObject({ status: "awaiting_selection", state: "awaiting" });
+    expect(f.sent).toHaveLength(1);
+    expect(String(f.sent[0]!.body.content)).toContain("尚未发送");
+    expect(String(f.sent[0]!.body.content)).not.toContain("Build APP");
+    expect(String(f.sent[0]!.body.content)).not.toContain("ou_bot_product");
     expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
   },
 );
@@ -1335,4 +1338,402 @@ it("执行者也可静默确认；带内容或收件人的声明不能冒充纯�
     stopReason: "end_turn",
   } as ZCodeStreamEvent);
   expect(f.sent).toHaveLength(baseline);
+});
+
+function selectionButtons(card: { body: Record<string, unknown> }) {
+  const values: Array<{ command: string; groupCard: Record<string, unknown> }> = [];
+  const visit = (node: unknown) => {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    const value = node as Record<string, unknown>;
+    if (typeof value.command === "string" && value.command.startsWith("/channel-recipient "))
+      values.push(value as (typeof values)[number]);
+    Object.values(value).forEach(visit);
+  };
+  visit(JSON.parse(String(card.body.content)));
+  return values;
+}
+function selectionCallback(
+  card: { id: string },
+  value: unknown,
+  operator = "ou_owner_pm",
+  eventId = "selection-click",
+) {
+  return {
+    botId: "pm",
+    schema: "2.0",
+    header: { app_id: "cli_pm", event_type: "card.action.trigger", event_id: eventId },
+    event: {
+      operator: { operator_id: { open_id: operator } },
+      context: { open_chat_id: "oc_group", open_message_id: card.id, chat_type: "group" },
+      action: { value },
+    },
+  };
+}
+it.each([undefined, "omt_choose"])(
+  "卡片选择后原消息与职责自动续发一次，无普通终答叠加：%s",
+  async (threadId) => {
+    const f = await setup(threadId);
+    await f.service.handleInboundMessage(f.human());
+    const inputId = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+    const request = {
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId,
+      toolCallId: "choose-original",
+      parts: [{ type: "text", text: "Original work: preserve this exactly." }],
+      collaboration: { kind: "dispatch", requiredDuty: "APP" },
+    };
+    const result = await f.service.replyToChannel!(request as never);
+    expect(result.status).toBe("awaiting_selection");
+    expect(f.sent).toHaveLength(1);
+    const card = f.sent[0]!;
+    expect(card.body.msg_type).toBe("interactive");
+    expect(String(card.body.content)).toContain("尚未发送");
+    const buttons = selectionButtons(card);
+    expect(buttons.length).toBe(3);
+    await f.emit({ type: "task_run_started", taskId: "task-pm", inputId } as ZCodeStreamEvent);
+    await f.emit({
+      type: "agent_message_chunk",
+      taskId: "task-pm",
+      inputId,
+      content: "请选择后继续",
+    } as ZCodeStreamEvent);
+    await f.emit({
+      type: "task_complete",
+      taskId: "task-pm",
+      inputId,
+      stopReason: "end_turn",
+    } as ZCodeStreamEvent);
+    expect(f.sent).toHaveLength(1);
+    const clicked = await f.service.handleProviderCallbackResponse!(
+      "feishu",
+      selectionCallback(card, buttons[0]),
+    );
+    expect(f.sent, JSON.stringify(clicked)).toHaveLength(2);
+    expect(String(f.sent[1]!.body.content)).toContain("Original work: preserve this exactly.");
+    expect(String(f.sent[1]!.body.content)).toContain("ou_bot_app");
+    await f.service.handleProviderCallback(
+      "feishu",
+      selectionCallback(card, buttons[0], "ou_owner_pm", "selection-click-duplicate"),
+    );
+    expect(f.sent).toHaveLength(2);
+    expect((await f.service.replyToChannel!(request as never)).status).toBe("sent");
+    // 选择后的实际投递仍须形成可信交接，不能只有消息发送而执行者不受理。
+    const dispatched = f.sent[1]!;
+    await f.service.handleProviderCallback(
+      "feishu",
+      f.native("app", "pm", dispatched.id, "Original work: preserve this exactly."),
+    );
+    await f.service.handleProviderCallback(
+      "feishu",
+      f.native("app", "pm", dispatched.id, "Original work: preserve this exactly."),
+    );
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(2);
+    const evidence = process.env.ZCODE_TEST_ARTIFACT_DIR;
+    if (evidence) {
+      await mkdir(evidence, { recursive: true });
+      await cp(f.home, join(evidence, threadId ? "selection-topic" : "selection-group"), {
+        recursive: true,
+      });
+    }
+  },
+);
+
+async function pendingRecipient(f: Awaited<ReturnType<typeof setup>>) {
+  await f.service.handleInboundMessage(f.human());
+  const inputId = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  const request = {
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId,
+    toolCallId: "pending-choice",
+    parts: [{ type: "text" as const, text: "Original immutable APP work" }],
+    collaboration: { kind: "dispatch" as const, requiredDuty: "APP" },
+  };
+  expect((await f.service.replyToChannel!(request)).status).toBe("awaiting_selection");
+  const card = f.sent.at(-1)!;
+  return { request, card, buttons: selectionButtons(card) };
+}
+it.each(["cancel", "wrong-role"])("选择 %s 后关闭该卡，之后点正确角色也不续发", async (kind) => {
+  const f = await setup();
+  const { card, buttons } = await pendingRecipient(f);
+  const clicked = await f.service.handleProviderCallbackResponse!(
+    "feishu",
+    selectionCallback(card, buttons[kind === "cancel" ? 2 : 1]),
+  );
+  expect(JSON.stringify(clicked)).toContain(kind === "cancel" ? "已取消" : "职责不匹配");
+  await f.service.handleProviderCallback(
+    "feishu",
+    selectionCallback(card, buttons[0], "ou_owner_pm", "after-closed"),
+  );
+  expect(f.sent).toHaveLength(1);
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+});
+it("越权、伪造位置与正文命令不能选择；合法用户仍可继续", async () => {
+  const f = await setup();
+  const { card, buttons } = await pendingRecipient(f);
+  await f.service.handleProviderCallback(
+    "feishu",
+    selectionCallback(card, buttons[0], "ou_intruder", "unauthorized"),
+  );
+  await f.service.handleInboundMessage({
+    ...f.human("pm", "typed-control"),
+    text: buttons[0]!.command,
+  });
+  const forged = selectionCallback(card, buttons[0], "ou_owner_pm", "forged-context");
+  forged.event.context.open_chat_id = "oc_other";
+  const rejected = await f.service.handleProviderCallbackResponse!("feishu", forged);
+  expect(rejected.ok).toBe(false);
+  expect(f.sent).toHaveLength(1);
+  await f.service.handleProviderCallback(
+    "feishu",
+    selectionCallback(card, buttons[0], "ou_owner_pm", "authorized"),
+  );
+  expect(f.sent).toHaveLength(2);
+  expect(String(f.sent[1]!.body.content)).toContain("ou_bot_app");
+});
+it("两个 Host 并发选择及平台重投只续发一次", async () => {
+  const f = await setup();
+  const { card, buttons, request } = await pendingRecipient(f);
+  const other = f.create();
+  await Promise.all([
+    f.service.handleProviderCallback(
+      "feishu",
+      selectionCallback(card, buttons[0], "ou_owner_pm", "host-one"),
+    ),
+    other.handleProviderCallback(
+      "feishu",
+      selectionCallback(card, buttons[0], "ou_owner_pm", "host-two"),
+    ),
+    other.replyToChannel!(request),
+  ]);
+  expect(f.sent).toHaveLength(2);
+  await other.handleProviderCallback(
+    "feishu",
+    selectionCallback(card, buttons[0], "ou_owner_pm", "host-two"),
+  );
+  expect(f.sent).toHaveLength(2);
+  expect((await other.replyToChannel!(request)).status).toBe("sent");
+});
+it("服务重建后仍使用原内容续发，已发送卡的重启回调不重发", async () => {
+  const f = await setup("omt_restart_choice");
+  const { card, buttons, request } = await pendingRecipient(f);
+  await f.service.disposeAllAndWait();
+  const restored = f.create();
+  await restored.handleProviderCallback("feishu", selectionCallback(card, buttons[0]));
+  expect(f.sent).toHaveLength(2);
+  expect(String(f.sent[1]!.body.content)).toContain("Original immutable APP work");
+  await restored.disposeAllAndWait();
+  const again = f.create();
+  await again.handleProviderCallback(
+    "feishu",
+    selectionCallback(card, buttons[0], "ou_owner_pm", "after-restart"),
+  );
+  expect(f.sent).toHaveLength(2);
+  expect((await again.replyToChannel!(request)).status).toBe("sent");
+});
+it.each(["task", "stopped", "config", "expired", "card-message"])(
+  "%s 失效后不续发原消息",
+  async (boundary) => {
+    const f = await setup();
+    const { card, buttons, request } = await pendingRecipient(f);
+    let restoreClock: undefined | (() => void);
+    if (boundary === "config") {
+      const snapshot = (await f.service.getCollaborationSettings!())!.groups[0]!;
+      await f.service.saveCollaborationSettings!({
+        provider: "feishu",
+        chatId: "oc_group",
+        enabled: false,
+        expectedRevision: snapshot.config!.revision,
+        pmBotId: "pm",
+        executors: [{ botId: "app", duty: "APP" }],
+        authorizedUserId: snapshot.users[0]!.id,
+        workspaceId: snapshot.workspaces[0]!.id,
+      });
+    } else if (boundary === "task" || boundary === "stopped") {
+      const state = await f.repo.readState();
+      const scope = state.bots[JSON.stringify(["pm", "oc_group"])]!;
+      if (boundary === "task") scope.activeTaskId = "another-task";
+      else scope.group!.inputs![request.inputId]!.progress = { status: "stopped" };
+      await f.repo.writeState(state);
+    } else if (boundary === "expired") {
+      const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 16 * 60_000);
+      restoreClock = () => clock.mockRestore();
+    }
+    const payload = selectionCallback(card, buttons[0]);
+    if (boundary === "card-message") payload.event.context.open_message_id = "om_request";
+    try {
+      await f.service.handleProviderCallback("feishu", payload);
+    } finally {
+      restoreClock?.();
+    }
+    expect(f.sent).toHaveLength(1);
+  },
+);
+it("续发外部结果不明时保留 unknown，重投和重启不盲目补发", async () => {
+  const f = await setup();
+  const { card, buttons, request } = await pendingRecipient(f);
+  const externalFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", async (input: string | URL | Request, options?: RequestInit) => {
+    const response = await externalFetch(input, options);
+    if (
+      options?.method === "POST" &&
+      String(input).includes("/messages") &&
+      String(options.body).includes("Original immutable APP work")
+    )
+      throw new Error("Synthetic lost acknowledgement after external accept");
+    return response;
+  });
+  const first = await f.service.handleProviderCallbackResponse!(
+    "feishu",
+    selectionCallback(card, buttons[0]),
+  );
+  expect(JSON.stringify(first)).toContain("结果不明");
+  expect(f.sent).toHaveLength(2);
+  await f.service.disposeAllAndWait();
+  const restored = f.create();
+  await restored.handleProviderCallback(
+    "feishu",
+    selectionCallback(card, buttons[0], "ou_owner_pm", "unknown-replay"),
+  );
+  expect((await restored.replyToChannel!(request)).status).toBe("unknown");
+  expect(f.sent).toHaveLength(2);
+});
+
+it("已送达卡片过期后的重投仍显示原收据，不改称未发送", async () => {
+  const f = await setup();
+  const { card, buttons } = await pendingRecipient(f);
+  await f.service.handleProviderCallback("feishu", selectionCallback(card, buttons[0]));
+  const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 16 * 60_000);
+  try {
+    const result = await f.service.handleProviderCallbackResponse!(
+      "feishu",
+      selectionCallback(card, buttons[0], "ou_owner_pm", "late-receipt"),
+    );
+    expect(JSON.stringify(result)).toContain("原消息已发送");
+    expect(f.sent).toHaveLength(2);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+it("无已核验且接入的候选时不生成可发送卡片", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const state = await f.repo.readState();
+  for (const id of ["app", "product"])
+    state.bots[JSON.stringify([id, "oc_group"])]!.group!.enabled = false;
+  await f.repo.writeState(state);
+  const inputId = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  const result = await f.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId,
+    toolCallId: "no-candidate",
+    parts: [{ type: "text", text: "APP work" }],
+    collaboration: { kind: "dispatch", requiredDuty: "APP" },
+  });
+  expect(result).toMatchObject({ status: "blocked", reason: "reference_unavailable" });
+  expect(f.sent).toHaveLength(0);
+});
+it("新候选卡使同输入旧卡失效，不沿旧选择发送", async () => {
+  const f = await setup();
+  const { card, buttons, request } = await pendingRecipient(f);
+  const replacement = await f.service.replyToChannel!({
+    ...request,
+    toolCallId: "replacement-choice",
+  });
+  expect(replacement.status).toBe("awaiting_selection");
+  expect(f.sent).toHaveLength(2);
+  await f.service.handleProviderCallback(
+    "feishu",
+    selectionCallback(card, buttons[0], "ou_owner_pm", "old-card"),
+  );
+  expect(f.sent).toHaveLength(2);
+  const latest = f.sent[1]!;
+  await f.service.handleProviderCallback(
+    "feishu",
+    selectionCallback(latest, selectionButtons(latest)[0], "ou_owner_pm", "new-card"),
+  );
+  expect(f.sent).toHaveLength(3);
+});
+it("两 Host 同时请求同一选择只展示一张卡", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const other = f.create();
+  const inputId = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  const request = {
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId,
+    toolCallId: "same-card",
+    parts: [{ type: "text" as const, text: "Original work" }],
+    collaboration: { kind: "dispatch" as const, requiredDuty: "APP" },
+  };
+  const results = await Promise.all([
+    f.service.replyToChannel!(request),
+    other.replyToChannel!(request),
+  ]);
+  expect(results.map((result) => result.status)).toEqual([
+    "awaiting_selection",
+    "awaiting_selection",
+  ]);
+  expect(f.sent).toHaveLength(1);
+});
+it("卡片 UI 更新失败不能重发已送达的工作", async () => {
+  const f = await setup();
+  const { card, buttons } = await pendingRecipient(f);
+  const externalFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", async (input: string | URL | Request, options?: RequestInit) => {
+    if (options?.method === "PATCH") throw new Error("Synthetic card UI failure");
+    return externalFetch(input, options);
+  });
+  const result = await f.service.handleProviderCallbackResponse!(
+    "feishu",
+    selectionCallback(card, buttons[0]),
+  );
+  expect(JSON.stringify(result)).toContain("原消息已发送");
+  expect(f.sent).toHaveLength(2);
+  await f.service.handleProviderCallback(
+    "feishu",
+    selectionCallback(card, buttons[0], "ou_owner_pm", "ui-retry"),
+  );
+  expect(f.sent).toHaveLength(2);
+});
+
+it("候选卡与点击反馈跟随当前英文设置", async () => {
+  const f = await setup(undefined, "summary_changes", "en-US");
+  const { card, buttons } = await pendingRecipient(f);
+  expect(String(card.body.content)).toContain("Choose a recipient");
+  expect(String(card.body.content)).toContain("Cancel without sending");
+  const result = await f.service.handleProviderCallbackResponse!(
+    "feishu",
+    selectionCallback(card, buttons[2]),
+  );
+  expect(JSON.stringify(result)).toContain("Cancelled");
+  expect(f.sent).toHaveLength(1);
+});
+
+it("超出原渠道总字数限制的待发内容不生成卡片", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const inputId = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  await expect(
+    f.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId,
+      toolCallId: "oversized",
+      parts: [
+        { type: "text", text: "x".repeat(1200) },
+        { type: "text", text: "y".repeat(1200) },
+      ],
+      collaboration: { kind: "dispatch", requiredDuty: "APP" },
+    }),
+  ).rejects.toThrow("1–2000");
+  expect(f.sent).toHaveLength(0);
 });

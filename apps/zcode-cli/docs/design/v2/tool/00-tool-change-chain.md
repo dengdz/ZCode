@@ -1834,3 +1834,7 @@ ReplyToChannel collaboration 增加 requiredDuty；PM 派单/面向执行者追�
 ## Local 静默确认（07，2026-10-22）
 
 ReplyToChannel schema / 模型说明 → executing input identity → existing protocol / Host → bot-collaboration 当前输入意图 → strict silent result。静默无 deliveryId、无外部发送，Host 普通终答/空输出/排队卡统一服从协作群发送边界；实际工作、错误与阻塞保留，普通群不变。Local sidecar 是意图唯一所有者，不新增队列、工具或 SQLite 字段；服务重建和连续输入按 task/input/revision 隔离。
+
+## Local 收件人选择（08，2026-10-22）
+
+ReplyToChannel 可缺省派单 targetBotId → Host 严格 requiredDuty 与可信候选 → 现有 SelectionPrompt / Provider 卡片 → 原生操作者与原任务/版本复核 → 原请求及同调用 key 续发。awaiting_selection 是未送达控制结果，不要求模型重述或重试；原 owner 保存外部结果，静默终答不能重复卡片或工作。原内容和职责保留，错误/取消/过期不续发，普通群不变。

@@ -8,6 +8,22 @@ const DEFAULT_BOT_MESSAGE_LOCALE: BotMessageLocale = "zh-CN";
 
 const messages = {
   "zh-CN": {
+    recipientSelectionTooLong: "原文加收件人后超出渠道长度限制，未发送；请拆分内容后重新发起。",
+    recipientSelectionInvalid: "选择无效，原消息未续发。",
+    recipientSelectionUnauthorized: "无权操作或卡片已失效，原消息未续发。",
+    recipientSelectionClosed: "此选择已关闭，原消息未续发。",
+    recipientSelectionExpired: "选择已过期，原消息未续发。",
+    recipientSelectionTaken: "此卡已作选择，不能更换收件人。",
+    recipientSelectionCancelled: "已取消，原消息未发送。",
+    recipientSelectionCandidateInvalid: "候选无效，原消息未发送。",
+    recipientSelectionRoleMismatch: "身份或职责不匹配，原消息未发送；此选择已关闭。",
+    recipientSelectionUnavailable: "卡片不可用，原消息未续发。",
+    recipientSelectionSent: "原消息已发送。",
+    recipientSelectionUnknown: "外部发送结果不明，已保留记录；请先核对，不要重发。",
+    recipientSelectionFailed: "发送失败，未自动重发。",
+    recipientSelectionResuming: "续发状态待核对，未重复发送。",
+    recipientSelectionNotResumed: "原消息未续发，请检查任务状态。",
+    recipientSelectionStateChanged: "卡片或任务状态已变化，未继续发送；请核对原投递记录。",
     botDisabled: "当前 bot 未启用。",
     groupOwnerOnly: "仅绑定机器人的用户可以执行此操作。",
     groupNotEnabled: "此群尚未启用，请绑定用户 @机器人 /enable。",
@@ -139,6 +155,27 @@ const messages = {
     replyChanged: "第三方回复颗粒度已切换为 {mode}。",
   },
   "en-US": {
+    recipientSelectionTooLong:
+      "The original text plus recipient exceeds the channel limit. Nothing sent; split the content and start a new request.",
+    recipientSelectionInvalid: "Invalid selection. The original message was not resumed.",
+    recipientSelectionUnauthorized:
+      "Unauthorized or expired card. The original message was not resumed.",
+    recipientSelectionClosed: "This selection is closed. The original message was not resumed.",
+    recipientSelectionExpired: "The selection expired. The original message was not resumed.",
+    recipientSelectionTaken: "This card already has a selection. The recipient cannot be changed.",
+    recipientSelectionCancelled: "Cancelled. The original message was not sent.",
+    recipientSelectionCandidateInvalid: "Invalid candidate. The original message was not sent.",
+    recipientSelectionRoleMismatch:
+      "Identity or duty mismatch. The original message was not sent; this selection is closed.",
+    recipientSelectionUnavailable: "Card unavailable. The original message was not resumed.",
+    recipientSelectionSent: "The original message was sent.",
+    recipientSelectionUnknown:
+      "External delivery is unknown. The record was retained; reconcile it before resending.",
+    recipientSelectionFailed: "Delivery failed. No automatic resend was attempted.",
+    recipientSelectionResuming: "Resume status needs reconciliation. No duplicate was sent.",
+    recipientSelectionNotResumed: "The original message was not resumed. Check the task status.",
+    recipientSelectionStateChanged:
+      "The card or task state changed. No further send was started; check the existing delivery record.",
     botDisabled: "This bot is not enabled.",
     groupOwnerOnly: "Only the bound bot owner can perform this action.",
     groupNotEnabled:

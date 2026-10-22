@@ -127,7 +127,11 @@ function readPlanApprovalContent(message: BotOutboundMessage): string | null {
 }
 
 function formatSelectionCommand(selection: SelectionPrompt, optionId: string): string {
-  if (selection.action === "permission.respond" || selection.action === "queue.cancel") {
+  if (
+    selection.action === "permission.respond" ||
+    selection.action === "queue.cancel" ||
+    selection.action === "channel.recipient"
+  ) {
     return optionId;
   }
   if (selection.action === "elicitation.respond") {
@@ -972,6 +976,8 @@ function readFeishuCardAction(
     ...(chatType === "group"
       ? { groupCardAction: true, ...(groupCard.success ? { groupCard: groupCard.data } : {}) }
       : {}),
+    groupCardMessageId:
+      readString(context, "open_message_id") || readString(context, "message_id") || undefined,
     text: command,
     actor: {
       provider,
@@ -2680,7 +2686,11 @@ export function createFeishuBotProvider(deps: FeishuProviderDeps): BotProviderAd
             ? buildFeishuElicitationCardPayload(message)
             : buildFeishuInteractiveCardPayload(message),
         );
-        return message.selection.action === "queue.cancel" && providerMessageId
+        if (message.selection.action === "channel.recipient" && !providerMessageId)
+          throw new Error("Selection card delivery returned no message ID; outcome is unknown");
+        return (message.selection.action === "queue.cancel" ||
+          message.selection.action === "channel.recipient") &&
+          providerMessageId
           ? { providerMessageId }
           : undefined;
       }

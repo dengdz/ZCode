@@ -17,6 +17,9 @@ it("只读空配置不生成默认授权或覆盖业务文件", async () => {
       isIdle: async () => true,
     });
     expect(await service.getSettings()).toEqual({ groups: [] });
+    expect(
+      await service.recipientSelection({ kind: "present", selectionId: "unknown-card" }),
+    ).toBeUndefined();
     await expect(stat(file)).rejects.toMatchObject({ code: "ENOENT" });
   } finally {
     await rm(root, { recursive: true, force: true });

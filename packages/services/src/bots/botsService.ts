@@ -1,5 +1,5 @@
 import { replyToBotChannel } from "#src/bots/channelReply.js";
-import { createBotCollaboration } from "#src/bot-collaboration/index.js";
+import { createBotCollaboration, SELECTION_CARD_PREFIX } from "#src/bot-collaboration/index.js";
 import {
   BotAdminRequiredError,
   BotReplyError,
@@ -2871,6 +2871,8 @@ export function createBotsService(
     }
     pendingSelectionsByContext.delete(actorContextKey);
     switch (selection.action) {
+      case "channel.recipient":
+        return null;
       case "queue.cancel":
         return parseBotCommand(option.id);
       case "workspace.set":
@@ -3042,11 +3044,29 @@ export function createBotsService(
           throw Object.assign(new Error("Channel reply application changed"), {
             deliveryRejected: true,
           });
+        const selectionCard = result.id.startsWith(SELECTION_CARD_PREFIX)
+          ? await collaboration?.recipientSelection({
+              kind: "render",
+              locale: await readMessageLocale(),
+              scope: {
+                provider: bot.provider as "feishu" | "lark",
+                chatId,
+                botId: bot.id,
+                threadId,
+              },
+              deliveryId: result.id,
+            })
+          : undefined;
+        if (result.id.startsWith(SELECTION_CARD_PREFIX) && selectionCard?.kind !== "render")
+          throw Object.assign(new Error("Selection card authorization changed"), {
+            deliveryInvalidated: true,
+          });
         return adapter.send(currentBot, {
+          ...(selectionCard?.kind === "render" ? selectionCard.message : {}),
           botId: bot.id,
           provider: bot.provider,
           providerUserId: chatId,
-          text: result.text,
+          text: selectionCard?.kind === "render" ? selectionCard.message.text : result.text,
           deliveryId: result.id,
           replyToMessageId: result.replyToMessageId,
           mentionedUserIds: result.mentionedUserIds,
@@ -8738,7 +8758,7 @@ export function createBotsService(
       for (const reply of replies) await sendOutbound(bot, reply);
     },
     async replyToChannel(request) {
-      return replyToBotChannel(request, {
+      const result = await replyToBotChannel(request, {
         prepare: collaboration
           ? (request, scope, id, trusted) => collaboration.prepareReply(request, scope, id, trusted)
           : undefined,
@@ -8752,6 +8772,18 @@ export function createBotsService(
         deliver: (bot, chatId, threadId, result) =>
           getGroupDeliverySender(bot, chatId, threadId)(result),
       });
+      if (result.status === "awaiting_selection" && result.state === "awaiting") {
+        const card = await collaboration?.recipientSelection({
+          kind: "present",
+          selectionId: result.selectionId,
+          locale: await readMessageLocale(),
+        });
+        if (card?.kind === "card") {
+          const bot = findBot(await repo.readConfig(), card.botId);
+          if (bot) await getGroupDeliverySender(bot, card.chatId, card.threadId)(card.delivery);
+        }
+      }
+      return result;
     },
     async getBotStates() {
       return Object.entries((await repo.readState()).bots).map(([key, context]) => {
@@ -8909,6 +8941,55 @@ export function createBotsService(
     watchAutomationRun,
     async handleInboundMessage(message: BotInboundMessage) {
       if (shutdownPromise) return [];
+      if (message.groupCardAction && message.text.startsWith("/channel-recipient ")) {
+        const locale = await readMessageLocale();
+        const selection = await collaboration?.recipientSelection({
+          kind: "respond",
+          message,
+          locale,
+        });
+        let text =
+          selection?.kind === "notice"
+            ? msg(locale, selection.message)
+            : msg(locale, "recipientSelectionUnavailable");
+        let update = selection?.kind === "notice" && selection.update;
+        if (selection?.kind === "resume") {
+          try {
+            const result = await service.replyToChannel!(selection.request);
+            text =
+              result.status === "sent"
+                ? msg(locale, "recipientSelectionSent")
+                : result.status === "unknown"
+                  ? msg(locale, "recipientSelectionUnknown")
+                  : result.status === "failed"
+                    ? msg(locale, "recipientSelectionFailed")
+                    : result.status === "awaiting_selection"
+                      ? msg(locale, "recipientSelectionResuming")
+                      : msg(locale, "recipientSelectionNotResumed");
+          } catch {
+            text = msg(locale, "recipientSelectionStateChanged");
+          }
+          update = true;
+        }
+        const reply = { ...createOutbound(message.actor, text), callbackToastOnly: true };
+        if (update && message.groupCardMessageId) {
+          const bot = findBot(await repo.readConfig(), message.botId);
+          if (bot)
+            await providers[bot.provider]
+              ?.updateTransientInteractionCard?.(
+                bot,
+                { providerMessageId: message.groupCardMessageId },
+                reply,
+              )
+              .catch(() =>
+                botsLogger.warn(
+                  undefined,
+                  "Recipient selection card update failed; delivery receipt retained",
+                ),
+              );
+        }
+        return [reply];
+      }
       const verification = await collaboration?.observeInbound(message);
       if (verification) {
         // 机器人不能完成真人核验；拒绝控制输入时也不回消息，避免制造新的机器人唤醒。

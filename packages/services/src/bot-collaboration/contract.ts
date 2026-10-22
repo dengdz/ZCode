@@ -11,8 +11,35 @@ import type {
   BotGroupDelivery,
   CollaborationBlockedResult,
   ChannelSilentResult,
+  ChannelSelectionResult,
+  BotOutboundMessage,
+  Locale,
 } from "@zcode/shared";
 export type { BotCollaborationPort } from "./port.js";
+export type RecipientSelectionCommand = (
+  | { kind: "present"; selectionId: string }
+  | {
+      kind: "render";
+      scope: CollaborationScope & { botId: string; threadId?: string };
+      deliveryId: string;
+    }
+  | { kind: "respond"; message: BotInboundMessage }
+) & { locale?: Locale };
+export type RecipientSelectionNotice =
+  | "recipientSelectionTooLong"
+  | "recipientSelectionInvalid"
+  | "recipientSelectionUnauthorized"
+  | "recipientSelectionClosed"
+  | "recipientSelectionExpired"
+  | "recipientSelectionTaken"
+  | "recipientSelectionCancelled"
+  | "recipientSelectionCandidateInvalid"
+  | "recipientSelectionRoleMismatch";
+export type RecipientSelectionOutcome =
+  | { kind: "card"; botId: string; chatId: string; threadId?: string; delivery: BotGroupDelivery }
+  | { kind: "render"; message: BotOutboundMessage }
+  | { kind: "resume"; request: ChannelReplyHostRequest }
+  | { kind: "notice"; message: RecipientSelectionNotice; update: boolean };
 export interface BotCollaborationContract {
   /** 群的可信入站方向；其他真人和未关联机器人不能触发运行时。 */
   authorize(message: BotInboundMessage): Promise<"legacy" | "allow" | "redirect" | "deny">;
@@ -32,7 +59,13 @@ export interface BotCollaborationContract {
     scope: CollaborationScope & { botId: string; threadId?: string },
     deliveryId: string,
     trusted: readonly ChannelContentPart[],
-  ): Promise<ChannelContentPart[] | CollaborationBlockedResult | ChannelSilentResult | undefined>;
+  ): Promise<
+    | ChannelContentPart[]
+    | CollaborationBlockedResult
+    | ChannelSilentResult
+    | ChannelSelectionResult
+    | undefined
+  >;
   /** 既有投递 owner 的最后检查；等待期间变更配置或收件人授权必须失效。 */
   authorizeDelivery(
     scope: CollaborationScope & { botId: string; threadId?: string },
@@ -44,6 +77,10 @@ export interface BotCollaborationContract {
     inputId: string,
     taskId: string,
   ): Promise<{ initiatorId: string; mentionedUserIds: string[]; silent: boolean } | undefined>;
+  /** 同一待发消息的卡片领取、投影及原生选择，不拥有外部发送结果。 */
+  recipientSelection(
+    command: RecipientSelectionCommand,
+  ): Promise<RecipientSelectionOutcome | undefined>;
   getSettings(): Promise<CollaborationSnapshot>;
   save(request: CollaborationSave): Promise<CollaborationSnapshot>;
   beginVerification(request: CollaborationVerification): Promise<CollaborationChallenge>;

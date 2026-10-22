@@ -13,6 +13,7 @@ import {
   type ChannelContentPart,
   type CollaborationBlockedResult,
   type ChannelSilentResult,
+  type ChannelSelectionResult,
 } from "@zcode/shared";
 
 interface ChannelReplyDependencies {
@@ -21,7 +22,13 @@ interface ChannelReplyDependencies {
     scope: { provider: "feishu" | "lark"; chatId: string; botId: string; threadId?: string },
     deliveryId: string,
     trusted: readonly ChannelContentPart[],
-  ): Promise<ChannelContentPart[] | CollaborationBlockedResult | ChannelSilentResult | undefined>;
+  ): Promise<
+    | ChannelContentPart[]
+    | CollaborationBlockedResult
+    | ChannelSilentResult
+    | ChannelSelectionResult
+    | undefined
+  >;
   readState(): Promise<BotsStateFile>;
   readConfig(): Promise<BotsConfigFile>;
   listMembers?(bot: BotConfig, chatId: string): Promise<Record<string, string>>;
@@ -131,6 +138,13 @@ export async function replyToBotChannel(
   deps: ChannelReplyDependencies,
 ): Promise<ChannelReplyResult> {
   const request = channelReplyHostRequestSchema.parse(value);
+  // 待选卡必须保存可投递的原文；不能选完才发现总文本超限并留下领取悬态。
+  if (
+    request.collaboration &&
+    request.parts.reduce((size, part) => size + (part.type === "text" ? part.text.length : 0), 0) >
+      2000
+  )
+    throw new Error("Channel reply must contain 1–2000 characters");
   if (request.collaboration && !deps.prepare) throw new Error("collaboration.unavailable");
   let binding = await readBinding(request, deps);
   const { bot } = binding;

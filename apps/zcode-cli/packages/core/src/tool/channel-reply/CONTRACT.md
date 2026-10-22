@@ -14,3 +14,5 @@ Local 协作输入可声明 dispatch/report/question/final 意图及本机目标
 06：Local 派单提供 requiredDuty；blocked 结果只说明未发送及纠正原因，不包装为成功，不自行更换职责或发送目标。
 
 07：Local 上下文允许 silent 意图，parts 为单个空 text，不传目标；Host 保存当前执行输入静默状态并返回 {status: "silent"}。该结果不是投递或完成回报。错误与阻塞仍会显示，普通群不可使用。
+
+08：候选选择按 08-recipient-selection 工单合同执行。Local sidecar 是原待发请求与选择领取的唯一 owner，Bot 投递记录仍为唯一外部送达事实；awaiting_selection 不表示送达。recipientSelection 的 present/render/respond 命令分别领取卡片、投影原卡和核对原生选择，属于同一能力，不新建状态服务。

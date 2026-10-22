@@ -7,3 +7,5 @@ Local collaboration 意图为可选扩展；原请求没有该字段时仍按原
 06：channelReplyResultSchema 接受严格 blocked 未发送结果，区别于投递和候选澄清。collaboration 的 requiredDuty 由 PM 声明，引用和用户选择不能替代角色校验。
 
 07：严格 silent 结果只有 status，不携带投递编号或完成含义。silent 意图禁止目标字段；空 text part 由 Host 校验为唯一内容，普通群拒绝该意图。
+
+08：候选选择按 08-recipient-selection 工单合同执行。Local sidecar 是原待发请求与选择领取的唯一 owner，Bot 投递记录仍为唯一外部送达事实；awaiting_selection 不表示送达。recipientSelection 的 present/render/respond 命令分别领取卡片、投影原卡和核对原生选择，属于同一能力，不新建状态服务。

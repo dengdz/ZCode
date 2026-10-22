@@ -221,3 +221,29 @@ it("Local silent is an input-bound control result, not a delivery or completion 
   >;
   expect(properties.collaboration!.properties.kind!.enum).toContain("silent");
 });
+
+it("candidate selection retains original task and duty and never claims delivery", async () => {
+  const f = fixture();
+  const waiting = { status: "awaiting_selection", selectionId: "opaque-card", state: "awaiting" };
+  f.reply.mockResolvedValue(waiting as never);
+  const result = await replyToChannelHandler(
+    {
+      parts: [{ type: "text", text: "Original work" }],
+      collaboration: { kind: "dispatch", requiredDuty: "APP" },
+    },
+    f.context,
+  );
+  expect(result).toEqual(waiting);
+  expect(f.reply.mock.calls[0]?.[0]).toMatchObject({
+    taskId: "task",
+    inputId: "input",
+    collaboration: { kind: "dispatch", requiredDuty: "APP" },
+  });
+  expect(replyToChannelToolEntry.runtimeOutputSchema!.parse(result)).toEqual(waiting);
+  expect(() =>
+    replyToChannelToolEntry.runtimeOutputSchema!.parse({ ...waiting, deliveryId: "forged" }),
+  ).toThrow();
+  expect(replyToChannelToolEntry.metadata.description).toContain(
+    "awaiting_selection is NOT delivery",
+  );
+});
