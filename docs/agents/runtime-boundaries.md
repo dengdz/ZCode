@@ -57,6 +57,8 @@ Renderer：未提交草稿 + pending optimistic overlay
 - 已提交的 busy/running 输入统一由 CLI/runtime `CommandInbox` 接收，FIFO 以 CLI 串行 admission 顺序为准。Host 的 owner/lease 仅路由，不重新保存第二份 accepted input queue；command 保留可信 attachment 注入的 clientMode。
 - owner/lease/owner command 仍负责运行中 task 单 owner、跨 host 路由、阻塞请求响应、stale run 防护。不能仅因 shared-host 主路径存在就删除判断；变更需证明 remote workspace、bot/proxy、跨 host fallback 的依赖均已处理。
 
+启用 Local 群的输入额外由 Host 传入固定 projectExecutionScope。原 V4 runtime 在 Local 扩展目录维护 session 绑定与按 workspaceKey 排他的执行租约，忙碌输入仍交原 Core 队列；Bot/Renderer 不保存第二份 accepted queue。租约在真实 Core owned-work 收口后释放，包含后台与 sidecar，不按停止 ACK、TTL 或进程退出猜测空闲。冷会话从原 Local 绑定重读，未知租约留恢复核对；它不替代 task owner/lease。见 [09 工单](../issues/zcode-local/09-project-serial-execution.md)。
+
 修改上述远控/实时行为前，按问题读取以下当前事实文档；历史 plan/spec 仅作背景：
 
 - [远控架构](../web-remote-control/web-remote-control-architecture.md)：attachment、进程职责与远程工作区。

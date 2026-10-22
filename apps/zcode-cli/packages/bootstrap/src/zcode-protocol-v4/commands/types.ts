@@ -1,3 +1,7 @@
+import type {
+  ProjectExecutionClaim,
+  ProjectExecutionScope,
+} from "../../project-execution/contract.js";
 // v4 原生命令层的 core 能力契约（原生重做版）。
 //
 // 分层纪律（不做桥接）：
@@ -74,6 +78,12 @@ export interface V4SessionRecordView {
   workspace: { workspacePath: string };
   /** draft 语义：deferred = 未发送首条消息，不进 sqlite；首条 send 时提升 immediate。 */
   persistence: "immediate" | "deferred";
+  /** 只有原 Core completion 和真实 idle 才能释放，不是第二份执行状态。 */
+  projectExecutionLease?: {
+    release(): Promise<void>;
+    settled: boolean;
+    foregroundExecutionId?: string;
+  };
   /** active turn 锁：存在 = turn 运行中（sendText 走 steer 分流、stop 有目标）。 */
   activeAbortController?: AbortController;
   /** ready lock 已释放但 state mutation 收尾仍在使用 record/runtime 的引用计数。 */
@@ -93,6 +103,11 @@ export interface V4CommandCoreHost {
   /** 会话查找（同一注册表对象引用；不存在返回 undefined → handler 拒绝）。 */
   getRecord(sessionId: string): V4SessionRecordView | undefined;
   logger?: V4CommandLogger;
+  acquireProjectExecution?(
+    record: V4SessionRecordView,
+    inputId: string,
+    scope?: ProjectExecutionScope,
+  ): Promise<ProjectExecutionClaim>;
 
   // ── v4 原生能力（非过渡钩子）────────────────────────────────
   /** queue 项完整权威 intent；sendQueuedNow 禁止退化成 text-only 重发。 */

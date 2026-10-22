@@ -283,6 +283,7 @@ export interface IZCodeTaskService {
     remoteSessionId?: string;
     commandId: string;
     content: string;
+    projectExecutionScope?: { projectId: string; workspaceKey: string };
     conversationQuotes?: import("@zcode/shared").ConversationSelectionText[];
     attachments?: ZCodePromptAttachment[];
     source: import("@zcode/shared").BotGroupInputSource;

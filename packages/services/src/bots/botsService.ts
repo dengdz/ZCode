@@ -7151,6 +7151,8 @@ export function createBotsService(
       workspacePath: context.workspacePath,
       workspaceIdentity: context.workspaceIdentity,
     });
+    if (collaborationContext && !context.projectId)
+      throw new Error("Local collaboration project identity is missing");
     const isFirstTaskInput = !Object.values(context.group.inputs ?? {}).some(
       (input) => input.taskId === context.activeTaskId,
     );
@@ -7169,6 +7171,14 @@ export function createBotsService(
     const ack = await service.submitBotGroupInput({
       taskId: context.activeTaskId,
       commandId,
+      ...(collaborationContext && context.projectId
+        ? {
+            projectExecutionScope: {
+              projectId: context.projectId,
+              workspaceKey: context.workspaceIdentity?.trim() || context.workspacePath,
+            },
+          }
+        : {}),
       content: prepared.content + (collaborationContext ?? ""),
       ...(topicBatch
         ? {

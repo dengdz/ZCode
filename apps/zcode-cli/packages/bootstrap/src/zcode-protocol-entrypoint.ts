@@ -1,4 +1,5 @@
-import { createConfig } from "@zcode/adapters/config";
+import { join } from "node:path";
+import { createConfig, resolvePath } from "@zcode/adapters/config";
 import type { McpElicitationPort, McpNotificationPort } from "@zcode/contracts";
 import { createNodeModelSelectionFacade } from "@zcode/provider-node";
 import { createNodeLoggerFactory } from "@zcode/adapters/logging";
@@ -309,6 +310,12 @@ export async function runZCodeProtocolAgent(
           onToolExecResource: (params) =>
             connection.send({ method: zcodeProtocolNotifications.toolExecResource, params }),
         }),
+      projectExecutionDirectory: join(
+        resolvePath(configResult.config.storage.dir),
+        "local",
+        "v1",
+        "project-execution",
+      ),
       cwd: options.cwd,
       env: options.env,
       loggerFactory,

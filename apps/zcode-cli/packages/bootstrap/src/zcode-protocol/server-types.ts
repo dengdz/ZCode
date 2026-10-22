@@ -47,6 +47,8 @@ export interface ZCodeProtocolAgentDependencies {
    * 默认 turn 窗口保留策略；测试可注入 spy 或 unbounded 实现做对照。
    */
   createSessionEventStore?(sessionId: string): SessionEventStorePort;
+  /** Local 执行元数据目录；由进程入口沿现有 storage 配置注入。 */
+  projectExecutionDirectory?: string;
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   loggerFactory?: LoggerFactory;
@@ -111,6 +113,11 @@ export interface ZCodeProtocolSessionRecord {
   activeAbortController?: AbortController;
   /** background runner 释放 ready lock 后，持久化/snapshot/broadcast 尚未完成的引用计数。 */
   residencyFinalizationCount?: number;
+  projectExecutionLease?: {
+    release(): Promise<void>;
+    settled: boolean;
+    foregroundExecutionId?: string;
+  };
   /** 当前正在执行的 automation 派发 turn；只在 turn 运行期间存在，禁止递归 CronCreate。 */
   activeAutomationId?: string;
   /** 当前正在执行的闲时派发 turn；只在 turn 运行期间存在，禁止递归 OffPeakCreate。 */

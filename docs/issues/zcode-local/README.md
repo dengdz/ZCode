@@ -4,32 +4,34 @@
 
 父规格：[ZCode Local spec](../../local-edition/spec.md)。[已确认拆分](../../local-edition/ticket-plan.md)。父 Issue 保持不变，执行状态以各子工单为准。
 
-当前集成分支：`3.16.2-local.1`。01–08 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)；日常安装与数据切换继续受后续工单门禁约束。
+当前集成分支：`3.16.2-local.1`。01–09 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)，09 见[同项目串行报告](../../local-edition/project-serial-execution.md)；日常安装与数据切换继续受后续工单门禁约束。
 
-执行策略：按编号一次一票。用户于 2026-10-22 请求「继续 08」；08 已完成；03a 测试弹窗修复继续有效。下一票为 09，尚未开始。普通提交沿用既有授权；远端 fork 尚未配置，不向官方 origin 推送，真实切换和用户验收遵守 spec 条件。
+执行策略：按编号一次一票。用户于 2026-10-22 请求「那就开工 继续完成09」，本轮仅完成 09 收尾；03a 测试弹窗修复继续有效。09 已完成；10 尚未开始。普通提交沿用既有授权；远端 fork 尚未配置，不向官方 origin 推送，真实切换和用户验收遵守 spec 条件。
 
-| 编号 | Issue | 直接前置 |
-|---|---|---|
-| 01 | [确定官方基线与可重复的隔离候选](01-baseline-candidate.md) | 无 |
-| 02 | [构建可独立启动的 ZCode Local 候选应用](02-local-app.md) | 01 |
-| 03 | [验证共用业务数据并实现双向接管保护](03-data-compatibility-ownership.md) | 02 |
-| 04 | [从设置启用协作群并保存身份、职责与项目绑定](04-group-collaboration-settings.md) | 03 |
-| 05 | [走通可信派单、回报与原需求用户归属](05-trusted-handoffs.md) | 04 |
-| 06 | [在派发前拦截错误角色与错误引用](06-dispatch-role-validation.md) | 05 |
-| 07 | [让纯确认轮真正静默结束](07-silent-acknowledgments.md) | 05 |
-| 08 | [通过候选卡片选人并自动续发原消息](08-recipient-selection.md) | 06、07 |
-| 09 | [保证同一项目实际执行串行](09-project-serial-execution.md) | 05 |
-| 10 | [允许合法协作长链持续推进](10-collaboration-chain-admission.md) | 06、07、09 |
-| 11 | [将用户叫停连接到实际任务停止](11-stop-execution.md) | 09 |
-| 12 | [在断线和重启后核对状态再恢复](12-state-reconciliation.md) | 08、11 |
-| 13 | [落实 PM 审核、依赖推进与用户验收闭环](13-pm-review-acceptance.md) | 10、12 |
-| 14 | [从维护入口生成可追溯的版本候选](14-versioned-candidates.md) | 02 |
-| 15 | [备份应用与业务数据并验证保留策略](15-backup-retention.md) | 14 |
-| 16 | [从维护入口安全切换到候选版本](16-safe-installation.md) | 09、15 |
-| 17 | [分开提供程序回退与数据快照恢复](17-rollback-restore.md) | 16 |
-| 18 | [完成整体回归与真实群只读验收](18-end-to-end-acceptance.md) | 13、17 |
+| 编号 | Issue                                                                            | 直接前置   |
+| ---- | -------------------------------------------------------------------------------- | ---------- |
+| 01   | [确定官方基线与可重复的隔离候选](01-baseline-candidate.md)                       | 无         |
+| 02   | [构建可独立启动的 ZCode Local 候选应用](02-local-app.md)                         | 01         |
+| 03   | [验证共用业务数据并实现双向接管保护](03-data-compatibility-ownership.md)         | 02         |
+| 04   | [从设置启用协作群并保存身份、职责与项目绑定](04-group-collaboration-settings.md) | 03         |
+| 05   | [走通可信派单、回报与原需求用户归属](05-trusted-handoffs.md)                     | 04         |
+| 06   | [在派发前拦截错误角色与错误引用](06-dispatch-role-validation.md)                 | 05         |
+| 07   | [让纯确认轮真正静默结束](07-silent-acknowledgments.md)                           | 05         |
+| 08   | [通过候选卡片选人并自动续发原消息](08-recipient-selection.md)                    | 06、07     |
+| 09   | [保证同一项目实际执行串行](09-project-serial-execution.md)                       | 05         |
+| 10   | [允许合法协作长链持续推进](10-collaboration-chain-admission.md)                  | 06、07、09 |
+| 11   | [将用户叫停连接到实际任务停止](11-stop-execution.md)                             | 09         |
+| 12   | [在断线和重启后核对状态再恢复](12-state-reconciliation.md)                       | 08、11     |
+| 13   | [落实 PM 审核、依赖推进与用户验收闭环](13-pm-review-acceptance.md)               | 10、12     |
+| 14   | [从维护入口生成可追溯的版本候选](14-versioned-candidates.md)                     | 02         |
+| 15   | [备份应用与业务数据并验证保留策略](15-backup-retention.md)                       | 14         |
+| 16   | [从维护入口安全切换到候选版本](16-safe-installation.md)                          | 09、15     |
+| 17   | [分开提供程序回退与数据快照恢复](17-rollback-restore.md)                         | 16         |
+| 18   | [完成整体回归与真实群只读验收](18-end-to-end-acceptance.md)                      | 13、17     |
 
 ## Progress
+
+- 2026-10-22：09 完成。固定项目执行租约接入原 V4 队列，跨机器人同工作区互斥、排队续跑、同会话续跑补正与停止/后台保护落地。176 项 CLI 相关、376 项 Bot 相关回归通过；根/CLI 类型、Lint/架构、变更范围格式与固定官网 Reader 通过。一次全量 20085 通过、3 项既有端口环境失败、10 跳过；fixture 新诊断 0。真实模型/群验收留 18；未更新安装候选，10 未开始。
 
 - 2026-10-22：08 完成。实现 `8e6913e2`；候选卡片、持久原请求、角色与原生回调复核、原消息续发及跨 Host 去重落地。390 项相关回归、18 项 CLI、根与完整 CLI 类型、Lint/架构/格式、固定官网 Reader 及两轴审查通过。一次全量 20080 通过、3 项既有端口环境失败、10 跳过；fixture 新诊断 0，官网签名有效。当前源码交付，未更新安装候选，09 未开始。
 
@@ -50,4 +52,3 @@
 - 2026-10-21：官方 3.16.2 候选固定到 `3c5b227649371507ddc4eb46ac5133afe6db1cab`；保留旧分支及历史，新建上述集成分支。候选验证仍在进行，暂无 Local 发布包。
 - 2026-10-21：01 完成并以快进合并纳入集成分支，实现提交 `26e8d1ac`。已核对 17 文件 / 453 项相关测试、类型检查、Lint 与架构证据，以及两次正常欢迎页隔离启动。用户接受首版的原生 Computer Use 缺口，原文：「可以，首版优先完成飞书协作」。业务数据兼容、实际凭据访问和双向无强杀互斥门禁继续有效，后续按串行顺序进入 02。
 - 2026-10-21：02 完成，独立 Local 候选源码锚点 `f8fbaaa0`，签名 .app、DMG、ZIP 与隔离欢迎页/关于面板/正常退出证据齐备。全量首轮 19950 项通过，补正后相关 227 项通过，两路审查无遗留。见[02 候选报告](../../local-edition/local-app-candidate.md)。03 未开始，按用户要求结束本轮。
-

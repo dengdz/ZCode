@@ -30,6 +30,12 @@ Mobile replayable command ──┘                                      |
 - 每个桌面窗口只有一个 Window Host 和一个 realtime `hostId`；local/remote command 在 Host 内按
   `workspaceKey + taskId` 路由，`remoteSessionId` 只选择窗口内 source，不能替代 workspace identity。
 
+## Local 群项目执行边界
+
+启用协作的群由 Host 从固定绑定注入 V4 sendText.projectExecutionScope；Local 话题也请求 queue，不抢占在办执行。该非模型字段不进入 ConversationInputIntent、Bot v3 或 SQLite。CLI 在现有 storage root 的 Local 扩展目录保存 session 固定 scope 与当前项目执行租约；同 workspaceKey 的不同机器人任务竞争同一租约，已接受输入仍只在原 CommandInbox/Core 队列。
+
+忙碌时原 requireQueue 产生 queue ACK，原 sendQueuedNow 在提升前重查租约；自动等待复用原队列重评入口，手动提升失败也保留原项。真实前台/后台/sidecar 结束且 Core owned-work 空闲才释放，停止 ACK 不释放；未知/崩溃租约不自动接管。桌面 continuous 与手机 replayable 继续投影原队列，不各自调度，不改变未绑定普通会话行为。更广恢复见 [12](issues/zcode-local/12-state-reconciliation.md)。
+
 ## ConversationInputIntent
 
 每条 admitted input 自包含并沿 queue/runtime/transcript 全字段守恒：

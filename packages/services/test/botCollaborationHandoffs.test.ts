@@ -249,6 +249,43 @@ async function setup(
   return { service, create, repo, tasks, sent, human, home, native, emit };
 }
 
+it.each([undefined, "omt_topic"])(
+  "Local 输入携带固定项目串行范围，不依赖桌面当前项目：%s",
+  async (thread) => {
+    const f = await setup(thread);
+    await f.service.handleInboundMessage(f.human());
+    expect(vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0]).toMatchObject({
+      projectExecutionScope: { projectId: "project-0", workspaceKey: "/project" },
+    });
+  },
+);
+
+it("运行时仍有 queued 输入时拒绝更换职责，实际清空后才可修改", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const snapshot = (await f.service.getCollaborationSettings!())!.groups[0]!;
+  const request = {
+    provider: "feishu" as const,
+    chatId: "oc_group",
+    expectedRevision: snapshot.config!.revision,
+    enabled: true,
+    pmBotId: "pm",
+    executors: [
+      { botId: "app", duty: "Updated APP" },
+      { botId: "product", duty: "Product" },
+    ],
+    authorizedUserId: snapshot.users[0]!.id,
+    workspaceId: snapshot.workspaces[0]!.id,
+  };
+  vi.mocked(f.tasks.getBotGroupTaskBlockReason!).mockResolvedValue("queued");
+  await expect(f.service.saveCollaborationSettings!(request)).rejects.toThrow("collaboration.busy");
+  expect((await f.service.getCollaborationSettings!())!.groups[0]!.busy).toBe(true);
+  vi.mocked(f.tasks.getBotGroupTaskBlockReason!).mockResolvedValue(null);
+  expect((await f.service.saveCollaborationSettings!(request))!.groups[0]!.config!.revision).toBe(
+    request.expectedRevision + 1,
+  );
+});
+
 it.each(["Build work", "/stop", "/approve invalid allow"])(
   "启用群其他真人不能创建或改变任务：%s",
   async (text) => {

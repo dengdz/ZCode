@@ -56,6 +56,7 @@ export function createSessionResidentPoolHost(
         hasResidencyBlockingWork:
           record.activeAbortController !== undefined ||
           (record.residencyFinalizationCount ?? 0) > 0 ||
+          record.projectExecutionLease !== undefined ||
           record.app.runtime.hasResidencyBlockingWork(),
         hasSubscribers: context.v4Gateway?.hasConversationSubscribers(sessionId) ?? false,
         lastActivityAt: record.updatedAt,

@@ -860,6 +860,63 @@ describe("ZCode legacy task compat task index", () => {
     expect(new Set(connections).size).toBe(1);
   });
 
+  it("Local group topic input uses the fixed project scope and queues without preemption", async () => {
+    const { service, agent } = createService();
+    const task = await service.createTask({ workspacePath: "/repo", provider: "glm" });
+    agent.sendConversationCommandV4 = vi.fn(async (params) => ({
+      commandId: params.envelope.commandId,
+      status: "accepted" as const,
+      revisionAtDecision: 1,
+      result: {
+        type: "inputAccepted" as const,
+        inputId: params.envelope.commandId,
+        delivery: "queue" as const,
+      },
+    }));
+  });
+
+  it("Local group topic input uses the fixed project scope and queues without preemption", async () => {
+    const { service, agent } = createService();
+    const task = await service.createTask({ workspacePath: "/repo", provider: "glm" });
+    agent.sendConversationCommandV4 = vi.fn(async (params) => ({
+      commandId: params.envelope.commandId,
+      status: "accepted" as const,
+      revisionAtDecision: 1,
+      result: {
+        type: "inputAccepted" as const,
+        inputId: params.envelope.commandId,
+        delivery: "queue" as const,
+      },
+    }));
+    await service.submitBotGroupInput!({
+      taskId: task.taskId,
+      workspacePath: "/repo",
+      commandId: "local-topic-queued",
+      content: "Local work",
+      projectExecutionScope: { projectId: "fixed", workspaceKey: "/repo" },
+      source: {
+        provider: "feishu" as const,
+        botId: "bot",
+        chatId: "group",
+        senderId: "member",
+        senderName: "Member",
+        messageId: "local-message",
+        threadId: "omt_local",
+        rootMessageId: "om_root",
+      },
+    });
+    expect(agent.sendConversationCommandV4).toHaveBeenCalledWith(
+      expect.objectContaining({
+        envelope: expect.objectContaining({
+          payload: expect.objectContaining({
+            requestedDelivery: "queue",
+            projectExecutionScope: { projectId: "fixed", workspaceKey: "/repo" },
+          }),
+        }),
+      }),
+    );
+  });
+
   it("keeps trusted remote session routing on group admission and rejects a foreign workspace before IO", async () => {
     const { service, agent } = createService();
     const task = await service.createTask({

@@ -2041,7 +2041,14 @@ export function createZCodeTaskServiceAdapter(
         payload: {
           text: params.content,
           attachments,
-          requestedDelivery: params.source.threadId ? "startNow" : "queue",
+          requestedDelivery: params.projectExecutionScope
+            ? "queue"
+            : params.source.threadId
+              ? "startNow"
+              : "queue",
+          ...(params.projectExecutionScope
+            ? { projectExecutionScope: params.projectExecutionScope }
+            : {}),
           botGroupSource: params.source,
           conversationQuotes: params.conversationQuotes,
           botDeliveryTarget: {

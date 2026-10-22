@@ -241,6 +241,7 @@ async function sendText(
     });
     started = await startPromptTurn(host, record, {
       content: payload.text,
+      projectExecutionScope: payload.projectExecutionScope,
       ...(payload.browserAmbientContext
         ? { browserAmbientContext: payload.browserAmbientContext }
         : {}),

@@ -1,3 +1,7 @@
+import {
+  createProjectExecutionOwner,
+  ProjectExecutionBusyError,
+} from "../project-execution/index.js";
 import { isReadonlyAgentSessionKind } from "@zcode/shared";
 import { readBackgroundBashOutputFromOwner } from "./background-work-owner.js";
 // v4 网关 binder。
@@ -661,6 +665,7 @@ export function persistHighspeedTimingOnTurnTerminal(
 export function createConversationV4Gateway(
   context: ZCodeProtocolAgentServerContext,
 ): ConversationV4Gateway {
+  const projectExecution = createProjectExecutionOwner(context.deps.projectExecutionDirectory);
   const log = createProtocolLogger(context.deps)?.child({
     module: "bootstrap.zcode_protocol_v4_gateway",
   });
@@ -690,6 +695,26 @@ export function createConversationV4Gateway(
   // TurnSteerQueued、snapshot 或 transcript。CLI 重启后缺失时队列提升自动走原模型。
   const queuedTurnExecutions = new Map<string, Map<string, V4QueuedTurnExecution>>();
   const autoDrainV4QueueIfReady = async (record: ZCodeProtocolSessionRecord): Promise<void> => {
+    // 进程关闭后的旧 timer/完成回调不能重开队列或重新写入执行租约。
+    try {
+      context.assertServing?.();
+    } catch {
+      return;
+    }
+    const lease = record.projectExecutionLease;
+    if (lease?.settled) {
+      // Project execution 只关心仍在改项目的 work；hasResidencyBlockingWork 把
+      // future queue 也算进去，会让同一会话的第二项等不到旧租约。除后台任务外，
+      // 用已收口项的 input id 排除由原队列刚刚提升出的新前台。
+      const runtime = record.app.runtime;
+      const currentForegroundId = runtime.getActiveForegroundExecutionId();
+      if (runtime.hasRunningBackgroundTasks() || runtime.hasResidencyBlockingWork()) {
+        scheduleAutoDrainRetry(record);
+        return;
+      }
+      await lease.release();
+      if (record.projectExecutionLease === lease) delete record.projectExecutionLease;
+    }
     const head = context.v4Gateway?.getQueueHead(record.app.sessionId);
     if (!head) {
       // 外层恢复 FIFO 已消费到空；guide 仍只由 core tool-batch 边界行内消费。
@@ -749,13 +774,17 @@ export function createConversationV4Gateway(
         { autoDrainPromotion: true },
       );
     } catch (error) {
-      if (error instanceof V4QueuePromotionLeaseUnavailableError) {
+      if (
+        error instanceof V4QueuePromotionLeaseUnavailableError ||
+        error instanceof ProjectExecutionBusyError
+      ) {
         // precheck 与 handler 之间可能新入队 notification；idle-only 是最终原子判据。
         scheduleAutoDrainRetry(record);
         return;
       }
       // 自动提升失败不能继续越过该 FIFO barrier；重新暂停并保留原项，交用户重试。
-      await record.app.setQueueAutoDrain(false);
+      // Local 项目互斥是等待，不是故障：不能把队列切成 held，否则同一会话的第二项无法自动续跑。
+      if (!(error instanceof ProjectExecutionBusyError)) await record.app.setQueueAutoDrain(false);
       context.logger?.warn("v4 auto-drain failed and queue was paused", {
         error: error instanceof Error ? error.message : String(error),
         queueItemId: head.queueItemId,
@@ -780,6 +809,24 @@ export function createConversationV4Gateway(
     autoDrainRetryTimers.set(sessionId, timer);
   };
   const coreHost: V4CommandCoreHost = {
+    acquireProjectExecution: async (record, inputId, scope) => {
+      context.assertServing?.();
+      const claim = await projectExecution.acquire({
+        sessionId: record.app.sessionId,
+        inputId,
+        scope,
+        workspaceKey:
+          (record.workspace as ZCodeWorkspaceRef).workspaceIdentity?.trim() ||
+          record.workspace.workspacePath,
+      });
+      try {
+        context.assertServing?.();
+      } catch (error) {
+        if (claim.kind === "acquired") await claim.release();
+        throw error;
+      }
+      return claim;
+    },
     // 同一注册表对象引用：view 是旧 record 的结构化窄视图，字段变更双向可见。
     getRecord: (sessionId) => context.sessions.get(sessionId),
     // 同一登记表实例：broker（旧目录）注册反向请求 deferred，

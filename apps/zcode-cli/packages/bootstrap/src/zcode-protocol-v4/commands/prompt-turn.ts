@@ -1,3 +1,5 @@
+import { ProjectExecutionBusyError } from "../../project-execution/index.js";
+import type { ProjectExecutionScope } from "../../project-execution/contract.js";
 import { OFF_PEAK_EXECUTION_TOOL_DENYLIST } from "@zcode/shared";
 // 原生 prompt turn 运行器。
 //
@@ -13,6 +15,7 @@ import type { V4CommandCoreHost, V4SessionRecordView } from "./types.js";
 
 export interface StartPromptTurnParamsBase {
   content: string;
+  projectExecutionScope?: ProjectExecutionScope;
   /** v4 锚点：inputId=queryId=commandId（权威数据 sourceCommandId 对账）。 */
   inputId: string;
   inputPresentation?: SendInputOptions["inputPresentation"];
@@ -173,6 +176,36 @@ async function startPromptTurnAfterPreflight(
   record: V4SessionRecordView,
   params: StartPromptTurnParams,
 ): Promise<PromptTurnStartResult> {
+  if (params.projectExecutionScope && !host.acquireProjectExecution)
+    throw new Error("Local project execution is unsupported");
+  const projectClaim = await host.acquireProjectExecution?.(
+    record,
+    params.inputId,
+    params.projectExecutionScope,
+  );
+  if (projectClaim?.kind === "busy") {
+    if (params.requireIdle) throw new ProjectExecutionBusyError();
+    params = { ...params, requireQueue: true };
+  }
+  const lease =
+    projectClaim?.kind === "acquired"
+      ? {
+          release: projectClaim.release,
+          settled: false,
+          foregroundExecutionId: undefined as string | undefined,
+        }
+      : undefined;
+  if (lease) {
+    // 同一会话的上一个执行收口和队列提升有竞态：先释放过期租约，再登记本次实际租约。
+    const stale = record.projectExecutionLease;
+    if (stale?.settled) await stale.release();
+    record.projectExecutionLease = lease;
+  }
+  const releaseUnstarted = async () => {
+    if (!lease) return;
+    await lease.release();
+    if (record.projectExecutionLease === lease) delete record.projectExecutionLease;
+  };
   if (record.persistence === "deferred") record.persistence = "immediate";
 
   const previousAutomationId = record.activeAutomationId;
@@ -227,6 +260,7 @@ async function startPromptTurnAfterPreflight(
       },
     );
   } catch (error) {
+    await releaseUnstarted();
     clearPromptRecordState(
       record,
       previousAutomationId,
@@ -238,6 +272,7 @@ async function startPromptTurnAfterPreflight(
   }
 
   if (admission.kind === "rejected") {
+    await releaseUnstarted();
     clearPromptRecordState(
       record,
       previousAutomationId,
@@ -251,16 +286,21 @@ async function startPromptTurnAfterPreflight(
   }
 
   if (admission.kind === "queued") {
+    await releaseUnstarted();
     clearPromptRecordState(
       record,
       previousAutomationId,
       previousOffPeakTaskId,
       previousBotDeliveryTarget,
     );
+    // 跨会话等待时本会话没有 active turn，不能等它的完成事件再唤醒原队列。
+    if (projectClaim && projectClaim.kind !== "unscoped")
+      await host.afterLegacyStateMutation?.(record, "project_input_queued");
     return { admission, turnStarted: Promise.resolve() };
   }
 
   const completion = runWithSessionResidencyFinalization(record, async () => {
+    if (lease) lease.foregroundExecutionId = record.app.runtime.getActiveForegroundExecutionId();
     let mutationReason = "prompt_completed";
     try {
       await admission.completion;
@@ -272,6 +312,7 @@ async function startPromptTurnAfterPreflight(
         sessionId: record.app.sessionId,
       });
     } finally {
+      if (lease) lease.settled = true;
       clearPromptRecordState(
         record,
         previousAutomationId,
