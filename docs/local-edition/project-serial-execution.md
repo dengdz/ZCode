@@ -2,7 +2,7 @@
 
 Status: done
 
-工单：[09](../issues/zcode-local/09-project-serial-execution.md)，基线 `59ed44e5`，分支 `3.16.2-local.1`。父规格冻结 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 未改写。
+工单：[09](../issues/zcode-local/09-project-serial-execution.md)，基线 `59ed44e5`，分支 `3.16.2-local.1`。实现提交 `387fbb3e260e3bab2804ca84011cd3ab768591f8`，包含同会话续跑补正和本次收尾记录。父规格冻结 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 未改写。
 
 ## 行为与边界
 
