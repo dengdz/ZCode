@@ -33,6 +33,11 @@ const messages = {
     collaborationIdentityVerified: "身份核验及群接入完成，请回到设置刷新并保存协作配置。",
     collaborationViaPm: "请经 PM 派单；执行机器人只接收 PM 的任务。",
     collaborationUnauthorized: "当前消息没有本群协作权限，未受理任务。",
+    collaborationStopped: "本需求已停止，已有文件、改动和外部结果保留。",
+    collaborationStopping:
+      "正在停止本需求的执行，后续派发已阻止；仍可能有尚未结束的操作。已有文件和改动保留。",
+    collaborationStopUnavailable:
+      "已阻止本需求后续派发，但目前无法立即停止或确认全部执行；请核对任务状态。已有文件和改动保留。",
     collaborationIdentityRejected:
       "身份核验或群接入未完成。请由已绑定用户原生 @对应机器人发送有效核验命令，并确认平台身份字段和群权限完整。",
     collaborationBindingUnavailable: "本群固定项目或身份已失效，请在协作设置中重新核对。",
@@ -155,6 +160,12 @@ const messages = {
     replyChanged: "第三方回复颗粒度已切换为 {mode}。",
   },
   "en-US": {
+    collaborationStopped:
+      "This requirement has stopped. Existing files, changes and external results are preserved.",
+    collaborationStopping:
+      "Execution is stopping and further handoffs are blocked. Some operations may still be running. Existing files and changes are preserved.",
+    collaborationStopUnavailable:
+      "Further handoffs are blocked, but execution cannot yet be stopped or fully confirmed. Check the task state. Existing files and changes are preserved.",
     recipientSelectionTooLong:
       "The original text plus recipient exceeds the channel limit. Nothing sent; split the content and start a new request.",
     recipientSelectionInvalid: "Invalid selection. The original message was not resumed.",

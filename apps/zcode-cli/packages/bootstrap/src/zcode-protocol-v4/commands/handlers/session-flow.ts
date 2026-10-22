@@ -434,4 +434,12 @@ export async function preemptActiveTurnAndWait(
   return runtimeStop?.kind === "stopped";
 }
 
-export const sessionFlowHandlers = { sendText, stop };
+async function inspectOwnedWork(
+  host: V4CommandCoreHost,
+  envelope: CommandEnvelope,
+): Promise<CommandResult> {
+  const record = requireRecord(host, envelope.sessionId);
+  return { type: "ownedWorkState", state: (await host.inspectOwnedWork?.(record)) ?? "unknown" };
+}
+
+export const sessionFlowHandlers = { sendText, stop, inspectOwnedWork };

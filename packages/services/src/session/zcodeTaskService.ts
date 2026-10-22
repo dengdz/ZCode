@@ -237,6 +237,15 @@ export interface IZCodeTaskService {
     remoteSessionId?: string;
   }): Promise<Array<{ checkpoint: string; text: string }>>;
 
+  /** Local 原需求的真实停止；hold 不停止前台，stop 结果须独立核对 owned work。 */
+  controlBotCollaborationTask?(params: {
+    taskId: string;
+    workspacePath: string;
+    workspaceIdentity?: string;
+    inputIds: string[];
+    phase: "hold" | "stop" | "resume";
+  }): Promise<{ state: "stopped" | "stopping" | "unavailable"; reason?: string }>;
+
   invalidateBotTopicInputs?(params: {
     taskId: string;
     workspacePath: string;

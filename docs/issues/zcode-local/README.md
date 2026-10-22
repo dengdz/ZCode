@@ -4,9 +4,9 @@
 
 父规格：[ZCode Local spec](../../local-edition/spec.md)。[已确认拆分](../../local-edition/ticket-plan.md)。父 Issue 保持不变，执行状态以各子工单为准。
 
-当前集成分支：`3.16.2-local.1`。01–10 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)，09 见[同项目串行报告](../../local-edition/project-serial-execution.md)，10 见[合法长链报告](../../local-edition/collaboration-chain-admission.md)；日常安装与数据切换继续受后续工单门禁约束。
+当前集成分支：`3.16.2-local.1`。01–11 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)，09 见[同项目串行报告](../../local-edition/project-serial-execution.md)，10 见[合法长链报告](../../local-edition/collaboration-chain-admission.md)，11 见[实际停止报告](../../local-edition/stop-execution.md)；日常安装与数据切换继续受后续工单门禁约束。
 
-执行策略：按编号一次一票。用户于 2026-10-22 调用 implement 技能并请求「继续10」，本轮仅完成 [10 合法协作长链](../../local-edition/collaboration-chain-admission.md)；03a 测试弹窗修复继续有效。10 已完成，11 尚未开始。普通提交沿用既有授权；远端 fork 尚未配置，不向官方 origin 推送，真实切换和用户验收遵守 spec 条件。
+执行策略：按编号一次一票。用户已要求「开始 11」并继续实施；本轮仅处理 [11 用户叫停与实际任务停止](../../local-edition/stop-execution.md)，03a 测试弹窗修复继续有效。11 已完成，12 尚未开始。普通本地提交沿用既有授权；不向官方 origin 推送、不更新安装候选，真实切换和用户验收遵守 spec 条件。
 
 | 编号 | Issue                                                                            | 直接前置   |
 | ---- | -------------------------------------------------------------------------------- | ---------- |
@@ -30,6 +30,8 @@
 | 18   | [完成整体回归与真实群只读验收](18-end-to-end-acceptance.md)                      | 13、17     |
 
 ## Progress
+
+- 2026-10-23：11 完成。实现 SHA 待本地入库后回填；可信真人叫停、持久屏障、原任务队列/前台/后台控制、独立 owned-work/租约核对及并发旧停止隔离落地。223 项根相关、214 项 CLI、类型/Lint/架构/格式、固定官网 Reader 和两轴复审通过；完整全量补跑 20117 通过、10 跳过，退出码 0。原生 fixture 新诊断 0，签名有效；未知 verifier 来源保持无法确认。此前未完成的全量与工具链启动失败如实留证。仅本地源码交付，未推送或更新安装候选，12 未开始。
 
 - 2026-10-22：10 完成。实现 `c8b8f457`；可信协作长链不再按原五条上限截断；原持久去重、身份/职责/任务关联、静默及固定项目串行范围保留，未启用群继续原保护，计数饱和兼容官网 v3。196 项相关回归、根/CLI 类型、Lint/架构/格式、固定官网 Reader 及两轴审查通过；一次全量 20090 通过、3 项既有端口环境失败、10 跳过，fixture 新诊断 0。当前源码交付，未推送或更新安装候选，11 未开始。
 

@@ -16,9 +16,27 @@ it("只读空配置不生成默认授权或覆盖业务文件", async () => {
       canUseWorkspace: () => false,
       isIdle: async () => true,
     });
-    expect(await service.getSettings()).toEqual({ groups: [] });
+    expect(await service.readSettings({ kind: "snapshot" })).toEqual({
+      kind: "snapshot",
+      snapshot: { groups: [] },
+    });
     expect(
       await service.recipientSelection({ kind: "present", selectionId: "unknown-card" }),
+    ).toBeUndefined();
+    expect(
+      await service.stop({
+        botId: "pm",
+        text: "/stop",
+        senderType: "user",
+        actor: {
+          botId: "pm",
+          provider: "feishu",
+          chatType: "group",
+          chatId: "oc_synthetic",
+          providerUserId: "ou_synthetic",
+          providerMessageId: "om_stop",
+        },
+      }),
     ).toBeUndefined();
     await expect(stat(file)).rejects.toMatchObject({ code: "ENOENT" });
   } finally {

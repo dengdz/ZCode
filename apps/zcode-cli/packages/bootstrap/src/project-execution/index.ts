@@ -49,6 +49,18 @@ export class ProjectExecutionScopeError extends Error {
 /** Local 扩展文件只保存 scope/当前租约，不接管 CommandInbox 或 Core 队列。 */
 export function createProjectExecutionOwner(directory?: string): ProjectExecutionOwner {
   return {
+    async isSessionLeaseHeld(input) {
+      if (!directory) return false;
+      const file = join(directory, `execution-${hash(input.workspaceKey)}.json`);
+      return withFileLock(file, async () => {
+        const raw = await readOptional(file);
+        if (raw === undefined) return false;
+        const lease = leaseSchema.parse(raw);
+        if (lease.workspaceKey !== input.workspaceKey)
+          throw new Error("Project execution workspace mismatch");
+        return lease.sessionId === input.sessionId;
+      });
+    },
     async acquire(input) {
       if (!directory) {
         if (input.scope) throw new ProjectExecutionScopeError("storageUnavailable");

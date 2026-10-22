@@ -167,6 +167,8 @@ export const commandPayloadSchemas = {
     // 来自 activeWorks；CLI 用它拒绝会误杀后续无关执行的迟到 Stop。
     expectedForegroundExecutionId: z.string().min(1).optional(),
   }),
+  // 只读原 runtime owned-work 与 Local 项目租约；不能复用历史 ACK 作为当前事实。
+  inspectOwnedWork: z.object({}).strict(),
   // compact 是输入型维护命令：idle 时立即执行，busy/held 时进入 FIFO。
   // 因为 admission 与当前 revision 无关，不走 CAS；sourceCommandId 提供幂等边界。
   compact: z.object({}),
@@ -393,6 +395,9 @@ export function parseCommandEnvelope(
 
 // ── ACK ──
 export const commandResultSchema = z.discriminatedUnion("type", [
+  z
+    .object({ type: z.literal("ownedWorkState"), state: z.enum(["idle", "busy", "unknown"]) })
+    .strict(),
   z.object({
     type: z.enum(["createSession", "createSelectionSideSession", "forkAssistant"]),
     sessionId: z.string(),

@@ -145,6 +145,7 @@ import type {
   IZCodeAgentService,
   ZCodeAgentServiceEvent,
   ZCodeAgentWorkspaceTarget,
+  ZCodeAgentSessionTarget,
 } from "./zcodeAgent.js";
 import type {
   ZCodeTaskIndexReadyEvent,
@@ -152,7 +153,11 @@ import type {
   ZCodeTaskIndexTerminalEvent,
 } from "./zcodeTaskIndexSyncer.js";
 import { readModelTrajectory } from "./modelTrajectory.js";
-import { errorAttributionSchema, type CommandPayloadMap } from "@zcode/shared/zcode-protocol-v4";
+import {
+  errorAttributionSchema,
+  type CommandType,
+  type CommandPayloadMap,
+} from "@zcode/shared/zcode-protocol-v4";
 import {
   assertV4CommandAckOk,
   createHostCommandEnvelope,
@@ -1850,6 +1855,22 @@ export function createZCodeTaskServiceAdapter(
       };
     },
 
+    async controlBotCollaborationTask(params) {
+      const target = taskTargets.get(params.taskId);
+      if (target && taskKey(target) !== taskKey(params))
+        throw new Error("Collaboration task workspace mismatch");
+      const workspace = {
+        workspacePath: params.workspacePath,
+        ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
+        ...(target?.remoteSessionId ? { remoteSessionId: target.remoteSessionId } : {}),
+      };
+      return controlCollaborationTask(botAgent(workspace), {
+        ...workspace,
+        sessionId: params.taskId,
+        inputIds: params.inputIds,
+        phase: params.phase,
+      });
+    },
     async readBotTopicSummaries(params) {
       const target = taskTargets.get(params.taskId);
       if (target && taskKey(target) !== taskKey(params))
@@ -5849,4 +5870,135 @@ function turnSteerCommandKindValue(value: unknown): ZCodeTurnSteerCommandKind | 
   return value === "sendGoalCommand" || value === "sendText" || value === "compact"
     ? value
     : undefined;
+}
+
+interface StopInput extends ZCodeAgentSessionTarget {
+  inputIds: string[];
+  phase: "hold" | "stop" | "resume";
+}
+type StopResult = { state: "stopped" | "stopping" | "unavailable"; reason?: string };
+
+/** 原任务的停止适配；执行/队列/后台事实始终由 CLI 提供，不建立旁路状态。 */
+async function controlCollaborationTask(
+  agent: IZCodeAgentService,
+  input: StopInput,
+): Promise<StopResult> {
+  const { inputIds, phase, ...target } = input;
+  const known = new Set(inputIds);
+  if (!known.size) return { state: "unavailable", reason: "input_identity_missing" };
+  const read = () => readBotGroupRuntimeSnapshot(agent, target);
+  const send = async <T extends CommandType>(
+    type: T,
+    payload: CommandPayloadMap[T],
+    baseRevision?: number,
+  ) => {
+    const ack = await agent.sendConversationCommandV4({
+      ...target,
+      envelope: createHostCommandEnvelope({
+        type,
+        sessionId: target.sessionId,
+        payload,
+        ...(baseRevision !== undefined ? { baseRevision } : {}),
+      }),
+    });
+    if (ack.status !== "accepted" && ack.status !== "duplicate")
+      logger.warn(target.sessionId, "Local collaboration runtime control refused", {
+        phase,
+        command: type,
+        reason: ack.reasonCode ?? "command_refused",
+      });
+    return assertV4CommandAckOk(type, ack, `session=${target.sessionId}`);
+  };
+  try {
+    let snapshot = await read();
+    const foreign = () =>
+      snapshot.control.activeWorks.some(
+        (work) => !work.sourceCommandId || !known.has(work.sourceCommandId),
+      ) || snapshot.queue.items.some((item) => !known.has(item.sourceCommandId));
+    // 只控制原输入；前台已换代或来源不明时不能以“同一个 session”代替执行身份。
+    if (foreign()) return { state: "unavailable", reason: "execution_identity_changed" };
+    if (phase === "resume") {
+      const proof = await send("inspectOwnedWork", {});
+      snapshot = await read();
+      if (
+        foreign() ||
+        proof.result?.type !== "ownedWorkState" ||
+        proof.result.state !== "idle" ||
+        snapshot.control.stopState !== "idle" ||
+        snapshot.control.activeWorks.length ||
+        snapshot.queue.items.length ||
+        snapshot.pendingInteractions.length ||
+        snapshot.backgroundWorks.some(
+          (work) => work.status === "running" || work.status === "resultPending",
+        )
+      )
+        return { state: "unavailable", reason: "work_not_idle" };
+      await send("setAutoDrain", { autoDrain: true }, snapshot.revision);
+      return { state: "stopped" };
+    }
+    if (phase === "hold") {
+      await send("setAutoDrain", { autoDrain: false }, snapshot.revision);
+      return { state: "stopping" };
+    }
+    if (snapshot.queue.autoDrain) return { state: "unavailable", reason: "queue_not_held" };
+    for (const item of snapshot.queue.items) {
+      if (item.dispatch.state !== "queued")
+        return { state: "unavailable", reason: "queue_promotion_in_progress" };
+      await send("deleteQueueItem", { queueItemId: item.queueItemId }, snapshot.revision);
+      snapshot = await read();
+      if (foreign()) return { state: "unavailable", reason: "execution_identity_changed" };
+    }
+    if (snapshot.goal && ["active", "verifying"].includes(snapshot.goal.status)) {
+      await send("pauseGoal", {}, snapshot.revision);
+      snapshot = await read();
+      if (foreign()) return { state: "unavailable", reason: "execution_identity_changed" };
+    }
+    const active = snapshot.control.activeWorks;
+    if (active.length) {
+      const executionIds = new Set(active.map((work) => work.foregroundExecutionId));
+      if (executionIds.size !== 1 || executionIds.has(undefined))
+        return { state: "unavailable", reason: "execution_identity_missing" };
+      if (snapshot.control.stopState !== "stopping")
+        await send("stop", { expectedForegroundExecutionId: active[0]!.foregroundExecutionId! });
+    } else if (snapshot.control.stopState !== "idle" || snapshot.control.phase === "prewarming")
+      return { state: "unavailable", reason: "execution_identity_missing" };
+    let uncancellable = false;
+    for (const work of snapshot.backgroundWorks.filter(
+      (item) => item.status === "running" || item.status === "resultPending",
+    )) {
+      if (work.cancellable === false) {
+        uncancellable = true;
+        continue;
+      }
+      await send("cancelBackgroundWork", { workId: work.workId }, snapshot.revision);
+      snapshot = await read();
+      if (foreign()) return { state: "unavailable", reason: "execution_identity_changed" };
+    }
+    const proof = await send("inspectOwnedWork", {});
+    if (proof.result?.type !== "ownedWorkState" || proof.result.state === "unknown")
+      return { state: "unavailable", reason: "owned_work_unknown" };
+    snapshot = await read();
+    if (foreign()) return { state: "unavailable", reason: "execution_identity_changed" };
+    if (uncancellable) return { state: "unavailable", reason: "work_not_cancellable" };
+    if (
+      proof.result.state === "busy" ||
+      snapshot.control.stopState !== "idle" ||
+      snapshot.control.activeWorks.length ||
+      snapshot.queue.items.length ||
+      snapshot.pendingInteractions.length ||
+      snapshot.backgroundWorks.some(
+        (work) => work.status === "running" || work.status === "resultPending",
+      )
+    )
+      return { state: "stopping" };
+    return { state: "stopped" };
+  } catch (error) {
+    logger.warn(target.sessionId, "Local collaboration runtime control unavailable", {
+      phase,
+      reason: "runtime_unavailable",
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    // 这是用户控制的结果边界：断线、旧 CLI 或拒绝不能降级成已停止，也不盲目重试。
+    return { state: "unavailable", reason: "runtime_unavailable" };
+  }
 }

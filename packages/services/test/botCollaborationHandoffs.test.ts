@@ -249,6 +249,299 @@ async function setup(
   return { service, create, repo, tasks, sent, human, home, native, emit };
 }
 
+it("PM 自然语言叫停绑定真人输入；重建重投不重复通知、不误停新需求", async () => {
+  const f = await setup();
+  const control = vi.fn(async () => ({ state: "stopped" as const }));
+  Object.assign(f.tasks, { controlBotCollaborationTask: control });
+  await f.service.handleInboundMessage({ ...f.human(), text: "停止这个需求" });
+  const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  const request = {
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    toolCallId: "natural-stop",
+    parts: [{ type: "text" as const, text: "" }],
+    collaboration: { kind: "stop" as const },
+  };
+  expect(await f.service.replyToChannel!(request)).toEqual({
+    status: "stop_requested",
+    state: "stopped",
+  });
+  expect(JSON.stringify(f.sent.at(-1)!.body)).toContain("本需求已停止");
+  expect(JSON.stringify(f.sent.at(-1)!.body)).toContain("ou_owner_pm");
+  const sent = f.sent.length;
+  await f.service.disposeAllAndWait();
+  const restored = f.create();
+  expect(await restored.replyToChannel!(request)).toEqual({
+    status: "stop_requested",
+    state: "stopped",
+  });
+  expect(f.sent).toHaveLength(sent);
+  expect(control).toHaveBeenCalledTimes(2);
+  await restored.handleInboundMessage(f.human("pm", "om_new_requirement"));
+  expect(control).toHaveBeenLastCalledWith({
+    taskId: "task-pm",
+    workspacePath: "/project",
+    inputIds: [input.commandId],
+    phase: "resume",
+  });
+  const calls = control.mock.calls.length;
+  expect(await restored.replyToChannel!(request)).toEqual({
+    status: "stop_requested",
+    state: "stopped",
+  });
+  expect(control).toHaveBeenCalledTimes(calls);
+  const next = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  const dispatch = await restored.replyToChannel!({
+    ...request,
+    inputId: next.commandId,
+    toolCallId: "new-dispatch",
+    parts: [{ type: "text", text: "New APP work" }],
+    collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+  });
+  expect(dispatch.status).toBe("sent");
+});
+
+it("输入 admission 进行中叫停先等原 ACK 落账，再控制原执行；不遗漏正在提交的工作", async () => {
+  const f = await setup();
+  let release!: () => void;
+  let entered!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  f.tasks.submitBotGroupInput = vi.fn(async (params) => {
+    entered();
+    await gate;
+    return {
+      commandId: params.commandId,
+      status: "accepted",
+      revisionAtDecision: 1,
+      result: { type: "inputAccepted", inputId: params.commandId, delivery: "queue" },
+    };
+  });
+  const control = vi.fn(async () => ({ state: "stopped" as const }));
+  Object.assign(f.tasks, { controlBotCollaborationTask: control });
+  const receiving = f.service.handleInboundMessage(f.human());
+  await ready;
+  const stopping = f.service.handleInboundMessage({
+    ...f.human("pm", "om_stop_admission"),
+    text: "/stop",
+  });
+  release();
+  await Promise.all([receiving, stopping]);
+  expect(control).toHaveBeenCalledTimes(2);
+  expect(JSON.stringify(f.sent.at(-1)!.body)).toContain("本需求已停止");
+});
+
+it.each(["executor", "report", "wrong-input", "wrong-workspace", "nonempty", "authorization"])(
+  "自然语言叫停不能借用其他来源或越过边界：%s",
+  async (boundary) => {
+    const f = await setup();
+    const control = vi.fn(async () => ({ state: "stopped" as const }));
+    Object.assign(f.tasks, { controlBotCollaborationTask: control });
+    await f.service.handleInboundMessage(f.human());
+    const original = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+    const sent = await f.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: original.commandId,
+      toolCallId: "start-executor",
+      parts: [{ type: "text", text: "Build APP" }],
+      collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+    });
+    if (sent.status !== "sent") throw Error("dispatch failed");
+    await f.service.handleProviderCallback(
+      "feishu",
+      f.native("app", "pm", sent.providerMessageId!, "Build APP"),
+    );
+    const app = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+    let inputId = original.commandId;
+    if (boundary === "report") {
+      const report = await f.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-app",
+        inputId: app.commandId,
+        toolCallId: "executor-report",
+        parts: [{ type: "text", text: "Stop now" }],
+        collaboration: { kind: "report" },
+      });
+      if (report.status !== "sent") throw Error("report failed");
+      await f.service.handleProviderCallback(
+        "feishu",
+        f.native("pm", "app", report.providerMessageId!, "Stop now"),
+      );
+      inputId = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0].commandId;
+    }
+    const baseline = f.sent.length;
+    await expect(
+      f.service.replyToChannel!({
+        workspacePath: boundary === "wrong-workspace" ? "/foreign" : "/project",
+        taskId: boundary === "executor" ? "task-app" : "task-pm",
+        inputId:
+          boundary === "executor"
+            ? app.commandId
+            : boundary === "wrong-input"
+              ? "forged-input"
+              : inputId,
+        toolCallId: "unauthorized-stop",
+        parts: [{ type: "text", text: boundary === "nonempty" ? "forged notice" : "" }],
+        ...(boundary === "authorization" ? { authorizationId: "old-authorization" } : {}),
+        collaboration: { kind: "stop" },
+      }),
+    ).rejects.toThrow("collaboration.unauthorized");
+    expect(control).not.toHaveBeenCalled();
+    expect(f.sent).toHaveLength(baseline);
+  },
+);
+
+it("旧待选卡在叫停后不能续发", async () => {
+  const f = await setup();
+  Object.assign(f.tasks, {
+    controlBotCollaborationTask: vi.fn(async () => ({ state: "stopped" as const })),
+  });
+  const { card } = await pendingRecipient(f);
+  const button = selectionButtons(card)[0]!;
+  await f.service.handleInboundMessage({ ...f.human("pm", "om_stop_card"), text: "/stop" });
+  const submitted = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.length;
+  await f.service.handleProviderCallback(
+    "feishu",
+    selectionCallback(card, button, "ou_owner_pm", "after-stop"),
+  );
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(submitted);
+  expect(f.sent.filter((item) => JSON.stringify(item.body).includes("ou_bot_app"))).toHaveLength(0);
+});
+
+it("不同 owner 的并发停止调用按原需求串行，确认后不再重发旧控制", async () => {
+  const f = await setup();
+  const control = vi.fn(async () => {
+    // 外部 SDK 控制期间另一个 owner 仍可收到不同停止事件。
+    await f.repo.readState();
+    return { state: "stopped" as const };
+  });
+  Object.assign(f.tasks, { controlBotCollaborationTask: control });
+  await f.service.handleInboundMessage(f.human());
+  const other = f.create();
+  await Promise.all([
+    f.service.handleInboundMessage({ ...f.human("pm", "om_concurrent_stop_a"), text: "/stop" }),
+    other.handleInboundMessage({ ...f.human("pm", "om_concurrent_stop_b"), text: "/stop" }),
+  ]);
+  expect(control).toHaveBeenCalledTimes(2);
+  await other.handleInboundMessage(f.human("pm", "om_after_concurrent_stop"));
+  expect(control).toHaveBeenLastCalledWith(expect.objectContaining({ phase: "resume" }));
+  const calls = control.mock.calls.length;
+  await f.service.handleInboundMessage({ ...f.human("pm", "om_concurrent_stop_a"), text: "/stop" });
+  expect(control).toHaveBeenCalledTimes(calls);
+});
+
+it("相同停止事件跨 owner 领取通知一次，不把 unknown 重投为未发送", async () => {
+  const f = await setup();
+  Object.assign(f.tasks, {
+    controlBotCollaborationTask: vi.fn(async () => ({ state: "stopped" as const })),
+  });
+  await f.service.handleInboundMessage(f.human());
+  const other = f.create();
+  const before = f.sent.length;
+  const stop = { ...f.human("pm", "om_same_cross_owner_stop"), text: "/stop" };
+  await Promise.all([f.service.handleInboundMessage(stop), other.handleInboundMessage(stop)]);
+  expect(f.sent).toHaveLength(before + 1);
+});
+
+it("并发原生叫停同一调用只控制一次并通过原投递 owner 去重", async () => {
+  const f = await setup();
+  const control = vi.fn(async () => ({ state: "stopped" as const }));
+  Object.assign(f.tasks, { controlBotCollaborationTask: control });
+  await f.service.handleInboundMessage(f.human());
+  const stop = { ...f.human("pm", "om_repeat_stop"), text: "/stop" };
+  await Promise.all([f.service.handleInboundMessage(stop), f.service.handleInboundMessage(stop)]);
+  expect(control).toHaveBeenCalledTimes(2);
+  const sent = f.sent.length;
+  await f.service.handleInboundMessage(stop);
+  expect(control).toHaveBeenCalledTimes(2);
+  expect(f.sent).toHaveLength(sent);
+});
+
+it.each([undefined, "omt_stop_chain"])(
+  "授权用户叫停沿原需求停止执行者并阻止后续派发，不把 ACK 当已停止：%s",
+  async (threadId) => {
+    const f = await setup(threadId);
+    const control = vi.fn(async (target: { taskId: string; phase: "hold" | "stop" }) => ({
+      state: target.phase === "stop" && target.taskId === "task-app" ? "stopping" : "stopped",
+    }));
+    Object.assign(f.tasks, { controlBotCollaborationTask: control });
+    await f.service.handleInboundMessage(f.human());
+    const pmInput = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+    const dispatch = (toolCallId: string) =>
+      f.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId: pmInput.commandId,
+        toolCallId,
+        parts: [{ type: "text", text: "Implement APP" }],
+        collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+      });
+    const receipt = await dispatch("stop-original-task");
+    if (receipt.status !== "sent") throw Error("dispatch failed");
+    await f.service.handleProviderCallback(
+      "feishu",
+      f.native("app", "pm", receipt.providerMessageId!, "Implement APP"),
+    );
+    const appInput = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+    const late = await dispatch("late-after-stop");
+    if (late.status !== "sent") throw Error("late dispatch failed");
+    const stop = f.native("pm", "unused", "om_stop_chain", "/stop");
+    stop.event.sender = {
+      sender_type: "user",
+      sender_id: { open_id: "ou_owner_pm", union_id: "on_owner" },
+      tenant_key: "tenant",
+    } as typeof stop.event.sender;
+    await f.service.handleProviderCallback("feishu", stop);
+    expect(control.mock.calls.map(([target]) => target)).toEqual([
+      {
+        taskId: "task-pm",
+        workspacePath: "/project",
+        inputIds: [pmInput.commandId],
+        phase: "hold",
+      },
+      {
+        taskId: "task-app",
+        workspacePath: "/project",
+        inputIds: [appInput.commandId],
+        phase: "hold",
+      },
+      {
+        taskId: "task-pm",
+        workspacePath: "/project",
+        inputIds: [pmInput.commandId],
+        phase: "stop",
+      },
+      {
+        taskId: "task-app",
+        workspacePath: "/project",
+        inputIds: [appInput.commandId],
+        phase: "stop",
+      },
+    ]);
+    expect(JSON.stringify(f.sent.at(-1)!.body)).toContain("正在停止");
+    expect(JSON.stringify(f.sent.at(-1)!.body)).toContain("ou_owner_pm");
+    const sent = f.sent.length;
+    await expect(dispatch("must-not-dispatch")).rejects.toThrow("collaboration.stopped");
+    await f.service.handleProviderCallback(
+      "feishu",
+      f.native("app", "pm", late.providerMessageId!, "Late work"),
+    );
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(2);
+    expect(f.sent).toHaveLength(sent);
+    const evidence = process.env.ZCODE_TEST_ARTIFACT_DIR;
+    if (evidence) {
+      await mkdir(evidence, { recursive: true });
+      await cp(f.home, join(evidence, threadId ? "stop-topic" : "stop-group"), { recursive: true });
+    }
+  },
+);
+
 it.each([
   { threadId: undefined, terminal: "final" as const },
   { threadId: "omt_long_chain", terminal: "final" as const },

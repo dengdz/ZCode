@@ -1838,3 +1838,7 @@ ReplyToChannel schema / 模型说明 → executing input identity → existing p
 ## Local 收件人选择（08，2026-10-22）
 
 ReplyToChannel 可缺省派单 targetBotId → Host 严格 requiredDuty 与可信候选 → 现有 SelectionPrompt / Provider 卡片 → 原生操作者与原任务/版本复核 → 原请求及同调用 key 续发。awaiting_selection 是未送达控制结果，不要求模型重述或重试；原 owner 保存外部结果，静默终答不能重复卡片或工作。原内容和职责保留，错误/取消/过期不续发，普通群不变。
+
+## Local 真实叫停（11，2026-10-22）
+
+ReplyToChannel 增加 collaboration {kind: stop}，parts 仅一个空 text，不接收目标 ID。工具所属 assistant 的 canonical input → 原 Host 任务/群/输入/真人来源核对 → 同一 Local 停止屏障 → 原运行时控制 → strict {status: stop_requested, state: stopped|stopping|unavailable}。只有 PM 的可信授权真人输入可以调用，机器人回报不能借 PM 身份叫停。stop_requested 不表示消息送达或执行结束；Host 通过原投递 owner 向原用户报告实际状态，模型不追加确认。重复调用与重启沿原调用身份，已确认的旧停止不作用到新需求。保持既有 trace、权限、取消和 network 副作用声明；停止不撤销文件或外部结果。

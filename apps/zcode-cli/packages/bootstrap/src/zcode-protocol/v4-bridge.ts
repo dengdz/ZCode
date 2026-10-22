@@ -809,6 +809,25 @@ export function createConversationV4Gateway(
     autoDrainRetryTimers.set(sessionId, timer);
   };
   const coreHost: V4CommandCoreHost = {
+    inspectOwnedWork: async (record) => {
+      context.assertServing?.();
+      const held = await projectExecution.isSessionLeaseHeld({
+        sessionId: record.app.sessionId,
+        workspaceKey:
+          (record.workspace as ZCodeWorkspaceRef).workspaceIdentity?.trim() ||
+          record.workspace.workspacePath,
+      });
+      context.assertServing?.();
+      if (context.sessions.get(record.app.sessionId) !== record) return "unknown";
+      // 冷恢复只有旧文件、没有 live release token，不能因新 runtime 空闲就宣称旧副作用结束。
+      if (held && !record.projectExecutionLease) return "unknown";
+      return record.activeAbortController ||
+        (record.residencyFinalizationCount ?? 0) > 0 ||
+        record.projectExecutionLease ||
+        record.app.runtime.hasResidencyBlockingWork()
+        ? "busy"
+        : "idle";
+    },
     acquireProjectExecution: async (record, inputId, scope) => {
       context.assertServing?.();
       const claim = await projectExecution.acquire({

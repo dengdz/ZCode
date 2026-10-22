@@ -100,6 +100,8 @@ export interface V4SessionRecordView {
 }
 
 export interface V4CommandCoreHost {
+  /** 原 Core owned work 加持久项目租约的只读事实，不按投影 phase 推断。 */
+  inspectOwnedWork?(record: V4SessionRecordView): Promise<"idle" | "busy" | "unknown">;
   /** 会话查找（同一注册表对象引用；不存在返回 undefined → handler 拒绝）。 */
   getRecord(sessionId: string): V4SessionRecordView | undefined;
   logger?: V4CommandLogger;

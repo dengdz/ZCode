@@ -98,6 +98,12 @@ export const channelSelectionResultSchema = z
 export type ChannelSelectionResult = z.infer<typeof channelSelectionResultSchema>;
 
 export const channelReplyResultSchema = z.union([
+  z
+    .object({
+      status: z.literal("stop_requested"),
+      state: z.enum(["stopped", "stopping", "unavailable"]),
+    })
+    .strict(),
   channelSelectionResultSchema,
   channelDeliveryResultSchema,
   channelMentionClarificationSchema,

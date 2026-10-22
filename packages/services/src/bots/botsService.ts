@@ -1,3 +1,4 @@
+import type { CollaborationStopTarget } from "#src/bot-collaboration/contract.js";
 import { replyToBotChannel } from "#src/bots/channelReply.js";
 import { createBotCollaboration, SELECTION_CARD_PREFIX } from "#src/bot-collaboration/index.js";
 import {
@@ -31,6 +32,7 @@ import type { IDisposable } from "@zcode/rpc";
 import { completeNewModelSelection } from "@zcode/provider";
 import {
   ALL_BOT_WORKSPACES,
+  channelReplyHostRequestSchema,
   ZCODE_PRODUCT_FLAVOR,
   parseRemoteWorkspaceIdentity,
   CONVERSATION_SELECTION_MAX_TEXT_LENGTH,
@@ -828,6 +830,114 @@ export function createBotsService(
           listWorkspaces: () => listWorkspaceRefs(),
           canUseWorkspace: (bot, workspaceId) =>
             isWorkspaceAllowed(workspaceId, bot.allowedWorkspaces),
+          publishStop: async (notice) => {
+            const bot = findBot(await repo.readConfig(), notice.botId);
+            if (!bot || bot.provider !== notice.provider) return;
+            const id =
+              notice.state === "stopped"
+                ? "collaborationStopped"
+                : notice.state === "stopping"
+                  ? "collaborationStopping"
+                  : "collaborationStopUnavailable";
+            await getGroupDeliverySender(
+              bot,
+              notice.chatId,
+              notice.threadId,
+            )({
+              id: notice.deliveryId,
+              taskId: notice.taskId,
+              sourceCommandId: notice.inputId,
+              authorizationId: notice.authorizationId,
+              appId: bot.feishuAppId,
+              text: msg(await readMessageLocale(), id),
+              replyToMessageId: notice.messageId,
+              mentionedUserIds: [notice.ownerId],
+              threadId: notice.threadId,
+              status: "pending",
+              updatedAt: Date.now(),
+            });
+          },
+          resumeTask: async (target) => {
+            const control = await collaborationTaskControl(target);
+            return Boolean(
+              control &&
+              (
+                await control.tasks.controlBotCollaborationTask!({
+                  ...control.input,
+                  phase: "resume",
+                })
+              ).state === "stopped",
+            );
+          },
+          stopTasks: async (targets) => {
+            const controls = [];
+            let unavailable = false;
+            for (const target of targets) {
+              const control = await collaborationTaskControl(target);
+              if (!control) {
+                unavailable = true;
+                continue;
+              }
+              controls.push(control);
+              if (target.threadId)
+                await cancelTopicInputs({
+                  botId: target.botId,
+                  provider: target.provider,
+                  chatType: "group",
+                  chatId: target.chatId,
+                  threadId: target.threadId,
+                  providerUserId: control.context.group!.ownerId,
+                });
+            }
+            // 先关所有原队列的自动推进，再停止当前前台，避免取消后唤醒待执行项。
+            for (const { tasks, input } of controls) {
+              try {
+                const result = await tasks.controlBotCollaborationTask!({
+                  ...input,
+                  phase: "hold",
+                });
+                if (result.state === "unavailable") {
+                  unavailable = true;
+                  botsLogger.warn(input.taskId, "Local collaboration stop unavailable", {
+                    phase: "hold",
+                    reason: result.reason ?? "runtime_unavailable",
+                  });
+                }
+              } catch (error) {
+                unavailable = true;
+                botsLogger.warn(input.taskId, "Local collaboration stop unavailable", {
+                  phase: "hold",
+                  reason: "runtime_unavailable",
+                  errorType: error instanceof Error ? error.name : typeof error,
+                });
+              }
+            }
+            let stopping = false;
+            for (const { tasks, input } of controls) {
+              try {
+                const result = await tasks.controlBotCollaborationTask!({
+                  ...input,
+                  phase: "stop",
+                });
+                if (result.state === "unavailable") {
+                  unavailable = true;
+                  botsLogger.warn(input.taskId, "Local collaboration stop unavailable", {
+                    phase: "stop",
+                    reason: result.reason ?? "runtime_unavailable",
+                  });
+                }
+                if (result.state === "stopping") stopping = true;
+              } catch (error) {
+                unavailable = true;
+                botsLogger.warn(input.taskId, "Local collaboration stop unavailable", {
+                  phase: "stop",
+                  reason: "runtime_unavailable",
+                  errorType: error instanceof Error ? error.name : typeof error,
+                });
+              }
+            }
+            return unavailable ? "unavailable" : stopping ? "stopping" : "stopped";
+          },
           isIdle: async (scope, current) => {
             const config = await repo.readConfig();
             const states = Object.values((await repo.readState()).bots).filter(
@@ -2192,6 +2302,58 @@ export function createBotsService(
       workspaceIdentity: context.workspaceIdentity,
       ...(context.hostId ? { hostId: context.hostId } : {}),
     });
+  }
+
+  async function collaborationTaskControl(target: CollaborationStopTarget) {
+    const config = await repo.readConfig();
+    const bot = config.bots.find(
+      (item) => item.id === target.botId && item.provider === target.provider && item.enabled,
+    );
+    const contexts = Object.values((await repo.readState()).bots).filter(
+      (item) =>
+        item.botId === target.botId &&
+        item.group?.chatId === target.chatId &&
+        item.group.threadId === target.threadId &&
+        item.group.enabled &&
+        item.group.ownerId === bot?.providerUserId &&
+        (item.activeTaskId === target.taskId || item.group.taskIds.includes(target.taskId)),
+    );
+    if (!bot || contexts.length !== 1) return undefined;
+    const context = contexts[0]!;
+    const workspace = context.group!.taskWorkspaces?.[target.taskId] ?? context;
+    if (
+      (workspace.workspaceIdentity?.trim() || workspace.workspacePath) !==
+        (target.workspaceIdentity?.trim() || target.workspacePath) ||
+      !target.inputIds.length ||
+      target.inputIds.some((id) => {
+        const input = context.group!.inputs?.[id];
+        const source = input?.source;
+        return (
+          !input ||
+          !source ||
+          input.taskId !== target.taskId ||
+          source?.appId !== bot.feishuAppId ||
+          source.botId !== bot.id ||
+          source.provider !== target.provider ||
+          source.chatId !== target.chatId ||
+          source.threadId !== target.threadId ||
+          source.authorizationId !== context.group!.authorizationId
+        );
+      })
+    )
+      return undefined;
+    const tasks = await resolveZCodeTaskServiceForContext({ ...context, ...workspace });
+    if (!tasks.controlBotCollaborationTask) return undefined;
+    return {
+      tasks,
+      context,
+      input: {
+        taskId: target.taskId,
+        workspacePath: target.workspacePath,
+        ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
+        inputIds: target.inputIds,
+      },
+    };
   }
 
   async function resolveZCodeTaskServiceForContext(
@@ -6447,13 +6609,17 @@ export function createBotsService(
     }
     let groupContext =
       message.actor.chatType === "group" ? await readContext(message.actor, bot) : null;
-    const binding =
+    const settings =
       collaboration && message.actor.chatType === "group" && message.actor.chatId
-        ? await collaboration.readBinding({
-            provider: bot.provider as "feishu" | "lark",
-            chatId: message.actor.chatId,
+        ? await collaboration.readSettings({
+            kind: "binding",
+            scope: {
+              provider: bot.provider as "feishu" | "lark",
+              chatId: message.actor.chatId,
+            },
           })
         : undefined;
+    const binding = settings?.kind === "binding" ? settings.binding : undefined;
     if (
       binding &&
       groupContext?.group &&
@@ -7169,52 +7335,60 @@ export function createBotsService(
     // 原文已经寄存为文本附件；不能再通过来源元信息把整份历史塞进 command frame。
     const { topicContext: archive, ...runtimeSource } = source;
     if (!isCurrent()) return [];
-    const ack = await service.submitBotGroupInput({
-      taskId: context.activeTaskId,
-      commandId,
-      ...(collaborationContext && context.projectId
-        ? {
-            projectExecutionScope: {
-              projectId: context.projectId,
-              workspaceKey: context.workspaceIdentity?.trim() || context.workspacePath,
-            },
-          }
-        : {}),
-      content: prepared.content + (collaborationContext ?? ""),
-      ...(topicBatch
-        ? {
-            conversationQuotes: messages?.flatMap((entry) => entry.conversationQuotes ?? []) ?? [],
-          }
-        : message.referencedMessage
-          ? { conversationQuotes: [message.referencedMessage] }
-          : {}),
-      attachments: topicBatch ? admittedAttachments : prepared.zcodeAttachments,
-      source: {
-        ...runtimeSource,
-        ...(archive
+    const admit = async () => {
+      const ack = await service.submitBotGroupInput!({
+        taskId: context.activeTaskId!,
+        commandId,
+        ...(collaborationContext && context.projectId
           ? {
-              topicHistory: {
-                checkpoint: archive.checkpoint,
-                hasGap: archive.hasGap,
-                messageCount: archive.messages.length,
-                resourceMessages: archive.messages
-                  .filter((record) => record.attachments?.length)
-                  .map((record) => ({ messageId: record.id, count: record.attachments!.length })),
+              projectExecutionScope: {
+                projectId: context.projectId,
+                workspaceKey: context.workspaceIdentity?.trim() || context.workspacePath,
               },
             }
           : {}),
-      },
-    });
-    if (ack.status !== "accepted" && ack.status !== "duplicate") {
-      context.group.inputs![commandId]!.admission = "rejected";
-      await writeContext(context, false, context.activeTaskId);
-      throw new Error(ack.message ?? ack.reasonCode ?? "Input rejected");
-    }
-    if (ack.result?.type !== "inputAccepted") throw new Error("Input admission outcome is unknown");
-    adminAttention.clear(message.actor, bot.providerUserId);
-    context.group.inputs![commandId]!.admission = "accepted";
-    if (context.group.threadId) context.group.topicActive = true;
-    await writeContext(context, false, context.activeTaskId);
+        content: prepared.content + (collaborationContext ?? ""),
+        ...(topicBatch
+          ? {
+              conversationQuotes:
+                messages?.flatMap((entry) => entry.conversationQuotes ?? []) ?? [],
+            }
+          : message.referencedMessage
+            ? { conversationQuotes: [message.referencedMessage] }
+            : {}),
+        attachments: topicBatch ? admittedAttachments : prepared.zcodeAttachments,
+        source: {
+          ...runtimeSource,
+          ...(archive
+            ? {
+                topicHistory: {
+                  checkpoint: archive.checkpoint,
+                  hasGap: archive.hasGap,
+                  messageCount: archive.messages.length,
+                  resourceMessages: archive.messages
+                    .filter((record) => record.attachments?.length)
+                    .map((record) => ({ messageId: record.id, count: record.attachments!.length })),
+                },
+              }
+            : {}),
+        },
+      });
+      if (ack.status !== "accepted" && ack.status !== "duplicate") {
+        context.group!.inputs![commandId]!.admission = "rejected";
+        await writeContext(context, false, context.activeTaskId!);
+        throw new Error(ack.message ?? ack.reasonCode ?? "Input rejected");
+      }
+      if (ack.result?.type !== "inputAccepted")
+        throw new Error("Input admission outcome is unknown");
+      adminAttention.clear(message.actor, bot.providerUserId);
+      context.group!.inputs![commandId]!.admission = "accepted";
+      if (context.group!.threadId) context.group!.topicActive = true;
+      await writeContext(context, false, context.activeTaskId!);
+      return { ...ack, result: ack.result };
+    };
+    const ack = collaborationContext
+      ? await collaboration!.withInbound({ inputId: commandId }, admit)
+      : await admit();
     if (context.group.threadId && isCurrent() && history.generation) {
       topicHistoryReady.set(getBotStateKey(context), history.generation);
     }
@@ -8776,6 +8950,11 @@ export function createBotsService(
       for (const reply of replies) await sendOutbound(bot, reply);
     },
     async replyToChannel(request) {
+      if (request.collaboration?.kind === "stop") {
+        const state = await collaboration?.stop(channelReplyHostRequestSchema.parse(request));
+        if (!state) throw new Error("collaboration.unavailable");
+        return { status: "stop_requested", state };
+      }
       const result = await replyToBotChannel(request, {
         prepare: collaboration
           ? (request, scope, id, trusted) => collaboration.prepareReply(request, scope, id, trusted)
@@ -8827,7 +9006,8 @@ export function createBotsService(
       });
     },
     async getCollaborationSettings() {
-      return collaboration ? collaboration.getSettings() : null;
+      const settings = await collaboration?.readSettings({ kind: "snapshot" });
+      return settings?.kind === "snapshot" ? settings.snapshot : null;
     },
     async saveCollaborationSettings(request) {
       if (!collaboration) throw new Error("collaboration.unavailable");
@@ -9973,6 +10153,8 @@ export function createBotsService(
           case "stop": {
             const auth = await withAuthorizedContext(message, "stop");
             if (!auth.ok) return auth.reply;
+            const collaborationStop = await collaboration?.stop(message);
+            if (collaborationStop) return [];
             if (auth.context.group?.threadId) await cancelTopicInputs(message.actor);
             if (!auth.context.activeTaskId) {
               return [createOutbound(message.actor, msg(auth.locale, "noActiveTask"))];

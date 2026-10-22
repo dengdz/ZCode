@@ -247,3 +247,39 @@ it("candidate selection retains original task and duty and never claims delivery
     "awaiting_selection is NOT delivery",
   );
 });
+
+it.each(["stopped", "stopping", "unavailable"])(
+  "Local stop %s is bound to the executing human input and is never a delivery receipt",
+  async (state) => {
+    const f = fixture();
+    f.reply.mockResolvedValue({ status: "stop_requested", state } as never);
+    const result = await replyToChannelHandler(
+      { parts: [{ type: "text", text: "" }], collaboration: { kind: "stop" } },
+      f.context,
+    );
+    expect(result).toEqual({ status: "stop_requested", state });
+    expect(f.reply.mock.calls[0]?.[0]).toMatchObject({
+      taskId: "task",
+      inputId: "input",
+      toolCallId: "call",
+      collaboration: { kind: "stop" },
+    });
+    expect(replyToChannelToolEntry.runtimeOutputSchema!.parse(result)).toEqual({
+      status: "stop_requested",
+      state,
+    });
+    expect(() =>
+      replyToChannelToolEntry.runtimeOutputSchema!.parse({
+        status: "stop_requested",
+        state,
+        deliveryId: "forged",
+      }),
+    ).toThrow();
+    expect(() =>
+      replyToChannelToolEntry.runtimeInputSchema!.parse({
+        parts: [{ type: "text", text: "" }],
+        collaboration: { kind: "stop", targetBotId: "app" },
+      }),
+    ).toThrow();
+  },
+);

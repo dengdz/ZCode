@@ -91,6 +91,11 @@ export function createReplyRouting(deps: Dependencies) {
         item.inputId === p.request.inputId &&
         key(item) === key(p),
     );
+    if (
+      !input ||
+      ledger.requirements.some((item) => item.id === input.requirementId && item.stopRequested)
+    )
+      return undefined;
     const member =
       config?.enabled && config.revision === p.revision
         ? await validMember(config, p.botId)
@@ -218,6 +223,7 @@ export function createReplyRouting(deps: Dependencies) {
           item.tenantKey === config.authorizedUser.tenantKey,
       );
       if (!current || !input || !original) fail("stale");
+      if (original.stopRequested) fail("stopped");
       const pending = ledger.selections.find(
         (item) => item.id === deliveryId && item.botId === scope.botId && key(item) === key(scope),
       );

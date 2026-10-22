@@ -1,6 +1,94 @@
 import { join } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
 import { expect, it } from "vitest";
 import { fixture } from "./fixtures.js";
+
+it("停止 ACK、detached 工作和 held 队列都不能冒充 owned work 已结束，已有文件保留", async () => {
+  const f = await fixture();
+  const session = await f.create();
+  const file = join(f.home, "existing-result.txt");
+  await writeFile(file, "preserve existing work");
+  const scope = { projectId: "fixed", workspaceKey: f.home };
+  await f.command(session, "sendText", { text: "First work", projectExecutionScope: scope });
+  await expect.poll(() => f.started.length).toBe(1);
+  let finishSidecar!: () => void;
+  const sidecar = f.apps.get(session)!.runtime.trackResidencyBlockingWork(
+    new Promise<void>((resolve) => {
+      finishSidecar = resolve;
+    }),
+  );
+  try {
+    await f.command(session, "sendText", { text: "Queued work", projectExecutionScope: scope });
+    const snapshot = await f.snapshot(session);
+    expect(
+      await f.command(
+        session,
+        "setAutoDrain",
+        { autoDrain: false },
+        { baseRevision: snapshot.revision },
+      ),
+    ).toMatchObject({ status: "accepted" });
+    const executionId = snapshot.control.activeWorks.find(
+      (work) => work.foregroundExecutionId,
+    )!.foregroundExecutionId!;
+    expect(
+      await f.command(session, "stop", { expectedForegroundExecutionId: executionId }),
+    ).toMatchObject({ status: "accepted" });
+    expect(await f.command(session, "inspectOwnedWork", {})).toMatchObject({
+      status: "accepted",
+      result: { type: "ownedWorkState", state: "busy" },
+    });
+    f.releases.shift()!();
+    await expect
+      .poll(() => f.apps.get(session)!.runtime.getActiveForegroundExecutionId())
+      .toBeUndefined();
+    expect(await f.command(session, "inspectOwnedWork", {})).toMatchObject({
+      status: "accepted",
+      result: { type: "ownedWorkState", state: "busy" },
+    });
+    const held = await f.snapshot(session);
+    expect(
+      await f.command(
+        session,
+        "deleteQueueItem",
+        { queueItemId: held.queue.items[0]!.queueItemId },
+        { baseRevision: held.revision },
+      ),
+    ).toMatchObject({ status: "accepted" });
+    expect(await f.command(session, "inspectOwnedWork", {})).toMatchObject({
+      status: "accepted",
+      result: { type: "ownedWorkState", state: "busy" },
+    });
+    expect(f.started).toHaveLength(1);
+    expect(await readFile(file, "utf8")).toBe("preserve existing work");
+  } finally {
+    finishSidecar();
+    await sidecar;
+  }
+  await expect
+    .poll(async () => await f.command(session, "inspectOwnedWork", {}))
+    .toMatchObject({ status: "accepted", result: { type: "ownedWorkState", state: "idle" } });
+});
+
+it("冷加载 record 没有 live lease 时，不把旧 Host 的持久执行租约当成已停止", async () => {
+  const f = await fixture();
+  const session = await f.create();
+  await f.command(session, "sendText", {
+    text: "Original host work",
+    projectExecutionScope: { projectId: "fixed", workspaceKey: f.home },
+  });
+  await expect.poll(() => f.started.length).toBe(1);
+  const cold = f.otherClient();
+  await cold.snapshot(session, "web-remote-replayable");
+  expect(await cold.command(session, "inspectOwnedWork", {})).toMatchObject({
+    status: "accepted",
+    result: { type: "ownedWorkState", state: "unknown" },
+  });
+  f.releases.shift()!();
+  await expect
+    .poll(async () => cold.command(session, "inspectOwnedWork", {}))
+    .toMatchObject({ status: "accepted", result: { type: "ownedWorkState", state: "idle" } });
+});
 
 it("同项目两机器人任务实际模型执行不重叠，原队列在前一项结束后续跑", async () => {
   const f = await fixture();

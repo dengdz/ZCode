@@ -105,12 +105,33 @@ export const ledgerSchema = z
             unionId: z.string(),
             tenantKey: z.string(),
             name: z.string(),
+            stopRequested: z.boolean().optional(),
+            stopConfirmed: z.boolean().optional(),
           })
           .strict(),
       )
       .default([]),
     inputs: z.array(inputSchema).default([]),
     handoffs: z.array(handoffSchema).default([]),
+    stopRequests: z
+      .array(
+        collaborationScopeSchema
+          .extend({
+            id: z.string(),
+            requirementId: z.string(),
+            revision: z.number().int().positive(),
+            botId: z.string(),
+            threadId: z.string().optional(),
+            taskId: z.string(),
+            inputId: z.string(),
+            authorizationId: z.string(),
+            messageId: z.string(),
+            ownerId: z.string(),
+            deliveryIds: z.array(z.string()),
+          })
+          .strict(),
+      )
+      .default([]),
     selections: z.array(recipientSelectionSchema).default([]),
     admissions: z
       .array(

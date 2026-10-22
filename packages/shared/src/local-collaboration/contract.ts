@@ -19,6 +19,7 @@ export const collaborationReplyIntentSchema = z.discriminatedUnion("kind", [
     .strict(),
   z.object({ kind: z.literal("final") }).strict(),
   z.object({ kind: z.literal("silent") }).strict(),
+  z.object({ kind: z.literal("stop") }).strict(),
 ]);
 export const collaborationScopeSchema = z
   .object({ provider: z.enum(["feishu", "lark"]), chatId: id })
