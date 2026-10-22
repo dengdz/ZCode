@@ -27,3 +27,5 @@ dispatchValidation.ts 是同一模块内的纯职责/引用校验，无 IO 或�
 08：候选选择按 08-recipient-selection 工单合同执行。Local sidecar 是原待发请求与选择领取的唯一 owner，Bot 投递记录仍为唯一外部送达事实；awaiting_selection 不表示送达。recipientSelection 的 present/render/respond 命令分别领取卡片、投影原卡和核对原生选择，属于同一能力，不新建状态服务。
 
 replyRouting.ts 是同一 owner 的私有实现：沿原 ledger/read/write 与同一 file lock 处理回复准备和 present/render/respond。卡片使用公开 SELECTION_CARD_PREFIX 稳定 key，经既有投递 owner 发送；领取状态不代表外部送达，真实结果仅查原 Bot 投递记录。
+
+10：只有 authorize 对当前事件返回 allow 时，Bot 入站不受原连续五条计数截断。原消息 ID 去重、身份/职责/任务/版本及 sent 收据核对继续生效；withInbound 保持配置变更与受理协调。计数到五后饱和，以兼容官网 Bot v3；legacy 不豁免，停用或非 Local 宿主仍保留五条防护。计数不是新队列，也不承担 PM 无进展语义判断；silent 沿 07 的同一投递边界终止，不生成新交接。

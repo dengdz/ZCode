@@ -249,6 +249,152 @@ async function setup(
   return { service, create, repo, tasks, sent, human, home, native, emit };
 }
 
+it.each([
+  { threadId: undefined, terminal: "final" as const },
+  { threadId: "omt_long_chain", terminal: "final" as const },
+  { threadId: undefined, terminal: "silent" as const },
+  { threadId: "omt_long_chain", terminal: "silent" as const },
+])(
+  "可信协作长链超过每个机器人五条，重建与重投不重复执行：$threadId / $terminal",
+  async ({ threadId, terminal }) => {
+    const f = await setup(threadId);
+    let service = f.service;
+    await service.handleInboundMessage(f.human());
+    const accepted = () =>
+      vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.map(([input]) => input);
+    for (let step = 0; step < 16; step += 1) {
+      const from = step % 2 === 0 ? "pm" : "app";
+      const to = from === "pm" ? "app" : "pm";
+      const text = `Stage ${step + 1}: ${from === "pm" ? "implement next part" : "reviewable result"}`;
+      const input = accepted().at(-1)!;
+      const request = {
+        workspacePath: "/project",
+        taskId: `task-${from}`,
+        inputId: input.commandId,
+        toolCallId: `long-chain-${step}`,
+        parts: [{ type: "text" as const, text }],
+        collaboration:
+          from === "pm"
+            ? { kind: "dispatch" as const, targetBotId: "app", requiredDuty: "APP" }
+            : { kind: "report" as const },
+      };
+      const receipt = await service.replyToChannel!(request);
+      expect(receipt.status).toBe("sent");
+      if (receipt.status !== "sent") throw Error("handoff was not sent");
+      expect(JSON.stringify(f.sent.at(-1)!.body)).toContain(`ou_bot_${to}`);
+      if (step === 15) {
+        await service.handleProviderCallback(
+          "feishu",
+          f.native(to, "product", "om_forged_sender_long_chain", text),
+        );
+        await service.handleProviderCallback(
+          "feishu",
+          f.native(to, from, "om_unlinked_long_chain", text),
+        );
+        expect(accepted()).toHaveLength(step + 1);
+      }
+      const event = f.native(to, from, receipt.providerMessageId!, text);
+      const redelivery = { ...event, header: { ...event.header, event_id: `redelivery-${step}` } };
+      await Promise.all([
+        service.handleProviderCallback("feishu", event),
+        service.handleProviderCallback("feishu", redelivery),
+      ]);
+      expect(accepted(), `handoff ${step + 1}`).toHaveLength(step + 2);
+      expect(accepted().at(-1)).toMatchObject({
+        taskId: `task-${to}`,
+        projectExecutionScope: { projectId: "project-0", workspaceKey: "/project" },
+      });
+      if (step === 7) {
+        await service.disposeAllAndWait();
+        service = f.create();
+        expect(await service.replyToChannel!(request)).toEqual(receipt);
+        await service.handleProviderCallback("feishu", redelivery);
+        expect(accepted()).toHaveLength(step + 2);
+      }
+    }
+    const inputId = accepted().at(-1)!.commandId;
+    const final = await service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId,
+      toolCallId: "long-chain-final",
+      parts: [{ type: "text", text: terminal === "final" ? "Ready for user review" : "" }],
+      collaboration: { kind: terminal },
+    });
+    if (terminal === "final") {
+      expect(final.status).toBe("sent");
+      expect(JSON.stringify(f.sent.at(-1)!.body)).toContain("ou_owner_pm");
+    } else {
+      expect(final).toEqual({ status: "silent" });
+      await f.emit({ type: "task_run_started", taskId: "task-pm", inputId } as ZCodeStreamEvent);
+      await f.emit({
+        type: "agent_message_chunk",
+        taskId: "task-pm",
+        inputId,
+        content: "收到，谢谢。",
+      } as ZCodeStreamEvent);
+      await f.emit({
+        type: "task_complete",
+        taskId: "task-pm",
+        inputId,
+        stopReason: "end_turn",
+      } as ZCodeStreamEvent);
+      await service.handleProviderCallback(
+        "feishu",
+        f.native("app", "pm", "om_unsent_ack", "收到，谢谢。"),
+      );
+    }
+    expect(f.sent).toHaveLength(terminal === "final" ? 17 : 16);
+    expect(accepted()).toHaveLength(17);
+    expect(new Set(accepted().map((input) => input.commandId)).size).toBe(17);
+    const evidence = process.env.ZCODE_TEST_ARTIFACT_DIR;
+    if (evidence && terminal === "final") {
+      await mkdir(evidence, { recursive: true });
+      await cp(f.home, join(evidence, threadId ? "long-chain-topic" : "long-chain-group"), {
+        recursive: true,
+      });
+    }
+  },
+);
+
+it("Local 宿主未启用协作的群仍保留五条防护，重启和旧真人重投不恢复额度", async () => {
+  const f = await setup();
+  const group = (await f.service.getCollaborationSettings!())!.groups[0]!;
+  const config = group.config!;
+  await f.service.saveCollaborationSettings!({
+    provider: "feishu",
+    chatId: "oc_group",
+    expectedRevision: config.revision,
+    enabled: false,
+    pmBotId: config.pm.botId,
+    executors: config.executors.map(({ botId, duty }) => ({ botId, duty })),
+    authorizedUserId: group.users[0]!.id,
+    workspaceId: group.workspaces[0]!.id,
+  });
+  const human = f.human("pm", "om_legacy_request");
+  await f.service.handleInboundMessage(human);
+  for (let turn = 0; turn < 7; turn += 1)
+    await f.service.handleProviderCallback(
+      "feishu",
+      f.native("pm", "app", `om_legacy_${turn}`, "Legacy work"),
+    );
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(6);
+  await f.service.disposeAllAndWait();
+  const restored = f.create();
+  await restored.handleInboundMessage(human);
+  await restored.handleProviderCallback(
+    "feishu",
+    f.native("pm", "app", "om_legacy_after_restart", "Legacy work"),
+  );
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(6);
+  await restored.handleInboundMessage(f.human("pm", "om_new_legacy_request"));
+  await restored.handleProviderCallback(
+    "feishu",
+    f.native("pm", "app", "om_legacy_resumed", "Legacy work"),
+  );
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(8);
+});
+
 it.each([undefined, "omt_topic"])(
   "Local 输入携带固定项目串行范围，不依赖桌面当前项目：%s",
   async (thread) => {

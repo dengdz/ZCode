@@ -254,6 +254,7 @@ const FEISHU_STREAMING_CARD_FAILURE_BACKOFF_BASE_MS = 1_000;
 const FEISHU_STREAMING_CARD_FAILURE_CIRCUIT_THRESHOLD = 3;
 const BOT_ELICITATION_PROGRESS_BROADCAST_TIMEOUT_MS = 1_000;
 const BOT_PROVIDER_CALLBACK_ACK_TIMEOUT_MS = 3_000;
+const LEGACY_BOT_AUTO_REPLY_LIMIT = 5;
 
 type StreamingCardTimelineBlock =
   | {
@@ -7565,7 +7566,10 @@ export function createBotsService(
     await publishTopicPreparation();
   }
 
-  async function admitAutoReplyTurn(message: BotInboundMessage): Promise<boolean> {
+  async function admitAutoReplyTurn(
+    message: BotInboundMessage,
+    collaborationAuthorized: boolean,
+  ): Promise<boolean> {
     if (
       message.actor.chatType !== "group" ||
       message.groupCardAction ||
@@ -7575,8 +7579,8 @@ export function createBotsService(
     const id = message.actor.providerMessageId;
     if (!id) return message.senderType !== "app";
     let admitted = false;
-    // 新消息 ID 去重不足以阻断两台机器人互答。必须在停止/准备前原子占用次数，
-    // 与去重一起持久化；准备失败仍占一次，避免重投、并发和重启绕过上限。
+    // 普通群仍在停止/准备前原子占用次数并持久去重，准备失败也占一次。
+    // Local 的合法交接此前已核对来源与方向；不能再用次数截断，但仍须占用同一去重记录。
     await serializeStateWrite(async () => {
       const state = await repo.readState();
       const context = state.bots[getBotConversationKey(message.actor)];
@@ -7610,14 +7614,18 @@ export function createBotsService(
       }
       if (
         message.senderType === "app" &&
-        (guard.consecutive >= 5 ||
+        ((!collaborationAuthorized && guard.consecutive >= LEGACY_BOT_AUTO_REPLY_LIMIT) ||
           (message.actor.threadId
-            ? group.topicActive !== true && (await collaboration?.authorize(message)) !== "allow"
+            ? group.topicActive !== true && !collaborationAuthorized
             : message.mentionedBot !== true))
       )
         return;
       group.autoReplyGuard = {
-        consecutive: message.senderType === "app" ? guard.consecutive + 1 : 0,
+        // 官网 Bot v3 只接受 0–5；计数饱和保留普通群保护，不成为 Local 长链的新额度。
+        consecutive:
+          message.senderType === "app"
+            ? Math.min(guard.consecutive + 1, LEGACY_BOT_AUTO_REPLY_LIMIT)
+            : 0,
         messageIds: [...guard.messageIds, id],
       };
       await repo.writeState(state);
@@ -10159,7 +10167,7 @@ export function createBotsService(
             return handleMessage(message);
         }
       };
-      if (!(await admitAutoReplyTurn(message))) return [];
+      if (!(await admitAutoReplyTurn(message, collaborationAdmission === "allow"))) return [];
       const replies =
         message.actor.chatType === "group" && message.actor.threadId && commandType === "message"
           ? await receiveTopicMessage(message)

@@ -4,9 +4,9 @@
 
 父规格：[ZCode Local spec](../../local-edition/spec.md)。[已确认拆分](../../local-edition/ticket-plan.md)。父 Issue 保持不变，执行状态以各子工单为准。
 
-当前集成分支：`3.16.2-local.1`。01–09 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)，09 见[同项目串行报告](../../local-edition/project-serial-execution.md)；日常安装与数据切换继续受后续工单门禁约束。
+当前集成分支：`3.16.2-local.1`。01–10 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)，09 见[同项目串行报告](../../local-edition/project-serial-execution.md)，10 见[合法长链报告](../../local-edition/collaboration-chain-admission.md)；日常安装与数据切换继续受后续工单门禁约束。
 
-执行策略：按编号一次一票。用户于 2026-10-22 请求「那就开工 继续完成09」，本轮仅完成 09 收尾；03a 测试弹窗修复继续有效。09 已完成；10 尚未开始。普通提交沿用既有授权；远端 fork 尚未配置，不向官方 origin 推送，真实切换和用户验收遵守 spec 条件。
+执行策略：按编号一次一票。用户于 2026-10-22 调用 implement 技能并请求「继续10」，本轮仅完成 [10 合法协作长链](../../local-edition/collaboration-chain-admission.md)；03a 测试弹窗修复继续有效。10 已完成，11 尚未开始。普通提交沿用既有授权；远端 fork 尚未配置，不向官方 origin 推送，真实切换和用户验收遵守 spec 条件。
 
 | 编号 | Issue                                                                            | 直接前置   |
 | ---- | -------------------------------------------------------------------------------- | ---------- |
@@ -30,6 +30,8 @@
 | 18   | [完成整体回归与真实群只读验收](18-end-to-end-acceptance.md)                      | 13、17     |
 
 ## Progress
+
+- 2026-10-22：10 完成。可信协作长链不再按原五条上限截断；原持久去重、身份/职责/任务关联、静默及固定项目串行范围保留，未启用群继续原保护，计数饱和兼容官网 v3。196 项相关回归、根/CLI 类型、Lint/架构/格式、固定官网 Reader 及两轴审查通过；一次全量 20090 通过、3 项既有端口环境失败、10 跳过，fixture 新诊断 0。当前源码交付，未推送或更新安装候选，11 未开始。
 
 - 2026-10-22：09 完成。实现 `387fbb3e`；固定项目执行租约接入原 V4 队列，跨机器人同工作区互斥、排队续跑、同会话续跑补正与停止/后台保护落地。176 项 CLI 相关、376 项 Bot 相关回归通过；根/CLI 类型、Lint/架构、变更范围格式与固定官网 Reader 通过。收尾复跑运行时 14/14、根/CLI 类型、Lint/架构和格式均通过。一次全量 20085 通过、3 项既有端口环境失败、10 跳过；fixture 新诊断 0。真实模型/群验收留 18；仅本地入库，未更新安装候选，10 未开始。
 
