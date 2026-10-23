@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, writeFile, readFile, symlink } from "node:fs/promises";
+import { mkdir, writeFile, readFile, symlink, cp } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
@@ -212,11 +212,15 @@ for (const state of ["running", "unconfirmed", "corrupt", "redirect", "external-
       await readFile(join(f.data, ".zcode/v2/history.json"), "utf8"),
       '[{"title":"retained work"}]',
     );
-    const listing = await f.run("backup-list", "--backup-root", f.backups);
-    assert.equal(
-      JSON.parse(listing.stdout).backups.filter((item) => item.status === "usable").length,
-      0,
-    );
+    if (state !== "external-link") {
+      await assert.rejects(readFile(join(f.backups, "backup-root.json")), { code: "ENOENT" });
+    } else {
+      const listing = await f.run("backup-list", "--backup-root", f.backups);
+      assert.equal(
+        JSON.parse(listing.stdout).backups.filter((item) => item.status === "usable").length,
+        0,
+      );
+    }
   });
 }
 
@@ -225,9 +229,21 @@ test("backup ignores rebuildable profiles, preserves relative links and verifies
   await mkdir(join(f.home, ".zcode/local/profiles/local"), { recursive: true });
   await writeFile(join(f.home, ".zcode/local/profiles/local/cache"), "exclude browser cache");
   await symlink("history.json", join(f.data, ".zcode/v2/history-link"));
-  await exec("sqlite3", [
-    join(f.data, ".zcode/v2/tasks-index.sqlite"),
-    "CREATE TABLE tasks(title TEXT); INSERT INTO tasks VALUES('retained task');",
+  const writer = join(f.root, "sqlite-writer");
+  await mkdir(writer);
+  // 正常关闭 writer 前复制原生 DB/WAL/SHM，确保恢复内容确实仍在 WAL 中，避免只测 checkpoint 后的主库。
+  await exec(process.execPath, [
+    "-e",
+    `
+    const {DatabaseSync}=require('node:sqlite'),fs=require('node:fs'),path=require('node:path');
+    const dbpath=path.join(process.argv[1],'writer.sqlite');
+    const db=new DatabaseSync(dbpath);
+    db.exec("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE tasks(title TEXT); INSERT INTO tasks VALUES('retained task');");
+    for(const suffix of ['', '-wal', '-shm']) fs.copyFileSync(dbpath+suffix,path.join(process.argv[2],'tasks-index.sqlite'+suffix));
+    db.close();
+  `,
+    writer,
+    join(f.data, ".zcode/v2"),
   ]);
   const result = await f.run("backup", ...f.args);
   assert.equal(result.code, 0, result.stderr);
@@ -235,9 +251,11 @@ test("backup ignores rebuildable profiles, preserves relative links and verifies
   await assert.rejects(
     readFile(join(f.backups, id, "payload/home/.zcode/local/profiles/local/cache")),
   );
+  const inspection = join(f.root, "restored-inspection");
+  await cp(join(f.backups, id, "payload/data/.zcode/v2"), inspection, { recursive: true });
   const restored = await exec("sqlite3", [
     "-readonly",
-    join(f.backups, id, "payload/data/.zcode/v2/tasks-index.sqlite"),
+    join(inspection, "tasks-index.sqlite"),
     "SELECT title FROM tasks;",
   ]);
   assert.equal(restored.stdout.trim(), "retained task");
@@ -245,6 +263,8 @@ test("backup ignores rebuildable profiles, preserves relative links and verifies
     await readFile(join(f.backups, id, "payload/data/.zcode/v2/history-link"), "utf8"),
     '[{"title":"retained work"}]',
   );
+  const verified = await f.run("backup-verify", "--backup-root", f.backups, "--id", id);
+  assert.equal(verified.code, 0, verified.stderr);
 });
 
 test("retention cannot evict another data identity's only recovery baseline", async (t) => {
@@ -365,8 +385,9 @@ test("maintenance holds the launch owner's data locks across the entire copy", a
     competing[competing.indexOf("--backup-root") + 1] = join(f.root, "other-backups");
     const second = await f.run("backup", ...competing);
     assert.equal(second.code, 1, second.stdout);
-    const listing = await f.run("backup-list", "--backup-root", join(f.root, "other-backups"));
-    assert.equal(JSON.parse(listing.stdout).backups.length, 0);
+    await assert.rejects(readFile(join(f.root, "other-backups/backup-root.json")), {
+      code: "ENOENT",
+    });
   } finally {
     await writeFile(release, "release");
   }
@@ -374,4 +395,32 @@ test("maintenance holds the launch owner's data locks across the entire copy", a
   assert.equal(result.code, 0, result.stderr);
   const after = await f.run("backup", ...f.args);
   assert.equal(after.code, 0, after.stderr);
+});
+
+test("an unconfirmed data redirect cannot initialize a backup root inside the actual business data", async (t) => {
+  const f = await backupFixture(t);
+  const destination = join(f.data, ".zcode/rejected-backup");
+  f.args[f.args.indexOf("--data-root") + 1] = f.home;
+  f.args[f.args.indexOf("--backup-root") + 1] = destination;
+  const result = await f.run("backup", ...f.args);
+  assert.equal(result.code, 1, result.stdout);
+  assert.match(result.stderr, /backup-data-root-mismatch/);
+  const { lstat } = await import("node:fs/promises");
+  await assert.rejects(lstat(destination), { code: "ENOENT" });
+});
+
+test("an official application alias cannot hide a backup destination inside the preserved package", async (t) => {
+  const f = await backupFixture(t);
+  const official = join(f.root, "preserved-official.app"),
+    alias = join(f.root, "official-alias.app");
+  await mkdir(official);
+  await symlink(official, alias);
+  const destination = join(official, "rejected-backup");
+  f.args[f.args.indexOf("--official-app") + 1] = alias;
+  f.args[f.args.indexOf("--backup-root") + 1] = destination;
+  const result = await f.run("backup", ...f.args);
+  assert.equal(result.code, 1, result.stdout);
+  assert.match(result.stderr, /backup-source-overlap/);
+  const { lstat } = await import("node:fs/promises");
+  await assert.rejects(lstat(destination), { code: "ENOENT" });
 });

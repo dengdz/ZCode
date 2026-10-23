@@ -29,7 +29,7 @@ export async function cleanSource() {
     fail("git-operation-in-progress");
   }
 }
-async function canonicalPath(path) {
+export async function canonicalPath(path) {
   const absolute = resolve(path);
   try {
     return await realpath(absolute);

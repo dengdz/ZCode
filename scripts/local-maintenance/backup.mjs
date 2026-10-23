@@ -16,7 +16,7 @@ import { join, dirname, resolve, relative, isAbsolute } from "node:path";
 import { verifyLocalApplication } from "./artifacts.mjs";
 import { tsImport } from "tsx/esm/api";
 import { fail, run } from "./process.mjs";
-import { json, digest, within } from "./checks.mjs";
+import { json, digest, within, canonicalPath } from "./checks.mjs";
 import { applicationTree, treeDigest } from "./package-tree.mjs";
 import {
   absoluteOption,
@@ -275,50 +275,45 @@ async function createBackup(context, options, roots) {
 }
 export async function backupCommand(command, options) {
   if (process.platform !== "darwin") fail("unsupported-backup-host");
-  if (command === "backup") {
-    const destination = absoluteOption(options["--backup-root"]);
-    const target = join(await realpath(dirname(destination)), destination.split("/").at(-1));
-    const home = await realpath(absoluteOption(options["--home"]));
-    const data = await realpath(absoluteOption(options["--data-root"]));
-    disjointBackup(target, [
-      join(home, ".zcode"),
-      join(data, ".zcode"),
-      await realpath(absoluteOption(options["--local-app"])),
-      absoluteOption(options["--official-app"]),
-    ]);
-    for (const root of new Set([home, data])) {
-      for (const subdirectory of [".zcode", ".zcode/v2"]) {
-        const info = await lstat(join(root, subdirectory));
-        if (!info.isDirectory() || info.isSymbolicLink()) fail("backup-source-type");
-      }
-    }
-  }
-  return withBackupRoot(options["--backup-root"], command === "backup", async (context) => {
-    if (command === "backup-list") return { backups: await listing(context) };
-    if (command === "backup-verify") {
+  if (command !== "backup") {
+    return withBackupRoot(options["--backup-root"], false, async (context) => {
+      if (command === "backup-list") return { backups: await listing(context) };
       const manifest = await verify(context, options["--id"], true);
       return { status: "usable", id: manifest.id, source: manifest.source };
+    });
+  }
+  const home = await realpath(absoluteOption(options["--home"]));
+  const dataRoot = await realpath(absoluteOption(options["--data-root"]));
+  const applications = {
+    local: absoluteOption(options["--local-app"]),
+    official: absoluteOption(options["--official-app"]),
+  };
+  for (const root of new Set([home, dataRoot])) {
+    for (const subdirectory of [".zcode", ".zcode/v2"]) {
+      const info = await lstat(join(root, subdirectory));
+      if (!info.isDirectory() || info.isSymbolicLink()) fail("backup-source-type");
     }
-    const home = await realpath(absoluteOption(options["--home"]));
-    const dataRoot = await realpath(absoluteOption(options["--data-root"]));
-    const applications = {
-      local: absoluteOption(options["--local-app"]),
-      official: absoluteOption(options["--official-app"]),
-    };
-    disjointBackup(context.root, [
-      join(home, ".zcode"),
-      join(dataRoot, ".zcode"),
-      await realpath(applications.local),
-      resolve(applications.official),
-    ]);
-    const { localLaunch } = await tsImport(
-      "../../packages/desktop/src/main/local-launch/index.ts",
-      import.meta.url,
-    );
-    const result = await localLaunch.withMaintenance({ home, dataRoot, applications }, (roots) =>
-      createBackup(context, options, roots),
-    );
-    if (result.kind !== "completed") fail(`backup-${result.reason}`);
-    return result.value;
-  });
+  }
+  const { localLaunch } = await tsImport(
+    "../../packages/desktop/src/main/local-launch/index.ts",
+    import.meta.url,
+  );
+  // home 设置可能指向参数未确认的业务根；必须先由原 owner 确认实际根，再创建目的根，避免拒绝路径污染在用数据。
+  const result = await localLaunch.withMaintenance(
+    { home, dataRoot, applications },
+    async (roots) => {
+      const destination = absoluteOption(options["--backup-root"]);
+      const target = join(await realpath(dirname(destination)), destination.split("/").at(-1));
+      disjointBackup(target, [
+        join(roots.home, ".zcode"),
+        join(roots.dataRoot, ".zcode"),
+        await realpath(applications.local),
+        // 官网包也可能通过别名选择；复用真实路径解析，防止在未备份的原官网包内创建目录。
+        await canonicalPath(applications.official),
+      ]);
+      return withBackupRoot(destination, true, (context) => createBackup(context, options, roots));
+    },
+  );
+  if (result.kind !== "completed") fail(`backup-${result.reason}`);
+  return result.value;
 }

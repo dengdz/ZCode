@@ -9,4 +9,4 @@
 - 对进程仅以信号 0 观察，不强杀；发现占用由用户完全退出。绕过受控入口直接运行原始程序不受此机制约束。
 - 入口既不调度 Bot 任务，也不保存第二份会话；调用方负责给测试传独立 home，不能把开发路径指到日常数据。
 
-- `withMaintenance(input, operation)` 是维护脚本的公开静止文件操作边界，input 显式 home/dataRoot 和两种应用路径。复用现有实际根选择与 owner 锁，整个 callback 持有同一组锁；任何已有 owner（含异常遗留）或现存目标应用进程均拒绝。callback 获得规范化 home/dataRoot，无权更改 owner。正常或异常返回释放短锁，进程崩溃由 shared 锁的进程证据回收，不伪造应用退出。不持久化第二份维护运行状态；崩溃产生的备份只能是未 ready 半成品。直接绕过入口启动的竞争继续不在保护范围。
+- `withMaintenance(input, operation)` 是维护脚本的公开静止文件操作边界，input 显式 home/dataRoot 和两种应用路径。复用现有实际根选择与 owner 锁，整个 callback 持有同一组锁；任何已有 owner（含异常遗留）或现存目标应用进程均拒绝。callback 获得规范化 home/dataRoot，无权更改 owner；维护方必须在 callback 内才初始化备份目的根，未确认重定向不能先写任何备份标记。正常或异常返回释放短锁，进程崩溃由 shared 锁的进程证据回收，不伪造应用退出。不持久化第二份维护运行状态；崩溃产生的备份只能是未 ready 半成品。直接绕过入口启动的竞争继续不在保护范围。
