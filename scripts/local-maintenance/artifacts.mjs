@@ -4,11 +4,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { run, fail } from "./process.mjs";
 import { fileHash, applicationTree, treeDigest, verifyZipApplication } from "./package-tree.mjs";
-export async function verifyArtifacts(report, artifacts, logs, env) {
-  // electron-builder 的 Intel 目录是 mac，lipo 采用 Mach-O 名称 x86_64；两者都不能直接套用 Node 的 x64。
-  const appDirectory = process.arch === "arm64" ? "mac-arm64" : "mac";
-  const machArchitecture = process.arch === "x64" ? "x86_64" : process.arch;
-  const app = join(artifacts, appDirectory, "ZCode Local.app");
+export async function verifyLocalApplication(source, app, { env = process.env, log } = {}) {
   const asar = join(app, "Contents/Resources/app.asar");
   const require = createRequire(
     fileURLToPath(new URL("../../packages/desktop/package.json", import.meta.url)),
@@ -27,17 +23,17 @@ export async function verifyArtifacts(report, artifacts, logs, env) {
     ),
   );
   if (
-    packaged.package.version !== report.source.version ||
+    packaged.package.version !== source.version ||
     packaged.package.zcodeProductFlavor !== "local" ||
-    packaged.metadata.appVersion !== report.source.version ||
+    packaged.metadata.appVersion !== source.version ||
     !/^[a-f0-9]{8,40}$/.test(packaged.metadata.buildCommitId ?? "") ||
-    !report.source.commit.startsWith(packaged.metadata.buildCommitId)
+    !source.commit.startsWith(packaged.metadata.buildCommitId)
   )
     fail("package-source-mismatch");
   const plist = JSON.parse(
     await run("plutil", ["-convert", "json", "-o", "-", join(app, "Contents/Info.plist")], { env }),
   );
-  const [official, revision] = report.source.version.split("-local.");
+  const [official, revision] = source.version.split("-local.");
   const [major, minor, patch] = official.split(".").map(Number);
   if (
     plist.CFBundleIdentifier !== "dev.zcode.app.local" ||
@@ -45,7 +41,7 @@ export async function verifyArtifacts(report, artifacts, logs, env) {
     plist.CFBundleVersion !== `${major}.${minor}.${patch * 1000 + Number(revision)}`
   )
     fail("platform-metadata-mismatch");
-  const signatureLog = join(logs, "signature.log");
+  const signatureLog = log;
   await run("codesign", ["--verify", "--deep", "--strict", app], { env, log: signatureLog });
   const signature = await run("codesign", ["-dv", "--verbose=4", app], {
     env,
@@ -54,6 +50,19 @@ export async function verifyArtifacts(report, artifacts, logs, env) {
   });
   if (!signature.includes("Signature=adhoc") || !signature.includes("runtime"))
     fail("signature-policy");
+  return { packaged, plist, asar, require, signatureLog };
+}
+
+export async function verifyArtifacts(report, artifacts, logs, env) {
+  // electron-builder 的 Intel 目录是 mac，lipo 采用 Mach-O 名称 x86_64。
+  const appDirectory = process.arch === "arm64" ? "mac-arm64" : "mac";
+  const machArchitecture = process.arch === "x64" ? "x86_64" : process.arch;
+  const app = join(artifacts, appDirectory, "ZCode Local.app");
+  const { packaged, plist, asar, require, signatureLog } = await verifyLocalApplication(
+    report.source,
+    app,
+    { env, log: join(logs, "signature.log") },
+  );
   if (
     (await run("lipo", ["-archs", join(app, "Contents/MacOS/ZCode Local")], { env })) !==
     machArchitecture

@@ -6,7 +6,7 @@
 
 当前集成分支：`3.16.2-local.1`。01–14 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)，09 见[同项目串行报告](../../local-edition/project-serial-execution.md)，10 见[合法长链报告](../../local-edition/collaboration-chain-admission.md)，11 见[实际停止报告](../../local-edition/stop-execution.md)，12 见[状态核对报告](../../local-edition/state-reconciliation.md)，13 见[PM 审核与验收报告](../../local-edition/pm-review-acceptance.md)，14 见[版本候选维护报告](../../local-edition/versioned-candidates.md)；日常安装与数据切换继续受后续工单门禁约束。
 
-执行策略：按编号一次一票。本轮完成 [14 从维护入口生成可追溯的版本候选](14-versioned-candidates.md)，03a 测试弹窗修复继续有效。01–14 已完成，15 尚未开始。普通本地提交沿用既有授权；origin 已核实为用户公开 fork，upstream 为只拉取的官方。14 只生成隔离候选，真实切换和用户验收遵守后续工单门禁。
+执行策略：按编号一次一票。本轮实施 [15 备份应用与业务数据并验证保留策略](15-backup-retention.md)，03a 测试弹窗修复继续有效。01–14 已完成，15 进行中，16–18 未开始。普通本地提交沿用既有授权；origin 已核实为用户公开 fork，upstream 为只拉取的官方。14 只生成隔离候选，真实切换和用户验收遵守后续工单门禁。
 
 | 编号 | Issue                                                                            | 直接前置   |
 | ---- | -------------------------------------------------------------------------------- | ---------- |

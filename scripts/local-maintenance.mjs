@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { mkdir, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { backupCommand } from "./local-maintenance/backup.mjs";
 import { build } from "./local-maintenance/build.mjs";
 import { check, safeOutput } from "./local-maintenance/checks.mjs";
 import { git, fail } from "./local-maintenance/process.mjs";
@@ -8,21 +9,36 @@ import { git, fail } from "./local-maintenance/process.mjs";
 async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (command === "--help") {
-    console.log("local:maintain check|build --fork owner/repo --review FILE --output DIR");
+    console.log(
+      "local:maintain check|build --fork owner/repo --review FILE --output DIR\nlocal:maintain backup --home HOME --data-root ROOT --local-app APP --official-app APP --app-manifest FILE --backup-root DIR\nlocal:maintain backup-list --backup-root DIR\nlocal:maintain backup-verify --backup-root DIR --id ID",
+    );
     return;
   }
-  if (!["check", "build"].includes(command)) fail("arguments");
+  const backupOptions = {
+    backup: [
+      "--home",
+      "--data-root",
+      "--local-app",
+      "--official-app",
+      "--app-manifest",
+      "--backup-root",
+    ],
+    "backup-list": ["--backup-root"],
+    "backup-verify": ["--backup-root", "--id"],
+  };
+  const allowed = backupOptions[command] ?? ["--fork", "--review", "--output"];
+  if (!["check", "build", ...Object.keys(backupOptions)].includes(command)) fail("arguments");
   const options = {};
   for (let i = 0; i < args.length; i += 2) {
     const key = args[i];
-    if (
-      !["--fork", "--review", "--output"].includes(key) ||
-      !args[i + 1] ||
-      args[i + 1].startsWith("--") ||
-      options[key]
-    )
+    if (!allowed.includes(key) || !args[i + 1] || args[i + 1].startsWith("--") || options[key])
       fail("arguments");
     options[key] = args[i + 1];
+  }
+  if (backupOptions[command]) {
+    if (allowed.some((key) => !options[key])) fail("arguments");
+    console.log(JSON.stringify(await backupCommand(command, options)));
+    return;
   }
   const fork = options["--fork"];
   if (!/^[\w-]+\/[\w.-]+$/.test(fork ?? "") || fork.toLowerCase() === "zai-org/zcode")

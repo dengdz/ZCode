@@ -15,11 +15,12 @@ function streamHash(stream) {
   });
 }
 export const fileHash = (path) => streamHash(createReadStream(path));
-export async function applicationTree(root) {
+export async function applicationTree(root, { include = () => true } = {}) {
   const members = new Map();
   async function walk(prefix = "") {
     for (const name of await readdir(join(root, prefix))) {
       const path = prefix ? `${prefix}/${name}` : name;
+      if (!include(path)) continue;
       const absolute = join(root, path);
       const info = await lstat(absolute);
       const kind = info.isSymbolicLink()

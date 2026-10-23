@@ -4,3 +4,8 @@ import type { LocalLaunchContract, LocalLaunchInput } from "./contract.js";
 export async function exampleLocalLaunch(port: LocalLaunchContract, input: LocalLaunchInput) {
   return port.run(input);
 }
+
+/** 维护方只在静止临界区读取文件，备份清单仍由维护入口所有。 */
+export async function exampleLocalMaintenance(port: LocalLaunchContract, input: LocalLaunchInput) {
+  return port.withMaintenance(input, async ({ dataRoot }) => dataRoot);
+}

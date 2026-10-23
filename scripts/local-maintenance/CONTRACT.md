@@ -18,3 +18,7 @@ API 实时核对上游 commit 和公开 fork；本机已有相同 Git 对象可�
 当前 build 只在 macOS arm64/x64 执行既有工具链，并核对 ASAR 元数据、平台版本、ad-hoc/runtime 签名、架构、ZIP 全部应用文件/链接的类型/权限/内容（与已验签应用逐项相同）和只读挂载 DMG 内的完整应用。不会启动应用、安装、创建标签或推送；其他平台明确拒绝，不能视作已验证。
 
 构建在隔离 HOME 下运行，但显式复用调用者已使用的 pnpm store 依赖缓存，避免 HOME 改变触发 node_modules purge；不修改全局 pnpm 配置，不访问日常业务数据。
+
+## 备份（15）
+
+备份契约见 [15 Implementation contract](../../docs/issues/zcode-local/15-backup-retention.md#implementation-contract2026-10-23)。同一入口提供 backup、backup-list、backup-verify；备份根与来源全部显式选择，不隐式访问日常数据。backup 使用当前 Local 的 candidate.json 对应完整应用，持有 local-launch 公开维护临界区；ready backup.json 是唯一成功事实。清单内容每次重验，保留策略按数据身份保护最近三组有效恢复基线。失败不执行安装，也不清理旧基线。恢复演练只写本次备份根的独立临时副本，不覆盖源；业务恢复仍归 17。

@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { atomicWritePrivateTextFile, withFileLock } from "@zcode/shared/node";
 import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
-import type { LocalLaunchContract, LocalLaunchEdition } from "./contract.js";
+import type { LocalLaunchContract, LocalLaunchEdition, LocalMaintenanceInput } from "./contract.js";
 import { desktopProductIdentities } from "../../../scripts/desktop-product-identity.mjs";
 export type { LocalLaunchInput, LocalLaunchResult } from "./contract.js";
 
@@ -156,25 +156,75 @@ async function withOwnerLocks<T>(
   return next(0);
 }
 
+async function maintenanceRoots(input: LocalMaintenanceInput) {
+  await mkdir(input.home, { recursive: true });
+  const home = await realpath(input.home);
+  const dataRoot = await selectedDataRoot(home, input.dataRoot);
+  if (dataRoot === null) return null;
+  const directories = await Promise.all(
+    [home, dataRoot].map(async (root) => {
+      const directory = join(root, ".zcode/local");
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+      return realpath(directory);
+    }),
+  );
+  const files = [
+    ...new Set(directories.map((directory) => join(directory, "launch-owner.json"))),
+  ].sort();
+  return { home, dataRoot, files };
+}
+
+async function admission(
+  files: readonly string[],
+  applications: LocalMaintenanceInput["applications"],
+) {
+  for (const file of files) {
+    let current: Owner | null;
+    try {
+      current = await readOwner(file);
+    } catch {
+      return { kind: "blocked", reason: "unconfirmed" } as const;
+    }
+    if (current)
+      return {
+        kind: "blocked",
+        reason:
+          current.phase === "unconfirmed" ||
+          (!isProcessAlive(current.launcherPid) && !isProcessAlive(current.childPid))
+            ? "unconfirmed"
+            : "occupied",
+        edition: current.edition,
+      } as const;
+  }
+  let unmanaged: LocalLaunchEdition | null;
+  try {
+    unmanaged = await runningApplication(applications);
+  } catch {
+    return { kind: "blocked", reason: "unconfirmed" } as const;
+  }
+  if (unmanaged) return { kind: "blocked", reason: "occupied", edition: unmanaged } as const;
+  return null;
+}
+
 export const localLaunch: LocalLaunchContract = {
+  async withMaintenance(input, operation) {
+    if (process.platform !== "darwin")
+      throw new Error("Controlled Local maintenance currently supports macOS only");
+    const roots = await maintenanceRoots(input);
+    if (!roots) return { kind: "blocked", reason: "data-root-mismatch" };
+    return withOwnerLocks(roots.files, async () => {
+      const blocked = await admission(roots.files, input.applications);
+      if (blocked) return blocked;
+      return { kind: "completed", value: await operation(roots) };
+    });
+  },
   async run(input) {
     if (process.platform !== "darwin")
       throw new Error("Controlled Local launch currently supports macOS only");
     const executable = await resolveApplication(input.applications[input.edition], input.edition);
-    await mkdir(input.home, { recursive: true });
-    const home = await realpath(input.home);
-    const dataRoot = await selectedDataRoot(home, input.dataRoot);
-    if (dataRoot === null) return { kind: "blocked", reason: "data-root-mismatch" };
-    const directories = await Promise.all(
-      [home, dataRoot].map(async (root) => {
-        const directory = join(root, ".zcode/local");
-        await mkdir(directory, { recursive: true, mode: 0o700 });
-        return realpath(directory);
-      }),
-    );
-    const files = [
-      ...new Set(directories.map((directory) => join(directory, "launch-owner.json"))),
-    ].sort();
+    const roots = await maintenanceRoots(input);
+    if (!roots) return { kind: "blocked", reason: "data-root-mismatch" };
+    const { home, dataRoot, files } = roots;
     const owner: Owner = {
       version: 1,
       token: randomUUID(),
@@ -183,31 +233,8 @@ export const localLaunch: LocalLaunchContract = {
       phase: "preparing",
     };
     const admitted = await withOwnerLocks(files, async () => {
-      for (const file of files) {
-        let current: Owner | null;
-        try {
-          current = await readOwner(file);
-        } catch {
-          return { kind: "blocked", reason: "unconfirmed" } as const;
-        }
-        if (current)
-          return {
-            kind: "blocked",
-            reason:
-              current.phase === "unconfirmed" ||
-              (!isProcessAlive(current.launcherPid) && !isProcessAlive(current.childPid))
-                ? "unconfirmed"
-                : "occupied",
-            edition: current.edition,
-          } as const;
-      }
-      let unmanaged: LocalLaunchEdition | null;
-      try {
-        unmanaged = await runningApplication(input.applications);
-      } catch {
-        return { kind: "blocked", reason: "unconfirmed" } as const;
-      }
-      if (unmanaged) return { kind: "blocked", reason: "occupied", edition: unmanaged } as const;
+      const blocked = await admission(files, input.applications);
+      if (blocked) return blocked;
       // native singleton 在无响应时可能强杀持有者；占用必须先持久化，之后才允许子进程访问业务数据。
       for (const file of files) await atomicWritePrivateTextFile(file, JSON.stringify(owner));
       return null;
