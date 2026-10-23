@@ -87,7 +87,9 @@ async function sqliteIntegrity(path, members) {
     // 数据库页头本身也可能损坏；已知数据库扩展名仍必须交给 SQLite 核验，不能因 magic 丢失被当作普通文件放行。
     if (
       (header.toString() === "SQLite format 3\0" || /\.(db|sqlite|sqlite3)$/i.test(name)) &&
-      (await run("sqlite3", ["-readonly", file, "PRAGMA integrity_check;"])) !== "ok"
+      // Bug 原因：干净关闭的 WAL 数据库常无 -wal/-shm，sqlite3 -readonly 会因无法建立共享内存而打不开。
+      // 这里只操作已隔离的恢复副本，先 query_only 再检查，既禁止业务写入又保持 WAL 读取语义。
+      (await run("sqlite3", [file, "PRAGMA query_only=ON; PRAGMA integrity_check;"])) !== "ok"
     )
       fail("backup-database-invalid");
   }

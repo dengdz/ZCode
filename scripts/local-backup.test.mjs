@@ -270,6 +270,34 @@ test("backup ignores rebuildable profiles, preserves relative links and verifies
   assert.equal(verified.code, 0, verified.stderr);
 });
 
+test("backup verifies a clean WAL database without live sidecar files", async (t) => {
+  const f = await backupFixture(t);
+  const database = join(f.data, ".zcode/v2/tasks-index.sqlite");
+  await exec(process.execPath, [
+    "--input-type=module",
+    "-e",
+    `import { DatabaseSync } from "node:sqlite";
+const db = new DatabaseSync(process.argv[1]);
+db.exec("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE tasks(title TEXT); INSERT INTO tasks VALUES('clean wal task');");
+db.close();
+`,
+    database,
+  ]);
+  await assert.rejects(readFile(`${database}-wal`), { code: "ENOENT" });
+  await assert.rejects(readFile(`${database}-shm`), { code: "ENOENT" });
+
+  const result = await f.run("backup", ...f.args);
+  assert.equal(result.code, 0, result.stderr);
+  const verified = await f.run(
+    "backup-verify",
+    "--backup-root",
+    f.backups,
+    "--id",
+    JSON.parse(result.stdout).id,
+  );
+  assert.equal(verified.code, 0, verified.stderr);
+});
+
 test("retention cannot evict another data identity's only recovery baseline", async (t) => {
   const f = await backupFixture(t);
   const first = await f.run("backup", ...f.args);
