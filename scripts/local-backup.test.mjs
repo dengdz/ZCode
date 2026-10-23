@@ -233,13 +233,16 @@ test("backup ignores rebuildable profiles, preserves relative links and verifies
   await mkdir(writer);
   // 正常关闭 writer 前复制原生 DB/WAL/SHM，确保恢复内容确实仍在 WAL 中，避免只测 checkpoint 后的主库。
   await exec(process.execPath, [
+    "--input-type=module",
     "-e",
     `
-    const {DatabaseSync}=require('node:sqlite'),fs=require('node:fs'),path=require('node:path');
+    import {DatabaseSync} from 'node:sqlite';
+    import fs from 'node:fs/promises';
+    import path from 'node:path';
     const dbpath=path.join(process.argv[1],'writer.sqlite');
     const db=new DatabaseSync(dbpath);
     db.exec("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE tasks(title TEXT); INSERT INTO tasks VALUES('retained task');");
-    for(const suffix of ['', '-wal', '-shm']) fs.copyFileSync(dbpath+suffix,path.join(process.argv[2],'tasks-index.sqlite'+suffix));
+    for(const suffix of ['', '-wal', '-shm']) await fs.copyFile(dbpath+suffix,path.join(process.argv[2],'tasks-index.sqlite'+suffix));
     db.close();
   `,
     writer,
