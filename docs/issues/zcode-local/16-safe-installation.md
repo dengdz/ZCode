@@ -98,4 +98,4 @@ sequenceDiagram
 
 使用实际签名 local.1 与仓库外 drill-only local.2 app bundle 完成真实文件切换：备份 `backup-ab2f30be-6082-4fe5-89e6-0b90e2a6533e` 独立 verify 成功，switch `switch-ff034d6f-d877-41f4-a1c4-b82ae8e78602` ready，local.2 本地 Host ready 后再次正常退出。local.2 DMG builder 下载超时，没有 ready 交付包；未安装日常应用、未接管日常数据、未连接真实模型/机器人、未发布标签。详见[交付报告](../../local-edition/safe-installation.md)。17 未开始。
 
-普通 HTTPS push 超时后，通过 GitHub API 核对官方主机键并严格校验 `ssh.github.com:443` 完成 fork 分支推送；保存的 origin/upstream 地址和 upstream 禁推配置未修改。API 与 `ls-remote` 均确认交付 HEAD `e2adc3a357451943f9b0901d6c5dd4f9a4c08236`；工作树干净，未创建或推送 tag。
+普通 HTTPS push 超时后，通过 GitHub API 核对官方主机键并严格校验 `ssh.github.com:443` 完成 fork 分支推送；保存的 origin/upstream 地址和 upstream 禁推配置未修改。完成后 API 与 `ls-remote` 均核对当前交付 HEAD 与本地一致，工作树干净；未创建或推送 tag。
