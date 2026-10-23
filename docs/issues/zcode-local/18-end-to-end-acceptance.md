@@ -70,3 +70,9 @@ Issue-Tracker: local-markdown
 ### 原生核验与协作配置已保存
 
 前两组过期命令保留为失败尝试；最新 Provider 入站证明指定 PM/执行者均 verified/connected，授权真人唯一。群空闲时通过实际设置 UI 保存 revision 1，并从原服务独立重读核对：只启用指定两名机器人、原有项目和本轮只读职责。已准备限定文档读取、文件/行号依据、PM 审核后待用户验收的初始需求，请求受理前 Local 需求/输入仍为 0，项目 Git status/diff 指纹已私有记录。等待真人发出初始需求；不把原生核验或配置成功计为业务闭环通过。
+
+### 真人需求与 PM 派单已记录（2026-10-24）
+
+真人初始需求已受理，Local 记录 1 个 active 需求、1 个输入、1 个交接关联、0 个执行 admission。PM dispatch settled，原投递 sent 且有 Provider message ID；原生提及目标与指定执行者核验身份一致。执行者尚无对应入站记录，真实链路只到 PM 派单发送，未通过整体闭环。派单后项目 Git HEAD/status/diff 与请求前指纹一致，未重发或清理当前需求，Local 保持运行。
+
+现依据既有飞书接入契约，请用户只读核对两应用当前发布版本的 include_bot 接收权限；实际授权尚未独立核实，根因未确认，不自动扩权、发布或重放消息。脱敏观察见整体验收记录及 `live-demand-chain-summary.json` 私有证据，真实验收与用户最终确认继续待完成。

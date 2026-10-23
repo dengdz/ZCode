@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-native-configuration-saved-real-business-demand-pending",
+  "overall": "in-progress-human-demand-pm-dispatch-sent-executor-inbound-unobserved",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -277,15 +277,31 @@
       "executors": 1,
       "originalWorkspacePreserved": true,
       "businessRequestSent": false
+    },
+    "live-demand-chain": {
+      "evidence": "live-demand-chain-summary.json",
+      "scope": "real-human-inbound-and-pm-dispatch-partial-chain",
+      "requirements": 1,
+      "inputs": 1,
+      "handoffs": 1,
+      "admissions": 0,
+      "requirementStatus": "active",
+      "pmDispatchRecordedSent": true,
+      "nativeBotMentionTargetVerified": true,
+      "executorInputObserved": false,
+      "projectGitFingerprintUnchanged": true,
+      "effectiveIncludeBotScopes": "not-independently-verified",
+      "rootCause": "unconfirmed",
+      "endToEndPassed": false
     }
   },
   "scenarios": {
     "T01": {
       "issues": ["../issues/zcode-local/04-group-collaboration-settings.md"],
-      "currentEvidence": ["root-related", "live-native-configuration"],
-      "status": "native-configuration-pass-business-behavior-pending",
+      "currentEvidence": ["root-related", "live-native-configuration", "live-demand-chain"],
+      "status": "native-configuration-pass-pm-dispatch-sent-executor-inbound-unobserved",
       "limits": [
-        "Current native identity and real UI configuration verified; actual business dispatch and model compliance remain pending."
+        "Native identity/configuration and human-to-PM input verified; PM dispatch sent with native executor mention. Executor inbound and complete model compliance remain unproven."
       ]
     },
     "T02": {
@@ -299,10 +315,10 @@
     },
     "T03": {
       "issues": ["../issues/zcode-local/05-trusted-handoffs.md"],
-      "currentEvidence": ["root-related", "cli-core"],
-      "status": "mechanism-pass",
+      "currentEvidence": ["root-related", "cli-core", "live-demand-chain"],
+      "status": "mechanism-pass-real-pm-dispatch-partial",
       "limits": [
-        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+        "Real PM dispatch recorded sent with matching native executor mention; no corresponding executor input/admission observed. Effective include_bot scopes not independently verified; root cause unconfirmed."
       ]
     },
     "T04": {
@@ -319,10 +335,15 @@
     },
     "T06": {
       "issues": ["../issues/zcode-local/04-group-collaboration-settings.md"],
-      "currentEvidence": ["root-related", "settings-ui", "live-native-configuration"],
-      "status": "native-configuration-pass-business-behavior-pending",
+      "currentEvidence": [
+        "root-related",
+        "settings-ui",
+        "live-native-configuration",
+        "live-demand-chain"
+      ],
+      "status": "native-configuration-pass-pm-dispatch-sent-executor-inbound-unobserved",
       "limits": [
-        "Current native identity and real UI configuration verified; actual business dispatch and model compliance remain pending."
+        "Native identity/configuration and human-to-PM input verified; PM dispatch sent with native executor mention. Executor inbound and complete model compliance remain unproven."
       ]
     },
     "T07": {
@@ -495,11 +516,12 @@
         "plugin-maintenance-all",
         "live-runtime",
         "live-group-preflight",
-        "live-native-configuration"
+        "live-native-configuration",
+        "live-demand-chain"
       ],
       "status": "limited-current-credentials-pending",
       "limits": [
-        "Both selected robots accepted native verification through existing credentials mechanism; secrets not extracted. Model business round trip remains pending."
+        "Both selected robots accepted native verification through existing credentials mechanism; secrets not extracted. Human-to-PM business input and PM send observed; executor receive/reply and full model round trip remain unproven."
       ]
     },
     "T28": {
@@ -585,10 +607,15 @@
     },
     "T36": {
       "issues": ["../issues/zcode-local/18-end-to-end-acceptance.md"],
-      "currentEvidence": ["live-runtime", "live-group-preflight", "live-native-configuration"],
-      "status": "native-configuration-pass-real-business-demand-pending",
+      "currentEvidence": [
+        "live-runtime",
+        "live-group-preflight",
+        "live-native-configuration",
+        "live-demand-chain"
+      ],
+      "status": "real-human-demand-pm-dispatch-partial-executor-inbound-unobserved",
       "limits": [
-        "Two native identities verified and one real configuration revision saved/reread while idle. Human initial read-only demand, real handoffs/anomalies and final acceptance still pending."
+        "Two native identities and configuration revision verified. Real human input accepted and PM native dispatch sent; executor input/admission not observed. Effective bot-message permissions still require confirmation; complete real chain, anomalies and final acceptance remain pending."
       ]
     }
   },
