@@ -1,6 +1,6 @@
 # 14 版本候选维护入口
 
-Status: in-progress
+Status: done
 
 对应[工单 14](../issues/zcode-local/14-versioned-candidates.md)。设计源、状态顺序和验收范围继续由该工单及冻结父规格负责。
 
@@ -44,4 +44,72 @@ ZCODE_PRE_PUSH_BASE=upstream/main ARCHITECTURE_BASE=upstream/main mise exec -- g
 
 ## 实际验证
 
-执行证据将在本票收尾回填。02 的 `f8fbaaa0` 候选及截图仍只证明 02；03–14 的新候选须有本票新的源码锚点和产物证据。
+2026-10-23 完成。实现提交 `4fb0ea73318963d7141e81057b2166c13cd00540`，补正及最终候选源码
+`7d6141bcef0c5c79968532ea895dd1401b567d88`。父规格冻结 blob
+`25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 保持不变。收尾提交仅归档本报告，不改变候选源码。
+
+候选清单为本机仓库外 `${HOME}/.local/share/zcode-local/research/issue-14/candidate-2/candidate.json`，
+2026-10-23 12:12:39（Asia/Shanghai）生成 ready。应用位于其 `artifacts/mac-arm64/ZCode Local.app`。
+展示/分支版本 `3.16.2-local.1`，包内 build-meta 锚点 `7d6141bc`，身份 `dev.zcode.app.local`，
+macOS 短版本 `3.16.2`、内部版本 `3.16.2001`。Node `24.14.0`、pnpm `10.33.2`、
+electron-builder `26.8.1`；工具链声明与锁文件 hash 均写入清单。
+
+| 产物                                     |    字节数 | SHA-256                                                            |
+| ---------------------------------------- | --------: | ------------------------------------------------------------------ |
+| ZCode Local-3.16.2-local.1-mac-arm64.dmg | 204585113 | `fd9328dba75c45443bf7b5cf3296278f205494b176e1ec34e493e9b67fea95a7` |
+| ZCode Local-3.16.2-local.1-mac-arm64.zip | 195273664 | `35806c1c5603f54ed65af4cfa8098166f82497f922360f09bc319376184a6046` |
+
+维护入口实际完成 ASAR/package/build-meta、平台数字版本与架构核对，签名 deep/strict 验证，
+ZIP CRC 及全部应用文件/链接的类型、权限和内容一致性，DMG 完整性及只读挂载后的完整应用树/签名检查。
+随后独立执行 codesign 与 shasum，签名为 ad-hoc + hardened runtime，哈希与清单一致；DMG 已正常卸载。
+应用树 SHA-256 为 `67d2b14d370f73708c242abada3ecc936b3e91f1e17a518e964ff067e580cb3c`。
+
+| 验证               | 真实结果                                                                                                                                                                                      |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 开工新鲜度         | 原官方 origin fetch 成功；相对 origin/main ahead 42 / behind 0，无分支远端跟踪                                                                                                                |
+| 维护入口进程场景   | 最终 22/22 通过；覆盖干净源码、进行中 Git 操作、远端保护、公开历史、过期审阅、固定标签、补丁退役、失败中止、候选不可覆盖、签名、完整 ZIP/DMG、symlink 数据根、Intel 工具约定及隔离 HOME/store |
+| 完整根全量（一次） | 2061 文件通过、2 跳过；20160 项通过、11 跳过，499.56 秒，退出码 0；使用独立 HOME，未覆盖/修改 vitest setup 的数据根处理                                                                       |
+| 类型               | 初次及最终候选入口内 `pnpm typecheck` 均通过                                                                                                                                                  |
+| Lint               | 初次、补正后及最终入口均 0 errors / 97 条存量 warnings                                                                                                                                        |
+| 架构/格式          | 显式官方 upstream/main，0 违规；本票变更范围 oxfmt 通过；scripts 未被架构策略托管，不能据此声称所有运行语义已验证                                                                             |
+| affected           | Vitest 官方选中 2063/2063，按仓库合同跳过 UT，退出 0；这不是再次执行全量，独立全量结果见上行                                                                                                  |
+| 原构建链           | frozen install、Electron/node-pty、runtime、Desktop 生产构建、bundle 与闭包/体积审计通过；没有另建打包链                                                                                      |
+| fork 备份          | 普通 pre-push 检查通过（schema 8 项、架构工具 36 项及 Lint/架构/affected）；源码锚点已推送并通过 GitHub API 核对为用户 fork 对应分支 HEAD                                                     |
+
+完整根全量发生在实现阶段；之后仅维护脚本补正，已重跑该边界的最终 22 项、类型/Lint/架构/格式及真实构建，
+没有把先前全量数字改写成最终维护用例数量。命令测试使用真实临时 Git/ASAR/ZIP 和受控 GitHub/签名/构建进程，
+不把这些合成场景当成真实签名或真实模型验收。macOS arm64 产物为实际执行；Intel 仅有系统边界 fixture，
+其他平台 build 明确拒绝，未声称实测。
+
+### 失败与补正记录
+
+- `check-1` 在 `4fb0ea73` 上实际成功，区分官方 main 的 3.16.2 固定源码与 latest release `v3.14.3`。
+  最终候选入口再次通过实时 GitHub API 观测相同官方锚点；不是用旧本地 ref 冒充网络检查。
+- `candidate-1` 在 frozen install 阶段以 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY` 安全停止，
+  原因为隔离 HOME 改变默认 pnpm store；没有 ready 清单。进程回归先红后绿，改为显式复用已有依赖缓存，
+  保持隔离 HOME/数据根且不修改全局配置，重新从干净 `7d6141bc` 生成 `candidate-2`。
+- 历史扫描初次把三方合并中的官方测试假密钥判成秘密。现只排除能从固定官方历史证明相同的 Git blob，
+  不豁免测试目录；本地新增密钥内容和所有敏感路径仍拒绝。公开进程回归先红后绿。
+- 两轴审查发现日常根 symlink 隔离漏洞、Intel `mac/` 与 `x86_64` 映射错误，以及 ZIP 仅核对三成员可漏
+  Framework；均通过公开进程红→绿补正。ZIP 采用流式完整成员比较，避免解压任意路径；与已独立 deep/strict
+  验签的完整应用建立同一性。yauzl 旧式 stream 在 Node 24 的 async iterator 会悬空，已改用其公开 data/end/error
+  契约，入口使用顶层 await，避免悬空任务以成功退出。
+- Git HTTPS 访问 github.com 后续超时，未记作拉取/推送成功。通过 GitHub 公布的主机密钥严格核对 SSH 443，
+  认证为用户 fork owner 后，使用单次 origin push URL 覆盖完成普通分支备份；保存的 origin/upstream 地址与
+  官方禁推规则未变。没有降低主机验证或写全局 SSH 配置。
+
+### 两轴审查
+
+固定起点 `13abd82002f517c672dbbf56238bb9ddbb1f5dd5`，命令 `git diff <起点>...HEAD`。
+两个独立并行代理分别按 Standards 和 Spec 审查，补正后再次独立复审：
+
+- Standards：初次 1 项 P2（日常根符号链接），已关闭；最终 0 项遗留，无需报告的启发式代码味道。
+- Spec：初次 2 项 P2（Intel 映射、残缺 ZIP），已关闭；最终 0 项遗留。Spec 代理独立重跑相关 4 个进程场景通过。
+
+证据根 `${HOME}/.local/share/zcode-local/research/issue-14/` 中保留 `logs/full-unit.log`、初次/最终类型与
+Lint/架构/格式/维护测试日志、`check-1`、失败 `candidate-1` 和最终 `candidate-2`（含每阶段 logs、签名、ZIP/DMG
+检查及 candidate.json）；独立签名和哈希在 `logs/codesign-independent.log`、`logs/artifacts-independent.sha256`。
+原始日志、HOME、数据根、候选产物和 SSH 主机密钥临时文件均不提交。
+
+本票没有启动候选、安装或替换日常 Local、接管日常数据、连接真实机器人或模型；没有创建发布标签、强推或向官方推送。
+02 的 `f8fbaaa0` 候选及其截图仍只证明 02。15–18 未开始，实际安装/恢复与真实群只读验收继续由后续门禁负责。

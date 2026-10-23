@@ -1,6 +1,6 @@
 # 14: 从维护入口生成可追溯的版本候选
 
-Status: in-progress
+Status: done
 
 Issue-Tracker: local-markdown
 
@@ -22,9 +22,9 @@ Issue-Tracker: local-markdown
 
 ## Acceptance criteria
 
-- [ ] origin 为核实归属后的用户 fork，upstream 为官方且不误推；通用代码与私有材料分开。
-- [ ] 用户主动触发检查/构建，冲突或验证失败停止；官方已解决的补丁可退役，不后台安装。
-- [ ] 候选版本、分支、源码锚点、包元数据对应，发布采用固定标签且不改写已发布内容；工具链可持续复现。
+- [x] origin 为核实归属后的用户 fork，upstream 为官方且不误推；通用代码与私有材料分开。
+- [x] 用户主动触发检查/构建，冲突或验证失败停止；官方已解决的补丁可退役，不后台安装。
+- [x] 候选版本、分支、源码锚点、包元数据对应，发布采用固定标签且不改写已发布内容；工具链可持续复现。
 
 ## Spec coverage
 
@@ -49,9 +49,9 @@ Issue-Tracker: local-markdown
 ```mermaid
 sequenceDiagram
     participant U as 维护者
-    participant M as 维护入口/候选清单 owner
+    participant M as 候选维护入口
     participant G as Git/GitHub
-    participant B as 既有 Desktop 构建链
+    participant B as 桌面构建链
     U->>M: check 或 build（显式 fork/review/output）
     M->>G: 核对远端、公开 fork、上游固定锚点与标签
     M->>M: 干净源码、公开审核、版本与差异门禁
@@ -64,3 +64,15 @@ sequenceDiagram
         M-->>U: candidate.json（ready；未启动/安装/发布）
     end
 ```
+
+## Completion（2026-10-23）
+
+统一 `local:maintain check|build`、实时上游/公开 fork 与防误推核对、版本/固定标签门禁、公开历史扫描和补丁审阅/退役检查已实现。
+复用原 Desktop 准备、生产构建与 bundle 链，从干净源码 `7d6141bcef0c5c79968532ea895dd1401b567d88` 生成实际
+macOS arm64 ad-hoc/runtime 签名 `.app`、DMG、ZIP 及 ready 清单。完整应用/归档一致性、源码/包元数据和独立哈希核对通过。
+
+22 项维护入口、完整根 20160 项、类型、Lint、架构、变更格式通过；affected 全选按合同跳过，未冒充全量执行。
+Standards 初次 1 项 P2、Spec 初次 2 项 P2 均已关闭，独立复审无遗留。已核实公开 fork 并普通推送源码分支，未发布 tag。
+首轮隔离 HOME/store 构建失败、Git HTTPS 超时及各项验证边界如实保留，见[交付报告与证据](../../local-edition/versioned-candidates.md)。
+
+没有启动或安装候选、替换日常 Local、接管实际数据或连接真实机器人。15 尚未开始。
