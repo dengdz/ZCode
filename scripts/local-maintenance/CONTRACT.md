@@ -28,3 +28,9 @@ API 实时核对上游 commit 和公开 fork；本机已有相同 Git 对象可�
 安装契约见 [16 Implementation contract](../../docs/issues/zcode-local/16-safe-installation.md#implementation-contract2026-10-23)。`local:maintain install` 接收新 `candidate.json`、描述当前 Local 的 `candidate.json`、显式 home/data/应用/备份根；两个清单和完整应用树每次都重新核对，新候选 build-meta 必须声明 `localMaintenanceProtocol: 1`。当前应用正在运行但旧构建没有该协议时要求先完全退出，不发送可能被默认处理的信号。
 
 入口通过 `local-launch.switchToCandidate` 先取得旧应用按 Host readiness/真实任务计数给出的明确 idle 回答，再提交退出；同一 token 绑定切换门阻止并发 install 和普通启动。正常退出后持有 switching owner 完成当前应用 15 备份、独立 verify、同文件系统 staging、候选再验签和原子替换。备份失败不替换；第二次 rename 失败由 abort 恢复旧目标，恢复也失败则保留 switching owner、两份应用和切换门并报告 unconfirmed。launcher 未产生新应用 PID 时通过 `local-launch.abortSwitch` 恢复 previous 并释放 owner；新 PID 已出现或 ready 状态不明时保留 ready 备份、previous 与启动证据，不强杀不确定进程。成功由 takeover launcher 启动新应用，等待新 token/存活 launcher/PID/version 对应的本地 Host ready 后写独立 `switch-<UUID>/switch.json`，再以 `completeSwitch` 清理切换门。本入口不连接真实模型/机器人，不提供 17 的数据恢复。
+
+## 回退与恢复（17）
+
+契约见 [17 Implementation contract](../../docs/issues/zcode-local/17-rollback-restore.md#implementation-contract2026-10-23)。`rollback-plan`、`restore-plan` 使用显式路径和 ready backup-id，在原静止边界生成私有不可覆盖计划。`rollback` 要求绑定计划、两端源码、当前数据 hash 的兼容证据，只替换应用；复用 install 的同一切换函数，不另建进程/备份协议。`restore` 需要 preview 返回的精确确认 hash，先备份当前，再在原 switching owner 和 gate 内恢复业务条目，不自动启动。所有权和幂等性由计划 hash、原 owner token 与本次 journal 约束；旧计划、未知 owner/gate 和半途崩溃均保守停止。
+
+备份中的 `.recovery-pin` 表示仍被恢复计划或恢复前基线引用，自动三组保留清理跳过它。pin 不改变 payload/hash，不证明备份有效；每次使用仍做独立 verify。人工归档计划/journal 并确认不再需要恢复后才可移除 pin；本入口不自动猜测材料失效。恢复只替换业务条目与 Local v1，保留 launch 锁、maintenance、profile。journal 和临时 before/after 是故障核对材料，不能只删 gate 或 owner 重试。

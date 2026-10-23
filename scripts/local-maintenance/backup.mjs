@@ -27,12 +27,12 @@ import {
   disjointBackup,
 } from "./backup-root.mjs";
 
-const included = (path) =>
+export const included = (path) =>
   !path.startsWith("local/") || path === "local/v1" || path.startsWith("local/v1/");
 const location = (role) =>
   role === "application" ? "payload/application.app" : `payload/${role}/.zcode`;
 const sha = (value) => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
-async function tree(path, data = false) {
+export async function tree(path, data = false) {
   const info = await lstat(path);
   if (!info.isDirectory() || info.isSymbolicLink()) fail("backup-source-type");
   const members = await applicationTree(path, { include: data ? included : () => true });
@@ -54,7 +54,7 @@ async function tree(path, data = false) {
   }
   return { sha256: treeDigest(members), mode: info.mode & 0o777, bytes, members };
 }
-async function copyTree(source, target, data = false) {
+export async function copyTree(source, target, data = false) {
   await cp(source, target, {
     recursive: true,
     errorOnExist: true,
@@ -64,7 +64,7 @@ async function copyTree(source, target, data = false) {
     filter: (path) => !data || included(relative(source, path).split("\\").join("/")),
   });
 }
-async function sameTree(path, expected, data = false) {
+export async function sameTree(path, expected, data = false) {
   const actual = await tree(path, data);
   if (actual.sha256 !== expected.sha256 || actual.mode !== expected.mode)
     fail("backup-content-mismatch");
@@ -73,7 +73,7 @@ async function sameTree(path, expected, data = false) {
 async function signed(path) {
   await run("codesign", ["--verify", "--deep", "--strict", path]);
 }
-async function sqliteIntegrity(path, members) {
+export async function sqliteIntegrity(path, members) {
   for (const [name, member] of members) {
     if (member.kind !== "file") continue;
     const file = join(path, name);
@@ -193,6 +193,13 @@ async function retain(context, identity) {
   for (const item of usable.slice(0, 3)) await verify(context, item.id, true);
   for (const item of usable.slice(3)) {
     await verify(context, item.id);
+    // 恢复计划与失败前备份仍是人工恢复依据；不能被后续普通备份的三组清理挤掉。
+    try {
+      await lstat(join(context.root, item.id, ".recovery-pin"));
+      continue;
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
     await rm(join(context.root, item.id), { recursive: true });
   }
 }
@@ -346,6 +353,8 @@ export async function verifyReadyBackup(backupRoot, id) {
       status: "usable",
       id: manifest.id,
       source: manifest.source,
+      identity: manifest.identity,
+      createdAt: manifest.createdAt,
       components: manifest.components,
     };
   });

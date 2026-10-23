@@ -70,7 +70,7 @@ export interface LocalLaunchContract {
   ): Promise<LocalMaintenanceResult<T>>;
   /**
    * 先让当前 Local 按运行时门禁正常退出，再写 switching owner 并把锁交给回调。
-   * 回调成功后 token 可交给 `run(..., { takeoverToken })`；回调失败释放 switching owner。
+   * 回调成功后 token 可交给 `run(..., { takeoverToken })`；回调失败保留 switching owner。
    */
   switchToCandidate<T>(
     input: LocalSwitchInput,
@@ -87,6 +87,7 @@ export interface LocalLaunchContract {
   /**
    * 只撤销尚未产生新应用 PID 的 switching owner。
    * 恢复目标仍在同一跨根锁内执行，任何新 owner 或运行进程都拒绝。
+   * 数据恢复中 setting.json 可暂时缺失；以显式根及匹配 owner/gate token 寻址。
    */
   abortSwitch<T>(
     input: LocalSwitchInput,

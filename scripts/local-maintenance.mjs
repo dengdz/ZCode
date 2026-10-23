@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { backupCommand } from "./local-maintenance/backup.mjs";
 import { build } from "./local-maintenance/build.mjs";
 import { check, safeOutput } from "./local-maintenance/checks.mjs";
+import { recoveryCommand } from "./local-maintenance/recovery.mjs";
 import { installCommand } from "./local-maintenance/install.mjs";
 import { git, fail } from "./local-maintenance/process.mjs";
 
@@ -11,11 +12,27 @@ async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (command === "--help") {
     console.log(
-      "local:maintain check|build --fork owner/repo --review FILE --output DIR\nlocal:maintain backup --home HOME --data-root ROOT --local-app APP --official-app APP --app-manifest FILE --backup-root DIR\nlocal:maintain backup-list --backup-root DIR\nlocal:maintain backup-verify --backup-root DIR --id ID\nlocal:maintain install --candidate FILE --current-manifest FILE --home HOME --data-root ROOT --local-app APP --official-app APP --backup-root DIR",
+      "local:maintain check|build --fork owner/repo --review FILE --output DIR\nlocal:maintain backup --home HOME --data-root ROOT --local-app APP --official-app APP --app-manifest FILE --backup-root DIR\nlocal:maintain backup-list --backup-root DIR\nlocal:maintain backup-verify --backup-root DIR --id ID\nlocal:maintain install --candidate FILE --current-manifest FILE --home HOME --data-root ROOT --local-app APP --official-app APP --backup-root DIR\nlocal:maintain rollback-plan|restore-plan --id BACKUP --current-manifest FILE --home HOME --data-root ROOT --local-app APP --official-app APP --backup-root DIR\nlocal:maintain rollback --backup-root DIR --plan recovery-UUID --compatibility FILE\nlocal:maintain restore --backup-root DIR --plan recovery-UUID --confirm SHA256",
     );
     return;
   }
+  const recoverySourceOptions = [
+    "--id",
+    "--current-manifest",
+    "--home",
+    "--data-root",
+    "--local-app",
+    "--official-app",
+    "--backup-root",
+  ];
+  const recoveryOptions = {
+    "rollback-plan": recoverySourceOptions,
+    "restore-plan": recoverySourceOptions,
+    rollback: ["--backup-root", "--plan", "--compatibility"],
+    restore: ["--backup-root", "--plan", "--confirm"],
+  };
   const backupOptions = {
+    ...recoveryOptions,
     backup: [
       "--home",
       "--data-root",
@@ -47,6 +64,10 @@ async function main() {
   }
   if (backupOptions[command]) {
     if (allowed.some((key) => !options[key])) fail("arguments");
+    if (recoveryOptions[command]) {
+      console.log(JSON.stringify(await recoveryCommand(command, options)));
+      return;
+    }
     if (command === "install") {
       console.log(JSON.stringify(await installCommand(options)));
       return;

@@ -16,3 +16,5 @@
 - 每次切换在实际数据根创建 token 绑定的 `switch-gate`，覆盖退出请求、备份、替换、启动和结果落盘；存在 gate 时普通 `run` 与第二个 install 均拒绝。回调失败返回 `{kind:"failed", takeoverToken, error}` 并保留 owner/gate，调用方恢复目标后调用 `abortSwitch`。成功落盘后 `completeSwitch` 再验 running owner、存活进程、runtime ready 与预期版本，通过才清理控制文件和 gate；任一步不符都保留 fail-closed 证据。
 - `abortSwitch(input, takeoverToken, operation)` 只用于 launcher 在新应用 PID 出现前失败或未完成 ready。它持有同一跨根锁，要求两处 owner 完全一致、仍为原 `switching` token，且当前没有 Local/官网进程，才在锁内执行调用方目标恢复并移除 owner；新 owner、任意 child PID 或运行进程都拒绝 abort，不能覆盖可能已启动的候选。
 - Local `run` 为应用注入 `ZCODE_LOCAL_LAUNCH_TOKEN`。带该 token 的 Local Main 在 Host 完成服务与 base attachment 初始化后写 `runtime.json`；停止时读取当前请求，并以 `ready/busy/unknown` 回答。状态文件绑定 owner token 和 app PID，旧文件不能证明新应用已就绪。维护切换入口等待新 owner 的 runtime ready，且只把“本地 Host 已就绪”作为连接核对，不冒充真实模型、机器人凭据或群验收。
+
+- 17 的数据恢复可能在 home `setting.json` 已移入 before 副本时失败。`abortSwitch` 仅为撤销本次 switching token 使用显式 home/dataRoot 寻址，不重新读取可暂时缺失的设置；要求两根 owner 完全一致、原 gate token 匹配、没有 child PID 或应用进程后才执行恢复回调。不能据此放宽普通启动或维护的数据根校验。

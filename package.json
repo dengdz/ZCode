@@ -8,6 +8,7 @@
     "local:maintain": "node scripts/local-maintenance.mjs",
     "test:local-maintenance": "node --test scripts/local-maintenance.test.mjs scripts/local-backup.test.mjs",
     "test:local-install": "node --test scripts/local-install.test.mjs",
+    "test:local-recovery": "node --test scripts/local-recovery.test.mjs",
     "local:launch": "tsx scripts/local-launch.ts",
     "dev:web": "concurrently -k -n server,web -c blue,green \"pnpm --filter @zcode/server dev\" \"pnpm --filter @zcode/web dev\"",
     "dev:docs": "pnpm --filter @zcode/dev-docs dev",

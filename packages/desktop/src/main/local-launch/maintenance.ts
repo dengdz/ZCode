@@ -133,7 +133,7 @@ export async function claimLocalMaintenanceSwitch(
   return gate;
 }
 
-export async function releaseLocalMaintenanceSwitch(
+export async function validateLocalMaintenanceSwitch(
   dataRoot: string,
   token: string,
 ): Promise<void> {
@@ -151,7 +151,14 @@ export async function releaseLocalMaintenanceSwitch(
     !hasOnlyKeys(value, ["schema", "kind", "token", "createdAt"])
   )
     throw new Error("Invalid Local maintenance switch gate");
-  await rm(gateDirectory, { recursive: true });
+}
+
+export async function releaseLocalMaintenanceSwitch(
+  dataRoot: string,
+  token: string,
+): Promise<void> {
+  await validateLocalMaintenanceSwitch(dataRoot, token);
+  await rm(maintenanceSwitchGateDirectory(dataRoot), { recursive: true });
 }
 
 function isPid(value: unknown): value is number {

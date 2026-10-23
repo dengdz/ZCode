@@ -13,6 +13,7 @@ import type {
 } from "./contract.js";
 import {
   claimLocalMaintenanceSwitch,
+  validateLocalMaintenanceSwitch,
   clearLocalMaintenanceFiles,
   readLocalMaintenanceResponse,
   readLocalMaintenanceRuntime,
@@ -182,10 +183,13 @@ async function withOwnerLocks<T>(
   return next(0);
 }
 
-async function maintenanceRoots(input: LocalMaintenanceInput) {
+async function maintenanceRoots(input: LocalMaintenanceInput, recoveringSwitch = false) {
   await mkdir(input.home, { recursive: true });
   const home = await realpath(input.home);
-  const dataRoot = await selectedDataRoot(home, input.dataRoot);
+  // 数据恢复可暂时移走 setting.json；撤销必须以原 token 的双根 owner 核对，不能先依赖该文件。
+  const dataRoot = recoveringSwitch
+    ? await canonicalPath(resolve(home, input.dataRoot ?? home))
+    : await selectedDataRoot(home, input.dataRoot);
   if (dataRoot === null) return null;
   const directories = await Promise.all(
     [home, dataRoot].map(async (root) => {
@@ -572,7 +576,7 @@ export const localLaunch: LocalLaunchContract = {
   async abortSwitch(input, takeoverToken, operation) {
     if (process.platform !== "darwin")
       throw new Error("Controlled Local switching currently supports macOS only");
-    const roots = await maintenanceRoots(input);
+    const roots = await maintenanceRoots(input, true);
     if (!roots) return { kind: "blocked", reason: "data-root-mismatch" };
     return withOwnerLocks(roots.files, async () => {
       const owner = await consistentOwner(roots.files).catch(() => undefined);
@@ -583,6 +587,11 @@ export const localLaunch: LocalLaunchContract = {
         owner.childPid !== undefined
       )
         return { kind: "blocked", reason: "unconfirmed" } as const;
+      try {
+        await validateLocalMaintenanceSwitch(roots.dataRoot, takeoverToken);
+      } catch {
+        return { kind: "blocked", reason: "unconfirmed" } as const;
+      }
       let running: LocalLaunchEdition | null;
       try {
         running = await runningApplication(input.applications);

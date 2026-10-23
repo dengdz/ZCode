@@ -45,7 +45,7 @@ const isProcessAlive = (pid) => {
   }
 };
 
-async function readManifest(path, kind) {
+export async function readManifest(path, kind) {
   const absolute = await canonicalPath(absoluteOption(path));
   const raw = await readFile(absolute);
   const manifest = JSON.parse(raw);
@@ -71,7 +71,7 @@ async function applicationPath(entry) {
   return app;
 }
 
-async function verifyApplication(entry, app) {
+export async function verifyApplication(entry, app) {
   const info = await lstat(app);
   if (!info.isDirectory() || info.isSymbolicLink()) fail("candidate-application-invalid");
   const members = await applicationTree(app);
@@ -106,6 +106,15 @@ async function runningCurrentOwner(dataRoot, appPidFile) {
     if (error instanceof SyntaxError) return null;
     throw error;
   }
+}
+
+export async function requireCurrentMaintenanceProtocol(current, dataRoot) {
+  const owner = await runningCurrentOwner(
+    dataRoot,
+    join(dataRoot, ".zcode/local/launch-owner.json"),
+  );
+  if (owner && current.manifest.package.metadata.localMaintenanceProtocol !== maintenanceProtocol)
+    fail("current-app-quit-required");
 }
 
 async function readStartupOwner(path) {
@@ -290,16 +299,24 @@ async function writeSwitchResult(backupRoot, value) {
 }
 
 export async function installCommand(options) {
+  return switchApplication(options);
+}
+
+export async function switchApplication(options, recovery) {
   if (process.platform !== "darwin") fail("unsupported-install-host");
-  const candidate = await readManifest(options["--candidate"], "candidate");
+  const candidate = recovery?.target ?? (await readManifest(options["--candidate"], "candidate"));
   const current = await readManifest(options["--current-manifest"], "candidate");
-  if (candidate.manifest.package.metadata?.localMaintenanceProtocol !== maintenanceProtocol)
+  if (
+    !recovery &&
+    candidate.manifest.package.metadata?.localMaintenanceProtocol !== maintenanceProtocol
+  )
     fail("maintenance-protocol-unsupported");
   const candidateVersion = candidate.manifest.source.version;
   const currentVersion = current.manifest.source.version;
   const comparison = compareVersions(candidateVersion, currentVersion);
   if (comparison === null) fail("install-version-invalid");
-  if (comparison <= 0) fail("install-version-not-newer");
+  if (recovery ? comparison >= 0 : comparison <= 0)
+    fail(recovery ? "rollback-version-not-older" : "install-version-not-newer");
   const candidateApp = await applicationPath(candidate);
   const currentApp = await realpath(absoluteOption(options["--local-app"]));
   const home = await realpath(absoluteOption(options["--home"]));
@@ -320,7 +337,8 @@ export async function installCommand(options) {
   );
   installPathsDisjoint([
     ...selectedLocalRoots,
-    candidateApp,
+    // 回退的应用载荷本就在已独立重验的备份根中；其余目标仍须与整个备份根互斥。
+    ...(recovery ? [] : [candidateApp]),
     target,
     official,
     backupRoot,
@@ -331,13 +349,7 @@ export async function installCommand(options) {
   await verifyApplication(candidate, candidateApp);
   await verifyApplication(current, currentApp);
 
-  const ownerPath = join(dataRoot, ".zcode/local/launch-owner.json");
-  const runningOwner = await runningCurrentOwner(dataRoot, ownerPath);
-  if (
-    runningOwner &&
-    current.manifest.package.metadata.localMaintenanceProtocol !== maintenanceProtocol
-  )
-    fail("current-app-quit-required");
+  await requireCurrentMaintenanceProtocol(current, dataRoot);
 
   try {
     await cp(candidateApp, staging, {
@@ -381,6 +393,7 @@ export async function installCommand(options) {
         : 5_000,
   };
   const switched = await localLaunch.switchToCandidate(switchInput, async (roots) => {
+    await recovery?.validate(roots);
     const backup = await createVerifiedBackup({
       roots,
       localApp: currentApp,
@@ -391,6 +404,8 @@ export async function installCommand(options) {
     if (backup?.status !== "usable" || !backup.id) fail("backup-not-ready");
     backupId = backup.id;
     await verifyReadyBackup(backupRoot, backup.id);
+    await recovery?.preserve(backup.id);
+    await recovery?.validate(roots);
     console.log(JSON.stringify({ status: "switching", backupId }));
     await verifyApplication(current, currentApp);
     await verifyApplication(candidate, staging);
@@ -415,6 +430,27 @@ export async function installCommand(options) {
   if (switched.kind === "blocked") {
     await rm(staging, { recursive: true, force: true }).catch(() => {});
     fail(`install-${switched.reason}`);
+  }
+
+  if (
+    recovery &&
+    candidate.manifest.package.metadata?.localMaintenanceProtocol !== maintenanceProtocol
+  ) {
+    const switchId = await writeSwitchResult(backupRoot, {
+      backupId,
+      operation: "program-rollback",
+      from: current.manifest.source,
+      to: candidate.manifest.source,
+      connectionCheck: "not-started",
+    });
+    const stopped = await localLaunch.abortSwitch(
+      switchInput,
+      switched.takeoverToken,
+      async () => {},
+    );
+    if (stopped.kind !== "completed") fail("rollback-complete-unconfirmed");
+    await rm(rollbackPath, { recursive: true, force: true }).catch(() => {});
+    return { status: "rolled-back-stopped", switchId, backupId, version: candidateVersion };
   }
 
   const configuredTimeout = Number(process.env.ZCODE_MAINTENANCE_STARTUP_TIMEOUT_MS ?? 20_000);
@@ -448,6 +484,7 @@ export async function installCommand(options) {
   await rm(rollbackPath, { recursive: true, force: true }).catch(() => {});
   const switchId = await writeSwitchResult(backupRoot, {
     backupId,
+    operation: recovery ? "program-rollback" : "install",
     from: current.manifest.source,
     to: candidate.manifest.source,
     candidateManifestSha256: digest(candidate.raw),
@@ -461,7 +498,7 @@ export async function installCommand(options) {
   );
   if (completed.kind !== "completed") fail(`install-complete-${completed.reason}`);
   return {
-    status: "installed",
+    status: recovery ? "rolled-back" : "installed",
     switchId,
     backupId,
     version: candidateVersion,
