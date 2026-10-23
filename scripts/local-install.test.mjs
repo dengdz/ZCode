@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { checkedFixture, buildTools } from "./test/local-maintenance-fixture.mjs";
 
 const repo = process.cwd();
@@ -28,7 +29,38 @@ if (token) {
       readFileSync(join(home, "fixture-new-app-fail"), "utf8") === "exit";
   } catch {}
   if (failStartup) process.exit(1);
-  else writeFileSync(join(maintenance, "runtime.json"), JSON.stringify({
+  let corruptHomeOwner = false;
+  try {
+    corruptHomeOwner =
+      version.endsWith("-local.2") &&
+      readFileSync(join(home, "fixture-corrupt-home-owner"), "utf8") === "yes";
+  } catch {}
+  if (corruptHomeOwner) {
+    const deadline = Date.now() + 3000;
+    let ownersReady = false;
+    while (Date.now() < deadline) {
+      try {
+        const dataOwner = JSON.parse(readFileSync(join(dataRoot, ".zcode/local/launch-owner.json"), "utf8"));
+        const homeOwner = JSON.parse(readFileSync(join(home, ".zcode/local/launch-owner.json"), "utf8"));
+        if (
+          dataOwner.phase === "running" &&
+          homeOwner.phase === "running" &&
+          dataOwner.token === token &&
+          homeOwner.token === token
+        ) {
+          ownersReady = true;
+          break;
+        }
+      } catch {}
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+    }
+    if (!ownersReady) process.exit(1);
+    const ownerPath = join(home, ".zcode/local/launch-owner.json");
+    const owner = JSON.parse(readFileSync(ownerPath, "utf8"));
+    owner.token = "conflicting-home-owner";
+    writeFileSync(ownerPath, JSON.stringify(owner));
+  }
+  writeFileSync(join(maintenance, "runtime.json"), JSON.stringify({
       schema: 1,
       kind: "local-maintenance-runtime",
       token,
@@ -42,7 +74,33 @@ process.on("SIGUSR2", () => {
   const request = JSON.parse(readFileSync(join(maintenance, "switch-request.json"), "utf8"));
   const state = readFileSync(join(home, "fixture-runtime-state"), "utf8").trim();
   if (state === "silent") return;
-  const status = state === "busy" ? "busy" : state === "unknown" ? "unknown" : "accepted";
+  if (state === "late-idle") {
+    setTimeout(() => {
+      writeFileSync(join(maintenance, "switch-response.json"), JSON.stringify({
+        schema: 1,
+        kind: "local-maintenance-response",
+        requestId: request.requestId,
+        token: request.token,
+        appPid: process.pid,
+        status: "idle",
+        runningTaskCount: 0,
+        createdAt: new Date().toISOString(),
+      }));
+    }, 300);
+    return;
+  }
+  let status = state === "busy" ? "busy" : state === "unknown" ? "unknown" : "idle";
+  if (status === "idle") {
+    try {
+      const commit = JSON.parse(readFileSync(join(maintenance, "switch-commit.json"), "utf8"));
+      if (
+        commit.requestId === request.requestId &&
+        commit.token === request.token &&
+        commit.appPid === process.pid
+      )
+        status = "accepted";
+    } catch {}
+  }
   writeFileSync(join(maintenance, "switch-response.json"), JSON.stringify({
     schema: 1,
     kind: "local-maintenance-response",
@@ -109,7 +167,7 @@ async function buildVersion(f, output) {
   return JSON.parse(await readFile(join(output, "candidate.json"), "utf8"));
 }
 
-async function installFixture(t, { currentProtocol = 1 } = {}) {
+async function installFixture(t, { currentProtocol = 1, candidateProtocol = 1 } = {}) {
   const f = await checkedFixture(t);
   const appEntry = fixtureApplicationScript();
   await buildTools(f, {
@@ -131,7 +189,11 @@ async function installFixture(t, { currentProtocol = 1 } = {}) {
   );
   await f.git("add", "package.json");
   await f.git("commit", "-m", "next local revision");
-  await buildTools(f, { appEntry, executableFixture: true });
+  await buildTools(f, {
+    appEntry,
+    executableFixture: true,
+    maintenanceProtocol: candidateProtocol,
+  });
   const candidateOutput = join(f.root, "next-candidate");
   const candidate = await buildVersion(f, candidateOutput);
 
@@ -206,6 +268,10 @@ function launchLocal(f) {
 
 test("install switches only after the current app exits and preserves a verified backup", async (t) => {
   const f = await installFixture(t);
+  const backupRoot = join(f.home, ".local/share/zcode-local/backups");
+  await mkdir(join(f.home, ".local/share/zcode-local"), { recursive: true, mode: 0o700 });
+  const args = [...f.args];
+  args[args.indexOf("--backup-root") + 1] = backupRoot;
   const currentLaunch = launchLocal(f);
   let oldApp;
   try {
@@ -215,7 +281,7 @@ test("install switches only after the current app exits and preserves a verified
     throw new Error(`${error.message}\nlauncher exit=${result.code}\n${result.output}`);
   }
   try {
-    const installed = await f.run("install", ...f.args);
+    const installed = await f.run("install", ...args);
     assert.equal(installed.code, 0, installed.stderr);
 
     const currentLaunchResult = await currentLaunch.done;
@@ -227,31 +293,22 @@ test("install switches only after the current app exits and preserves a verified
       "3.16.2-local.2",
     );
 
-    const listed = await f.run("backup-list", "--backup-root", join(f.root, "backups"));
+    const listed = await f.run("backup-list", "--backup-root", backupRoot);
     assert.equal(listed.code, 0, listed.stderr);
     const [backup] = JSON.parse(listed.stdout).backups.filter((item) => item.status === "usable");
     assert.equal(backup.source.version, f.current.source.version);
     assert.equal(
-      await readFile(
-        join(f.root, "backups", backup.id, "payload/data/.zcode/v2/history.json"),
-        "utf8",
-      ),
+      await readFile(join(backupRoot, backup.id, "payload/data/.zcode/v2/history.json"), "utf8"),
       "synthetic task history",
     );
     await assert.rejects(
-      readFile(
-        join(f.root, "backups", backup.id, "payload/data/.zcode/local/maintenance/runtime.json"),
-      ),
+      readFile(join(backupRoot, backup.id, "payload/data/.zcode/local/maintenance/runtime.json")),
       { code: "ENOENT" },
     );
 
-    const switches = (await readdir(join(f.root, "backups"))).filter((name) =>
-      name.startsWith("switch-"),
-    );
+    const switches = (await readdir(backupRoot)).filter((name) => name.startsWith("switch-"));
     assert.equal(switches.length, 1);
-    const result = JSON.parse(
-      await readFile(join(f.root, "backups", switches[0], "switch.json"), "utf8"),
-    );
+    const result = JSON.parse(await readFile(join(backupRoot, switches[0], "switch.json"), "utf8"));
     assert.equal(result.status, "ready");
     assert.equal(result.backupId, backup.id);
     assert.equal(result.from.version, f.current.source.version);
@@ -285,6 +342,49 @@ test("install can proceed when Local is already normally stopped", async (t) => 
   }
 });
 
+test("a stopped pre-protocol Local can be upgraded", async (t) => {
+  const f = await installFixture(t, { currentProtocol: null });
+  try {
+    const installed = await f.run("install", ...f.args);
+    assert.equal(installed.code, 0, installed.stderr);
+    await waitForObserved(f.home, f.candidate.source.version);
+    assert.equal(
+      await readFile(join(f.localApp, "Contents/Resources/fixture-version"), "utf8"),
+      f.candidate.source.version,
+    );
+  } finally {
+    await writeFile(join(f.home, `release-${f.candidate.source.version}`), "exit").catch(() => {});
+    await waitForGone(join(f.data, ".zcode/local/launch-owner.json")).catch(() => {});
+  }
+});
+
+test("install rejects a takeover whose home and data roots disagree on ownership", async (t) => {
+  const f = await installFixture(t);
+  await writeFile(join(f.home, "fixture-corrupt-home-owner"), "yes");
+  const launch = launchLocal(f);
+  await waitForObserved(f.home, f.current.source.version);
+  try {
+    const installed = await f.run("install", ...f.args);
+    assert.equal(installed.code, 1, installed.stderr);
+    assert.match(installed.stderr, /install-startup-unconfirmed/);
+    assert.equal(
+      await readFile(join(f.localApp, "Contents/Resources/fixture-version"), "utf8"),
+      f.candidate.source.version,
+    );
+    const listed = await f.run("backup-list", "--backup-root", join(f.root, "backups"));
+    assert.equal(
+      JSON.parse(listed.stdout).backups.filter((item) => item.status === "usable").length,
+      1,
+    );
+    assert.ok(
+      (await readdir(f.applications)).some((name) => name.startsWith(".ZCode Local.previous-")),
+    );
+  } finally {
+    await writeFile(join(f.home, `release-${f.candidate.source.version}`), "exit").catch(() => {});
+    await launch.done;
+  }
+});
+
 for (const state of ["busy", "unknown"]) {
   test(`install stops before exit and replacement when the runtime reports ${state}`, async (t) => {
     const f = await installFixture(t);
@@ -305,6 +405,9 @@ for (const state of ["busy", "unknown"]) {
       );
       assert.equal(owner.phase, "running");
       assert.doesNotThrow(() => process.kill(owner.childPid, 0));
+      await assert.rejects(readFile(join(f.data, ".zcode/local/maintenance/switch-request.json")), {
+        code: "ENOENT",
+      });
       assert.deepEqual(
         (await readdir(f.applications)).filter((name) => name.startsWith(".ZCode Local.staging-")),
         [],
@@ -386,6 +489,18 @@ test("a running pre-protocol app must be fully quit before installing", async (t
   }
 });
 
+test("install rejects a candidate without the maintenance protocol", async (t) => {
+  const f = await installFixture(t, { candidateProtocol: null });
+  const installed = await f.run("install", ...f.args);
+  assert.equal(installed.code, 1, installed.stderr);
+  assert.match(installed.stderr, /maintenance-protocol-unsupported/);
+  assert.equal(
+    await readFile(join(f.localApp, "Contents/Resources/fixture-version"), "utf8"),
+    f.current.source.version,
+  );
+  await assert.rejects(readdir(join(f.root, "backups")));
+});
+
 test("an absent exit acknowledgment never counts as a clean shutdown", async (t) => {
   const f = await installFixture(t);
   await writeFile(join(f.home, "fixture-runtime-state"), "silent");
@@ -403,7 +518,35 @@ test("an absent exit acknowledgment never counts as a clean shutdown", async (t)
       await readFile(join(f.data, ".zcode/local/launch-owner.json"), "utf8"),
     );
     assert.doesNotThrow(() => process.kill(owner.childPid, 0));
-    await readFile(join(f.data, ".zcode/local/maintenance/switch-request.json"));
+    await assert.rejects(readFile(join(f.data, ".zcode/local/maintenance/switch-request.json")), {
+      code: "ENOENT",
+    });
+  } finally {
+    await writeFile(join(f.home, `release-${f.current.source.version}`), "exit");
+    await launch.done;
+  }
+});
+
+test("a late idle response cannot quit the app after the request timed out", async (t) => {
+  const f = await installFixture(t);
+  await writeFile(join(f.home, "fixture-runtime-state"), "late-idle");
+  f.env.ZCODE_MAINTENANCE_REQUEST_TIMEOUT_MS = "100";
+  const launch = launchLocal(f);
+  await waitForObserved(f.home, f.current.source.version);
+  try {
+    const installed = await f.run("install", ...f.args);
+    assert.equal(installed.code, 1, installed.stderr);
+    assert.match(installed.stderr, /install-unknown/);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const owner = JSON.parse(
+      await readFile(join(f.data, ".zcode/local/launch-owner.json"), "utf8"),
+    );
+    assert.equal(owner.phase, "running");
+    assert.doesNotThrow(() => process.kill(owner.childPid, 0));
+    assert.equal(
+      await readFile(join(f.localApp, "Contents/Resources/fixture-version"), "utf8"),
+      f.current.source.version,
+    );
   } finally {
     await writeFile(join(f.home, `release-${f.current.source.version}`), "exit");
     await launch.done;
@@ -461,7 +604,7 @@ test("install revalidates candidate content instead of trusting ready manifest t
   await assert.rejects(readdir(join(f.root, "backups")));
 });
 
-test("startup failure keeps the verified backup and previous application as recovery evidence", async (t) => {
+test("startup failure keeps the new target, previous app and verified backup as evidence", async (t) => {
   const f = await installFixture(t);
   await writeFile(join(f.home, "fixture-new-app-fail"), "exit");
   f.env.ZCODE_MAINTENANCE_STARTUP_TIMEOUT_MS = "750";
@@ -489,6 +632,58 @@ test("startup failure keeps the verified backup and previous application as reco
       await readFile(join(f.applications, previous, "Contents/Resources/fixture-version"), "utf8"),
       f.current.source.version,
     );
+  } finally {
+    await writeFile(join(f.home, `release-${f.current.source.version}`), "exit").catch(() => {});
+    await launch.done;
+  }
+});
+
+test("a takeover launcher failure before app start restores the old target", async (t) => {
+  const f = await installFixture(t);
+  const launch = launchLocal(f);
+  await waitForObserved(f.home, f.current.source.version);
+  const preload = join(f.root, "fail-takeover-launcher.mjs");
+  await writeFile(
+    preload,
+    `import childProcess from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
+const spawn = childProcess.spawn;
+childProcess.spawn = (...args) => {
+  const [command, commandArgs, options] = args;
+  if (
+    String(command).endsWith("/node") &&
+    Array.isArray(commandArgs) &&
+    commandArgs.some((arg) => String(arg).endsWith("scripts/local-launch.ts")) &&
+    commandArgs.includes("--takeover-token")
+  )
+    return spawn(process.execPath, ["-e", "process.exit(19)"], options);
+  return spawn(...args);
+};
+syncBuiltinESMExports();
+`,
+  );
+  f.env.NODE_OPTIONS = `--import=${pathToFileURL(preload).href}`;
+  f.env.ZCODE_MAINTENANCE_STARTUP_TIMEOUT_MS = "750";
+  try {
+    const installed = await f.run("install", ...f.args);
+    assert.equal(installed.code, 1, installed.stderr);
+    assert.match(installed.stderr, /install-startup-unconfirmed/);
+    assert.equal(
+      await readFile(join(f.localApp, "Contents/Resources/fixture-version"), "utf8"),
+      f.current.source.version,
+    );
+    assert.equal(
+      (await readdir(f.applications)).some((name) => name.startsWith(".ZCode Local.previous-")),
+      false,
+    );
+    const listed = await f.run("backup-list", "--backup-root", join(f.root, "backups"));
+    assert.equal(
+      JSON.parse(listed.stdout).backups.filter((item) => item.status === "usable").length,
+      1,
+    );
+    await assert.rejects(readFile(join(f.data, ".zcode/local/launch-owner.json")), {
+      code: "ENOENT",
+    });
   } finally {
     await writeFile(join(f.home, `release-${f.current.source.version}`), "exit").catch(() => {});
     await launch.done;

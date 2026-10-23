@@ -1303,9 +1303,12 @@ function getRunningAgentSessionCount() {
 function getLocalMaintenanceTaskState():
   | { kind: "ready"; runningTaskCount: number }
   | { kind: "unknown" } {
-  const hosts = [...windowHostProcessMap.values()];
-  if (hosts.length === 0 || hosts.some((host) => !hostReadyProcesses.has(host)))
-    return { kind: "unknown" };
+  const windows = getMainApplicationWindows();
+  if (windows.length === 0) return { kind: "unknown" };
+  for (const win of windows) {
+    const host = windowHostProcessMap.get(win.webContents.id);
+    if (!host || !hostReadyProcesses.has(host)) return { kind: "unknown" };
+  }
   return {
     kind: "ready",
     runningTaskCount: getRunningAgentSessionCount(),

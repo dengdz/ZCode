@@ -14,3 +14,12 @@ export async function exampleLocalMaintenance(port: LocalLaunchContract, input: 
 export async function exampleLocalSwitch(port: LocalLaunchContract, input: LocalLaunchInput) {
   return port.switchToCandidate(input, async ({ dataRoot }) => dataRoot);
 }
+
+/** 仅在新应用 PID 出现前撤销切换；回调负责恢复原目标。 */
+export async function exampleLocalAbortSwitch(
+  port: LocalLaunchContract,
+  input: LocalLaunchInput,
+  takeoverToken: string,
+) {
+  return port.abortSwitch(input, takeoverToken, async ({ dataRoot }) => dataRoot);
+}

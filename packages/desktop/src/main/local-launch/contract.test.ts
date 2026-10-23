@@ -57,3 +57,41 @@ it.skipIf(process.platform !== "darwin")("切换接口不接管损坏的owner或
   await expect(stat(resultFile)).rejects.toMatchObject({ code: "ENOENT" });
   expect(await readFile(owner, "utf8")).toBe("unconfirmed owner");
 });
+
+it.skipIf(process.platform !== "darwin")(
+  "abort切换只处理完全匹配且无进程的switching owner",
+  async () => {
+    const home = await mkdtemp(join(tmpdir(), "local-abort-switch-"));
+    const owner = join(home, ".zcode/local/launch-owner.json");
+    const applications = {
+      local: join(home, "local.app"),
+      official: join(home, "official.app"),
+    };
+    await mkdir(join(home, ".zcode/local"), { recursive: true });
+    const switching = {
+      version: 1,
+      token: "switch-token",
+      edition: "local",
+      launcherPid: process.pid,
+      phase: "switching",
+    };
+    await writeFile(owner, JSON.stringify(switching));
+
+    let restored = 0;
+    await expect(
+      port.abortSwitch({ home, applications }, "other-token", async () => {
+        restored += 1;
+      }),
+    ).resolves.toEqual({ kind: "blocked", reason: "unconfirmed" });
+    expect(restored).toBe(0);
+    expect(JSON.parse(await readFile(owner, "utf8"))).toEqual(switching);
+
+    await expect(
+      port.abortSwitch({ home, applications }, "switch-token", async () => {
+        restored += 1;
+      }),
+    ).resolves.toEqual({ kind: "completed", value: undefined });
+    expect(restored).toBe(1);
+    await expect(stat(owner)).rejects.toMatchObject({ code: "ENOENT" });
+  },
+);

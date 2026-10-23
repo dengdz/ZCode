@@ -22,10 +22,20 @@ export type LocalMaintenanceResponse = {
   appPid: number;
   createdAt: string;
 } & (
+  | { status: "idle"; runningTaskCount: 0 }
   | { status: "accepted"; runningTaskCount: 0 }
   | { status: "busy"; runningTaskCount: number }
   | { status: "unknown"; runningTaskCount: null }
 );
+
+export interface LocalMaintenanceCommit {
+  schema: 1;
+  kind: "local-maintenance-commit";
+  requestId: string;
+  token: string;
+  appPid: number;
+  createdAt: string;
+}
 
 export type LocalMaintenanceTaskState =
   | { kind: "ready"; runningTaskCount: number }
@@ -103,6 +113,11 @@ export async function writeLocalMaintenanceRequest(input: {
     createdAt: new Date().toISOString(),
   };
   const directory = await ensureMaintenanceDirectory(input.dataRoot);
+  await Promise.all(
+    ["switch-response.json", "switch-commit.json"].map((name) =>
+      rm(join(directory, name), { force: true }),
+    ),
+  );
   await atomicWritePrivateTextFile(join(directory, "switch-request.json"), JSON.stringify(request));
   return request;
 }
@@ -172,6 +187,7 @@ export async function readLocalMaintenanceResponse(
   const status = value.status;
   const runningTaskCount = value.runningTaskCount;
   if (
+    (status === "idle" && runningTaskCount === 0) ||
     (status === "accepted" && runningTaskCount === 0) ||
     (status === "busy" &&
       typeof runningTaskCount === "number" &&
@@ -181,6 +197,52 @@ export async function readLocalMaintenanceResponse(
   )
     return value as unknown as LocalMaintenanceResponse;
   throw new Error("Invalid Local maintenance response");
+}
+
+export async function writeLocalMaintenanceCommit(
+  dataRoot: string,
+  request: LocalMaintenanceRequest,
+): Promise<LocalMaintenanceCommit> {
+  const commit: LocalMaintenanceCommit = {
+    schema: 1,
+    kind: "local-maintenance-commit",
+    requestId: request.requestId,
+    token: request.token,
+    appPid: request.appPid,
+    createdAt: new Date().toISOString(),
+  };
+  await atomicWritePrivateTextFile(
+    join(await ensureMaintenanceDirectory(dataRoot), "switch-commit.json"),
+    JSON.stringify(commit),
+  );
+  return commit;
+}
+
+export async function readLocalMaintenanceCommit(
+  dataRoot: string,
+  request: Pick<LocalMaintenanceRequest, "requestId" | "token" | "appPid">,
+): Promise<LocalMaintenanceCommit | null> {
+  let raw: string;
+  try {
+    raw = await readFile(
+      join(await ensureMaintenanceDirectory(dataRoot), "switch-commit.json"),
+      "utf8",
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+  const value = JSON.parse(raw) as Record<string, unknown>;
+  if (
+    !validCommon(value) ||
+    !hasOnlyKeys(value, ["schema", "kind", "requestId", "token", "appPid", "createdAt"]) ||
+    value.kind !== "local-maintenance-commit" ||
+    value.requestId !== request.requestId ||
+    value.token !== request.token ||
+    value.appPid !== request.appPid
+  )
+    throw new Error("Invalid Local maintenance commit");
+  return value as unknown as LocalMaintenanceCommit;
 }
 
 export async function readLocalMaintenanceRuntime(
@@ -215,7 +277,7 @@ export async function readLocalMaintenanceRuntime(
 export async function writeLocalMaintenanceResponse(input: {
   dataRoot: string;
   request: LocalMaintenanceRequest;
-  status: "accepted" | "busy" | "unknown";
+  status: "idle" | "accepted" | "busy" | "unknown";
   runningTaskCount: number | null;
 }): Promise<void> {
   await atomicWritePrivateTextFile(
@@ -257,7 +319,7 @@ export async function writeLocalMaintenanceRuntime(input: {
 export async function clearLocalMaintenanceFiles(dataRoot: string): Promise<void> {
   const directory = await ensureMaintenanceDirectory(dataRoot);
   await Promise.all(
-    ["switch-request.json", "switch-response.json"].map((name) =>
+    ["switch-request.json", "switch-response.json", "switch-commit.json"].map((name) =>
       rm(join(directory, name), { force: true }),
     ),
   );
@@ -271,6 +333,7 @@ export function installLocalMaintenanceRuntime(options: {
   onAccepted: () => void;
 }): { markHostReady(): Promise<void>; dispose(): void } {
   let handling = false;
+  let pendingSignal = false;
   let disposed = false;
   const writeStarting = () =>
     writeLocalMaintenanceRuntime({
@@ -283,7 +346,11 @@ export function installLocalMaintenanceRuntime(options: {
   void writeStarting().catch(() => {});
 
   const handle = async () => {
-    if (handling || disposed) return;
+    if (disposed) return;
+    if (handling) {
+      pendingSignal = true;
+      return;
+    }
     handling = true;
     try {
       const request = await readLocalMaintenanceRequest(
@@ -311,6 +378,16 @@ export function installLocalMaintenanceRuntime(options: {
         });
         return;
       }
+      const commit = await readLocalMaintenanceCommit(options.dataRoot, request);
+      if (!commit) {
+        await writeLocalMaintenanceResponse({
+          dataRoot: options.dataRoot,
+          request,
+          status: "idle",
+          runningTaskCount: 0,
+        });
+        return;
+      }
       await writeLocalMaintenanceResponse({
         dataRoot: options.dataRoot,
         request,
@@ -322,6 +399,10 @@ export function installLocalMaintenanceRuntime(options: {
       // 请求文件不可信或写入失败时不退出；维护入口会从缺失/不匹配的响应判定 unknown。
     } finally {
       handling = false;
+      if (pendingSignal && !disposed) {
+        pendingSignal = false;
+        void handle();
+      }
     }
   };
   process.on("SIGUSR2", handle);
@@ -338,6 +419,7 @@ export function installLocalMaintenanceRuntime(options: {
     },
     dispose() {
       disposed = true;
+      pendingSignal = false;
       process.removeListener("SIGUSR2", handle);
     },
   };

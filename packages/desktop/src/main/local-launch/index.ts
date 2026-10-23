@@ -14,6 +14,7 @@ import {
   clearLocalMaintenanceFiles,
   readLocalMaintenanceResponse,
   readLocalMaintenanceRuntime,
+  writeLocalMaintenanceCommit,
   writeLocalMaintenanceRequest,
 } from "./maintenance.js";
 import { desktopProductIdentities } from "../../../scripts/desktop-product-identity.mjs";
@@ -343,12 +344,15 @@ async function requestApplicationExit(
     await clearLocalMaintenanceFiles(roots.dataRoot);
     return { kind: "unknown" };
   }
-  const deadline = Date.now() + Math.max(timeoutMs, 0);
-  while (Date.now() < deadline) {
+  // 第一步只取得 idle/busy/unknown，不触发退出；超时撤销请求不会让 Main 稍后误退出。
+  const idleDeadline = Date.now() + Math.max(timeoutMs, 0);
+  let idle = false;
+  while (Date.now() < idleDeadline) {
     let response;
     try {
       response = await readLocalMaintenanceResponse(roots.dataRoot, request);
     } catch {
+      await clearLocalMaintenanceFiles(roots.dataRoot);
       return { kind: "unknown" };
     }
     if (response?.status === "busy") {
@@ -359,17 +363,57 @@ async function requestApplicationExit(
       await clearLocalMaintenanceFiles(roots.dataRoot);
       return { kind: "unknown" };
     }
+    if (response?.status === "idle") {
+      idle = true;
+      break;
+    }
     if (response?.status === "accepted") {
-      const clean = await waitForCleanExit(roots.files, applications, Math.max(10_000, timeoutMs));
-      if (!clean) return { kind: "exit-unconfirmed" };
-      return { kind: "idle" };
+      await clearLocalMaintenanceFiles(roots.dataRoot);
+      return { kind: "unknown" };
     }
     if (!isProcessAlive(owner.childPid)) {
+      await clearLocalMaintenanceFiles(roots.dataRoot);
       return { kind: "exit-unconfirmed" };
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  return { kind: "unknown" };
+  if (!idle) {
+    await clearLocalMaintenanceFiles(roots.dataRoot);
+    return { kind: "unknown" };
+  }
+
+  await writeLocalMaintenanceCommit(roots.dataRoot, request);
+  try {
+    process.kill(owner.childPid, "SIGUSR2");
+  } catch {
+    return { kind: "exit-unconfirmed" };
+  }
+  const exitDeadline = Date.now() + Math.max(timeoutMs, 0);
+  while (Date.now() < exitDeadline) {
+    let response;
+    try {
+      response = await readLocalMaintenanceResponse(roots.dataRoot, request);
+    } catch {
+      return { kind: "exit-unconfirmed" };
+    }
+    if (response?.status === "busy") {
+      await clearLocalMaintenanceFiles(roots.dataRoot);
+      return { kind: "busy", runningTaskCount: response.runningTaskCount };
+    }
+    if (response?.status === "unknown") {
+      await clearLocalMaintenanceFiles(roots.dataRoot);
+      return { kind: "unknown" };
+    }
+    if (response?.status === "accepted") {
+      // accepted 之后 Main 已进入正常退出；任何超时或进程异常都必须保守保留请求证据。
+      return (await waitForCleanExit(roots.files, applications, Math.max(10_000, timeoutMs)))
+        ? { kind: "idle" }
+        : { kind: "exit-unconfirmed" };
+    }
+    if (!isProcessAlive(owner.childPid)) return { kind: "exit-unconfirmed" };
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return { kind: "exit-unconfirmed" };
 }
 
 export const localLaunch: LocalLaunchContract = {
@@ -471,6 +515,41 @@ export const localLaunch: LocalLaunchContract = {
         await clearLocalMaintenanceFiles(roots.dataRoot);
         throw error;
       }
+    });
+  },
+  async abortSwitch(input, takeoverToken, operation) {
+    if (process.platform !== "darwin")
+      throw new Error("Controlled Local switching currently supports macOS only");
+    const roots = await maintenanceRoots(input);
+    if (!roots) return { kind: "blocked", reason: "data-root-mismatch" };
+    return withOwnerLocks(roots.files, async () => {
+      const owner = await consistentOwner(roots.files).catch(() => undefined);
+      if (
+        !owner ||
+        owner.phase !== "switching" ||
+        owner.token !== takeoverToken ||
+        owner.childPid !== undefined
+      )
+        return { kind: "blocked", reason: "unconfirmed" } as const;
+      let running: LocalLaunchEdition | null;
+      try {
+        running = await runningApplication(input.applications);
+      } catch {
+        return { kind: "blocked", reason: "unconfirmed" } as const;
+      }
+      if (running) return { kind: "blocked", reason: "occupied", edition: running } as const;
+
+      const value = await operation({ home: roots.home, dataRoot: roots.dataRoot });
+      const current = await consistentOwner(roots.files);
+      if (
+        current?.phase !== "switching" ||
+        current.token !== takeoverToken ||
+        current.childPid !== undefined
+      )
+        throw new Error("Switching ownership changed during abort");
+      await removeOwnerFiles(roots.files);
+      await clearLocalMaintenanceFiles(roots.dataRoot);
+      return { kind: "completed", value } as const;
     });
   },
   async run(input, options) {

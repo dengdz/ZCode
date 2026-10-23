@@ -36,6 +36,14 @@ const compareVersions = (left, right) => {
   }
   return 0;
 };
+const isProcessAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code !== "ESRCH";
+  }
+};
 
 async function readManifest(path, kind) {
   const absolute = absoluteOption(path);
@@ -76,6 +84,15 @@ async function verifyApplication(entry, app) {
     fail("candidate-package-manifest-mismatch");
 }
 
+function installPathsDisjoint(paths) {
+  for (let left = 0; left < paths.length; left++) {
+    for (let right = left + 1; right < paths.length; right++) {
+      if (within(paths[left], paths[right]) || within(paths[right], paths[left]))
+        fail("install-path-overlap");
+    }
+  }
+}
+
 async function runningCurrentOwner(dataRoot, appPidFile) {
   try {
     const owner = JSON.parse(await readFile(appPidFile, "utf8"));
@@ -89,36 +106,109 @@ async function runningCurrentOwner(dataRoot, appPidFile) {
   }
 }
 
+async function readStartupOwner(path) {
+  let raw;
+  try {
+    raw = await readFile(path, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+  let owner;
+  try {
+    owner = JSON.parse(raw);
+  } catch {
+    fail("install-startup-unconfirmed");
+  }
+  const keys = ["version", "token", "edition", "launcherPid", "childPid", "phase"];
+  if (
+    !owner ||
+    owner.version !== 1 ||
+    typeof owner.token !== "string" ||
+    !owner.token ||
+    owner.edition !== "local" ||
+    !["preparing", "running", "switching", "unconfirmed"].includes(owner.phase) ||
+    !Number.isSafeInteger(owner.launcherPid) ||
+    owner.launcherPid <= 0 ||
+    (owner.childPid !== undefined &&
+      (!Number.isSafeInteger(owner.childPid) || owner.childPid <= 0)) ||
+    Object.keys(owner).some((key) => !keys.includes(key))
+  )
+    fail("install-startup-unconfirmed");
+  return owner;
+}
+
+async function readStartupRuntime(path) {
+  let runtime;
+  try {
+    runtime = JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    if (error instanceof SyntaxError) fail("install-startup-unconfirmed");
+    throw error;
+  }
+  const keys = ["schema", "kind", "token", "appPid", "version", "state", "updatedAt"];
+  if (
+    runtime.schema !== 1 ||
+    runtime.kind !== "local-maintenance-runtime" ||
+    typeof runtime.token !== "string" ||
+    !runtime.token ||
+    !Number.isSafeInteger(runtime.appPid) ||
+    runtime.appPid <= 0 ||
+    typeof runtime.version !== "string" ||
+    !runtime.version ||
+    !["starting", "ready"].includes(runtime.state) ||
+    typeof runtime.updatedAt !== "string" ||
+    !Number.isFinite(Date.parse(runtime.updatedAt)) ||
+    Object.keys(runtime).some((key) => !keys.includes(key))
+  )
+    fail("install-startup-unconfirmed");
+  return runtime;
+}
+
+function sameOwner(left, right) {
+  return (
+    left.token === right.token &&
+    left.edition === right.edition &&
+    left.launcherPid === right.launcherPid &&
+    left.childPid === right.childPid &&
+    left.phase === right.phase
+  );
+}
+
 async function waitForStartup(input) {
-  const ownerPath = join(input.dataRoot, ".zcode/local/launch-owner.json");
+  const ownerPaths = [
+    ...new Set(
+      [input.home, input.dataRoot].map((root) => join(root, ".zcode/local/launch-owner.json")),
+    ),
+  ];
   const runtimePath = join(input.dataRoot, ".zcode/local/maintenance/runtime.json");
   const deadline = Date.now() + input.timeoutMs;
   do {
-    try {
-      const owner = JSON.parse(await readFile(ownerPath, "utf8"));
-      const runtime = JSON.parse(await readFile(runtimePath, "utf8"));
-      if (
-        owner.version === 1 &&
-        owner.edition === "local" &&
-        owner.phase === "running" &&
-        Number.isSafeInteger(owner.childPid) &&
-        runtime.schema === 1 &&
-        runtime.kind === "local-maintenance-runtime" &&
-        runtime.state === "ready" &&
-        runtime.appPid === owner.childPid &&
-        runtime.token === owner.token &&
-        runtime.version === input.version
-      ) {
-        try {
-          process.kill(owner.childPid, 0);
-        } catch {
-          fail("install-startup-failed");
-        }
-        return owner;
+    const owners = await Promise.all(ownerPaths.map(readStartupOwner));
+    if (owners.every(Boolean)) {
+      const owner = owners[0];
+      const consistent = owners.every((candidate) => sameOwner(owner, candidate));
+      if (!consistent) {
+        if (owners.every((candidate) => candidate.phase === "running"))
+          fail("install-startup-unconfirmed");
+      } else if (owner.phase === "running") {
+        if (
+          owner.token === input.switchToken ||
+          owner.childPid === undefined ||
+          !isProcessAlive(owner.launcherPid) ||
+          !isProcessAlive(owner.childPid)
+        )
+          fail("install-startup-unconfirmed");
+        const runtime = await readStartupRuntime(runtimePath);
+        if (
+          runtime?.state === "ready" &&
+          runtime.appPid === owner.childPid &&
+          runtime.token === owner.token &&
+          runtime.version === input.version
+        )
+          return owner;
       }
-    } catch (error) {
-      if (error.maintenanceCode) throw error;
-      if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   } while (Date.now() < deadline);
@@ -162,6 +252,19 @@ async function startTakeoverLauncher(input, takeoverToken) {
   child.unref();
 }
 
+async function abortUnstartedSwitch(localLaunch, input, takeoverToken, paths) {
+  return localLaunch.abortSwitch(input, takeoverToken, async () => {
+    await rename(paths.currentApp, paths.staging);
+    try {
+      await rename(paths.rollbackPath, paths.currentApp);
+    } catch (error) {
+      await rename(paths.staging, paths.currentApp).catch(() => {});
+      throw error;
+    }
+    await rm(paths.staging, { recursive: true, force: true }).catch(() => {});
+  });
+}
+
 async function writeSwitchResult(backupRoot, value) {
   const id = `switch-${randomUUID()}`;
   return withBackupRoot(backupRoot, false, async (context) => {
@@ -199,12 +302,28 @@ export async function installCommand(options) {
   const home = await realpath(absoluteOption(options["--home"]));
   const dataRoot = await realpath(absoluteOption(options["--data-root"]));
   const officialApp = absoluteOption(options["--official-app"]);
-  const backupRoot = absoluteOption(options["--backup-root"]);
+  const backupRoot = await canonicalPath(absoluteOption(options["--backup-root"]));
   const target = await canonicalPath(currentApp);
   const official = await canonicalPath(officialApp);
   if (within(official, target) || within(target, official)) fail("official-application-overlap");
-  for (const root of [home, dataRoot])
-    if (within(join(root, ".zcode"), target)) fail("application-inside-business-data");
+  const staging = join(dirname(currentApp), `.ZCode Local.staging-${randomUUID()}.app`);
+  const rollbackPath = join(dirname(currentApp), `.ZCode Local.previous-${randomUUID()}.app`);
+  const stagingPath = await canonicalPath(staging);
+  const rollbackTarget = await canonicalPath(rollbackPath);
+  const selectedLocalRoots = new Set(
+    await Promise.all(
+      [join(home, ".zcode"), join(dataRoot, ".zcode")].map((root) => canonicalPath(root)),
+    ),
+  );
+  installPathsDisjoint([
+    ...selectedLocalRoots,
+    candidateApp,
+    target,
+    official,
+    backupRoot,
+    stagingPath,
+    rollbackTarget,
+  ]);
 
   await verifyApplication(candidate, candidateApp);
   await verifyApplication(current, currentApp);
@@ -217,9 +336,6 @@ export async function installCommand(options) {
   )
     fail("current-app-quit-required");
 
-  const parent = dirname(currentApp);
-  const staging = join(parent, `.ZCode Local.staging-${randomUUID()}.app`);
-  const rollbackPath = join(parent, `.ZCode Local.previous-${randomUUID()}.app`);
   try {
     await cp(candidateApp, staging, {
       recursive: true,
@@ -247,46 +363,60 @@ export async function installCommand(options) {
     import.meta.url,
   );
   const applications = { local: currentApp, official: officialApp };
+  const configuredRequestTimeout = Number(
+    process.env.ZCODE_MAINTENANCE_REQUEST_TIMEOUT_MS ?? 5_000,
+  );
   let backupId;
   const switched = await localLaunch
-    .switchToCandidate({ home, dataRoot, applications }, async (roots) => {
-      let movedCurrent = false;
-      let replacedCurrent = false;
-      try {
-        const backup = await createVerifiedBackup({
-          roots,
-          localApp: currentApp,
-          officialApp,
-          appManifest: current.absolute,
-          backupRoot,
-        });
-        if (backup?.status !== "usable" || !backup.id) fail("backup-not-ready");
-        backupId = backup.id;
-        await verifyReadyBackup(backupRoot, backup.id);
-        console.log(JSON.stringify({ status: "switching", backupId }));
-        await verifyApplication(current, currentApp);
-        await verifyApplication(candidate, staging);
-        await rename(currentApp, rollbackPath);
-        movedCurrent = true;
+    .switchToCandidate(
+      {
+        home,
+        dataRoot,
+        applications,
+        requestTimeoutMs:
+          Number.isSafeInteger(configuredRequestTimeout) && configuredRequestTimeout > 0
+            ? configuredRequestTimeout
+            : 5_000,
+      },
+      async (roots) => {
+        let movedCurrent = false;
+        let replacedCurrent = false;
         try {
-          await rename(staging, currentApp);
-          replacedCurrent = true;
+          const backup = await createVerifiedBackup({
+            roots,
+            localApp: currentApp,
+            officialApp,
+            appManifest: current.absolute,
+            backupRoot,
+          });
+          if (backup?.status !== "usable" || !backup.id) fail("backup-not-ready");
+          backupId = backup.id;
+          await verifyReadyBackup(backupRoot, backup.id);
+          console.log(JSON.stringify({ status: "switching", backupId }));
+          await verifyApplication(current, currentApp);
+          await verifyApplication(candidate, staging);
+          await rename(currentApp, rollbackPath);
+          movedCurrent = true;
+          try {
+            await rename(staging, currentApp);
+            replacedCurrent = true;
+          } catch (error) {
+            await rename(rollbackPath, currentApp);
+            movedCurrent = false;
+            throw error;
+          }
+          await verifyApplication(candidate, currentApp);
+          return { from: current.manifest.source, to: candidate.manifest.source };
         } catch (error) {
-          await rename(rollbackPath, currentApp);
-          movedCurrent = false;
+          if (movedCurrent) {
+            if (replacedCurrent)
+              await rm(currentApp, { recursive: true, force: true }).catch(() => {});
+            await rename(rollbackPath, currentApp).catch(() => {});
+          }
           throw error;
         }
-        await verifyApplication(candidate, currentApp);
-        return { from: current.manifest.source, to: candidate.manifest.source };
-      } catch (error) {
-        if (movedCurrent) {
-          if (replacedCurrent)
-            await rm(currentApp, { recursive: true, force: true }).catch(() => {});
-          await rename(rollbackPath, currentApp).catch(() => {});
-        }
-        throw error;
-      }
-    })
+      },
+    )
     .catch(async (error) => {
       await rm(staging, { recursive: true, force: true }).catch(() => {});
       throw error;
@@ -297,16 +427,31 @@ export async function installCommand(options) {
   }
 
   const configuredTimeout = Number(process.env.ZCODE_MAINTENANCE_STARTUP_TIMEOUT_MS ?? 20_000);
-  await startTakeoverLauncher(
-    { home, dataRoot, officialApp, localApp: currentApp },
-    switched.takeoverToken,
-  );
-  const startupOwner = await waitForStartup({
-    dataRoot,
-    version: candidateVersion,
-    timeoutMs:
-      Number.isSafeInteger(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : 20_000,
-  });
+  const takeoverInput = { home, dataRoot, applications };
+  let startupOwner;
+  try {
+    await startTakeoverLauncher(
+      { home, dataRoot, officialApp, localApp: currentApp },
+      switched.takeoverToken,
+    );
+    startupOwner = await waitForStartup({
+      home,
+      dataRoot,
+      version: candidateVersion,
+      switchToken: switched.takeoverToken,
+      timeoutMs:
+        Number.isSafeInteger(configuredTimeout) && configuredTimeout > 0
+          ? configuredTimeout
+          : 20_000,
+    });
+  } catch (error) {
+    await abortUnstartedSwitch(localLaunch, takeoverInput, switched.takeoverToken, {
+      currentApp,
+      staging,
+      rollbackPath,
+    }).catch(() => {});
+    throw error;
+  }
   await rm(rollbackPath, { recursive: true, force: true }).catch(() => {});
   const switchId = await writeSwitchResult(backupRoot, {
     backupId,

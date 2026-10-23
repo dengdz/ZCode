@@ -4088,6 +4088,8 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           });
         logWindowHostTopology("base-attachment-ready");
         logger.info("local services ready, all channels registered");
+        // 先上报初始计数，Main 收到 HostReady 后即可把“没有变更事件”解释为零在办任务。
+        reportHostRunningTaskCount();
         parentPort?.postMessage({ type: HostResponseTypes.HostReady });
         // URL Host 复用相同启动开关与 Registry；项目发现不创建 logical workspace/Agent。
         void runStartupReconnectBatch({

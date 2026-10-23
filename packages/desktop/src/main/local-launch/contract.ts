@@ -65,6 +65,15 @@ export interface LocalLaunchContract {
     input: LocalSwitchInput,
     operation: (roots: { home: string; dataRoot: string }) => Promise<T>,
   ): Promise<LocalSwitchResult<T>>;
+  /**
+   * 只撤销尚未产生新应用 PID 的 switching owner。
+   * 恢复目标仍在同一跨根锁内执行，任何新 owner 或运行进程都拒绝。
+   */
+  abortSwitch<T>(
+    input: LocalSwitchInput,
+    takeoverToken: string,
+    operation: (roots: { home: string; dataRoot: string }) => Promise<T>,
+  ): Promise<LocalMaintenanceResult<T>>;
   /** 持久化占用后才启动；等正常退出及进程结束才释放，异常状态不自动接管。 */
   run(input: LocalLaunchInput, options?: { takeoverToken?: string }): Promise<LocalLaunchResult>;
 }
