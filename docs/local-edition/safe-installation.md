@@ -71,6 +71,7 @@ sequenceDiagram
 | Lint          | `pnpm lint` 通过，0 errors / 97 条既有 warnings                                                                                                                                           |
 | 架构          | `pnpm architecture:check --changed` 通过，0 新违规；scripts 不在架构托管范围                                                                                                              |
 | 格式          | 本票 24 个变更文件 `oxfmt --check` 通过；仓库级 `pnpm fmt:check` 返回 1 并报告 2144 个全仓文件，未记全绿                                                                                  |
+| pre-push      | `pnpm verify:pre-push` 通过；schema 8/8、架构 36/36 通过，affected 全选按合同跳过 UT，显式官方基线架构 0 违规                                                                             |
 
 前述命令均使用 Node 24.14.0 / pnpm 10.33.2。未请求、未执行完整根 UT。
 
