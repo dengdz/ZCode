@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "pending-real-group-and-user-acceptance",
+  "overall": "pending-backup-link-boundary-alignment-real-group-and-user-acceptance",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -181,6 +181,20 @@
       "evidence": ["candidate-independent.json", "candidate-independent.log"],
       "scope": "metadata/signature/whole tree/archive hashes",
       "status": "pass"
+    },
+    "live-prelaunch-backup": {
+      "evidence": [
+        "live-prelaunch-backup-status.json",
+        "live-preflight-blocked.json",
+        "external-links.private.json"
+      ],
+      "exitCode": 1,
+      "reason": "backup-external-link",
+      "pluginLinkCount": 3,
+      "payloadCreated": false,
+      "readyBackupCreated": false,
+      "localStarted": false,
+      "linksModified": false
     }
   },
   "scenarios": {
@@ -437,9 +451,11 @@
         "../issues/zcode-local/15-backup-retention.md",
         "../issues/zcode-local/17-rollback-restore.md"
       ],
-      "currentEvidence": ["maintenance"],
-      "status": "mechanism-pass",
-      "limits": []
+      "currentEvidence": ["maintenance", "live-prelaunch-backup"],
+      "status": "safety-rejection-real-input-blocked",
+      "limits": [
+        "Existing CLI plugin resource links blocked real prelaunch backup; link-object policy requires user design alignment and regression before live startup."
+      ]
     },
     "T33": {
       "issues": ["../issues/zcode-local/17-rollback-restore.md"],
@@ -476,7 +492,7 @@
       "currentEvidence": [],
       "status": "not-run",
       "limits": [
-        "User confirmed Local is not running; native group identities, idle lease/task facts, live PM behavior, and user final acceptance pending. No test messages sent."
+        "User confirmed tasks ended and official app exited; no remaining official app/Host observed. Prelaunch backup failed closed on three plugin resource symlinks. Local not started; messages0; native identities/idle/model and final acceptance pending."
       ]
     }
   }
