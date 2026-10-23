@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-approved-plugin-link-correction-before-live-launch",
+  "overall": "in-progress-live-backup-independently-verified-runtime-and-real-group-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -195,6 +195,61 @@
       "readyBackupCreated": false,
       "localStarted": false,
       "linksModified": false
+    },
+    "plugin-maintenance-all": {
+      "exitCode": 0,
+      "command": [
+        "node",
+        "--test",
+        "--test-concurrency=1",
+        "scripts/local-maintenance.test.mjs",
+        "scripts/local-backup.test.mjs",
+        "scripts/local-install.test.mjs",
+        "scripts/local-recovery.test.mjs"
+      ],
+      "evidence": "plugin-maintenance-all.log",
+      "scope": "isolated-process-fixtures",
+      "passed": 85
+    },
+    "plugin-typecheck-final": {
+      "exitCode": 0,
+      "command": ["pnpm", "typecheck"],
+      "evidence": "plugin-typecheck-final.log",
+      "scope": "repository-check"
+    },
+    "plugin-lint-final": {
+      "exitCode": 0,
+      "command": ["pnpm", "lint"],
+      "evidence": "plugin-lint-final.log",
+      "scope": "repository-check"
+    },
+    "plugin-architecture-final": {
+      "exitCode": 0,
+      "command": ["pnpm", "architecture:check", "--changed"],
+      "evidence": "plugin-architecture-final.log",
+      "scope": "repository-check"
+    },
+    "plugin-pre-push": {
+      "exitCode": 0,
+      "command": ["pnpm", "verify:pre-push"],
+      "evidence": "plugin-pre-push.log",
+      "scope": "repository-check"
+    },
+    "live-backup": {
+      "exitCode": 0,
+      "evidence": "live-backup-result.private.json",
+      "scope": "real-selected-business-data-read-copy-and-independent-rehearsal",
+      "pluginResourceLinks": 3,
+      "externalTargetsCovered": false,
+      "liveDataRestored": false
+    },
+    "live-verify": {
+      "exitCode": 0,
+      "evidence": "live-verify-result.private.json",
+      "scope": "real-selected-business-data-read-copy-and-independent-rehearsal",
+      "pluginResourceLinks": 3,
+      "externalTargetsCovered": false,
+      "liveDataRestored": false
     }
   },
   "scenarios": {
@@ -404,7 +459,7 @@
         "../issues/zcode-local/15-backup-retention.md",
         "../issues/zcode-local/16-safe-installation.md"
       ],
-      "currentEvidence": ["maintenance"],
+      "currentEvidence": ["maintenance", "plugin-maintenance-all"],
       "status": "limited-current-credentials-pending",
       "limits": [
         "No current real credential or robot connection check; historical issue 03 counts do not prove current runtime connectivity."
@@ -440,10 +495,10 @@
     },
     "T31": {
       "issues": ["../issues/zcode-local/16-safe-installation.md"],
-      "currentEvidence": ["maintenance", "install-owner-rerun"],
+      "currentEvidence": ["maintenance", "install-owner-rerun", "plugin-maintenance-all"],
       "status": "pass-with-recorded-batch-failure",
       "limits": [
-        "Initial maintenance batch 78/79; owner-conflict test stopped earlier than expected. Focused rerun 1/1 passed; root cause unconfirmed and initial failure remains recorded."
+        "Initial maintenance batch 78/79; owner-conflict test stopped earlier than expected. Focused rerun 1/1 passed; root cause unconfirmed and initial failure remains recorded. Complete 85-case serial maintenance rerun passed after the bounded link policy correction; no root cause inferred for the initial timing-boundary failure."
       ]
     },
     "T32": {
@@ -451,15 +506,21 @@
         "../issues/zcode-local/15-backup-retention.md",
         "../issues/zcode-local/17-rollback-restore.md"
       ],
-      "currentEvidence": ["maintenance", "live-prelaunch-backup"],
-      "status": "safety-rejection-real-input-blocked",
+      "currentEvidence": [
+        "maintenance",
+        "live-prelaunch-backup",
+        "plugin-maintenance-all",
+        "live-backup",
+        "live-verify"
+      ],
+      "status": "real-backup-and-independent-verify-pass-recovery-fixtures-pass",
       "limits": [
-        "Existing CLI plugin resource links blocked real prelaunch backup; link-object policy requires user design alignment and regression before live startup."
+        "Original backup-external-link failure retained; approved bounded link-object correction passed 85 process cases and real prelaunch backup/independent verification. External targets are outside restore guarantees. Real data restore not performed."
       ]
     },
     "T33": {
       "issues": ["../issues/zcode-local/17-rollback-restore.md"],
-      "currentEvidence": ["maintenance"],
+      "currentEvidence": ["maintenance", "plugin-maintenance-all"],
       "status": "mechanism-pass",
       "limits": []
     },
@@ -469,7 +530,7 @@
         "../issues/zcode-local/03-data-compatibility-ownership.md",
         "../issues/zcode-local/16-safe-installation.md"
       ],
-      "currentEvidence": ["candidate-build"],
+      "currentEvidence": ["candidate-build", "plugin-maintenance-all"],
       "status": "signed-artifacts-verified-runtime-pending",
       "limits": [
         "Current candidate has verified ad-hoc/runtime signature; current candidate app was not started. Historical actual startup evidence is scoped to issue 16 source."
@@ -492,8 +553,9 @@
       "currentEvidence": [],
       "status": "not-run",
       "limits": [
-        "User confirmed tasks ended and official app exited; no remaining official app/Host observed. Prelaunch backup failed closed on three plugin resource symlinks. Local not started; messages0; native identities/idle/model and final acceptance pending."
+        "User confirmed tasks ended and official app exited. Original plugin-link backup refusal retained; bounded correction, real backup and independent verify passed. Controlled Local launch, native identities/idle/model and final acceptance pending; messages0."
       ]
     }
-  }
+  },
+  "maintenanceSource": "8c752d581e8880db2533df11b5dc5018a5a2d837"
 }
