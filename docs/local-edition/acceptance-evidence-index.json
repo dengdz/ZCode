@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-live-backup-independently-verified-runtime-and-real-group-pending",
+  "overall": "in-progress-live-local-ready-native-identity-and-real-group-acceptance-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -250,6 +250,21 @@
       "pluginResourceLinks": 3,
       "externalTargetsCovered": false,
       "liveDataRestored": false
+    },
+    "live-runtime": {
+      "exitCode": 0,
+      "evidence": "live-runtime-readiness.json",
+      "scope": "real-signed-application-controlled-launch",
+      "hostReady": true,
+      "modelConnectionProven": false
+    },
+    "live-group-preflight": {
+      "exitCode": 0,
+      "evidence": "live-group-preflight-summary.json",
+      "scope": "read-only-real-service-state-and-ui",
+      "idleTaskReferences": 11,
+      "businessMessagesSent": 0,
+      "nativeIdentityVerified": false
     }
   },
   "scenarios": {
@@ -447,10 +462,10 @@
     },
     "T26": {
       "issues": ["../issues/zcode-local/03-data-compatibility-ownership.md"],
-      "currentEvidence": ["root-related"],
-      "status": "mechanism-pass",
+      "currentEvidence": ["root-related", "live-runtime"],
+      "status": "controlled-current-local-started",
       "limits": [
-        "Current process-fixture checks plus historical signed-application evidence; no daily application takeover."
+        "Original official app remained stopped; source/API/owner evidence and selected-data backup preserved. Current official Reader was not rerun."
       ]
     },
     "T27": {
@@ -459,10 +474,15 @@
         "../issues/zcode-local/15-backup-retention.md",
         "../issues/zcode-local/16-safe-installation.md"
       ],
-      "currentEvidence": ["maintenance", "plugin-maintenance-all"],
+      "currentEvidence": [
+        "maintenance",
+        "plugin-maintenance-all",
+        "live-runtime",
+        "live-group-preflight"
+      ],
       "status": "limited-current-credentials-pending",
       "limits": [
-        "No current real credential or robot connection check; historical issue 03 counts do not prove current runtime connectivity."
+        "Selected executor UI reports connected through existing credentials mechanism; secrets not extracted. Native collaboration identity and actual model behavior are still pending."
       ]
     },
     "T28": {
@@ -530,11 +550,9 @@
         "../issues/zcode-local/03-data-compatibility-ownership.md",
         "../issues/zcode-local/16-safe-installation.md"
       ],
-      "currentEvidence": ["candidate-build", "plugin-maintenance-all"],
-      "status": "signed-artifacts-verified-runtime-pending",
-      "limits": [
-        "Current candidate has verified ad-hoc/runtime signature; current candidate app was not started. Historical actual startup evidence is scoped to issue 16 source."
-      ]
+      "currentEvidence": ["candidate-build", "plugin-maintenance-all", "live-runtime"],
+      "status": "signed-current-local-startup-and-host-ready-pass",
+      "limits": ["Host-ready is not proof of model or robot business round trip."]
     },
     "T35": {
       "issues": [
@@ -550,10 +568,10 @@
     },
     "T36": {
       "issues": ["../issues/zcode-local/18-end-to-end-acceptance.md"],
-      "currentEvidence": [],
-      "status": "not-run",
+      "currentEvidence": ["live-runtime", "live-group-preflight"],
+      "status": "native-verification-pending-before-business-scenarios",
       "limits": [
-        "User confirmed tasks ended and official app exited. Original plugin-link backup refusal retained; bounded correction, real backup and independent verify passed. Controlled Local launch, native identities/idle/model and final acceptance pending; messages0."
+        "Controlled Local ready and 11 task references idle. Two native identity challenges prepared; human group confirmation, saved collaboration settings, real business scenarios and final user acceptance remain pending."
       ]
     }
   },
