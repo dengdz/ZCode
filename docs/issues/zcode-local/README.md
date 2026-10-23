@@ -6,7 +6,7 @@
 
 当前集成分支：`3.16.2-local.1`。01–17 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)，09 见[同项目串行报告](../../local-edition/project-serial-execution.md)，10 见[合法长链报告](../../local-edition/collaboration-chain-admission.md)，11 见[实际停止报告](../../local-edition/stop-execution.md)，12 见[状态核对报告](../../local-edition/state-reconciliation.md)，13 见[PM 审核与验收报告](../../local-edition/pm-review-acceptance.md)，14 见[版本候选维护报告](../../local-edition/versioned-candidates.md)，15 见[备份与保留报告](../../local-edition/backup-retention.md)，16 见[安全切换报告](../../local-edition/safe-installation.md)，17 见[回退与恢复报告](../../local-edition/rollback-restore.md)；日常安装与数据切换继续受后续工单门禁约束。
 
-执行策略：按编号一次一票。本轮完成 [17 分开提供程序回退与数据快照恢复](17-rollback-restore.md)，03a 测试弹窗修复继续有效。01–17 已完成，18 未开始。普通本地提交与 fork 分支 push 延续既有授权；origin 为用户公开 fork，upstream 为只拉取的官方。17 的覆盖仅在仓库外隔离应用/HOME/data 与合成业务数据命令场景执行；真实日常数据恢复必须由用户主动触发并明确确认。
+执行策略：按编号一次一票。01–17 已完成；[18 整体验收](18-end-to-end-acceptance.md)已完成隔离回归、证据索引与当前 ready 候选准备，状态 ready-for-human，真实群和最终用户验收未完成。03a 测试弹窗修复继续有效。普通本地提交与 fork 分支 push 延续既有授权；origin 为用户公开 fork，upstream 只拉取。真实步骤不打断工作，日常数据恢复仍须主动触发并明确确认。
 
 | 编号 | Issue                                                                            | 直接前置   |
 | ---- | -------------------------------------------------------------------------------- | ---------- |
@@ -30,6 +30,8 @@
 | 18   | [完成整体回归与真实群只读验收](18-end-to-end-acceptance.md)                      | 13、17     |
 
 ## Progress
+
+- 2026-10-23：18 进入 ready-for-human。根 647/1 跳过、CLI 工具 33、V4/项目执行 169、设置界面 5 通过；维护首批 78/79 的提前 exit-unconfirmed 失败保留，相关用例独立复跑通过。根/CLI 类型与 Lint、架构通过，仓库级格式 2143 个文件问题未记全绿。真实候选在 DMG 工具下载失败后复用既有缓存重试成功，源码 cd6bc0f2、完整签名/归档与独立核对通过；未启动/安装当前候选、未触及日常数据。用户已指定真实目标但确认 Local 尚未启动，真实群消息 0，实际空闲/身份/凭据/模型与用户最终验收仍待执行；18 未完成，父 spec 未关闭。见[整体验收记录](../../local-edition/final-acceptance.md)。
 
 - 2026-10-23：17 完成。rollback/restore 及独立 plan 入口、兼容证据绑定、精确覆盖确认、当前备份 pin、journal 与恢复失败阻塞落地；13 项恢复、44 项最终备份/安装、22 项维护、25 项启动/契约通过。根类型、Lint 0 errors / 97 既有 warnings、架构和变更格式通过；pre-push schema 8/架构 36 通过，affected 全选按合同跳过；全仓格式 2144 个文件问题如实保留。两轴 Spec P2/P3 关闭，最终源码 ca707b5f。仅临时进程夹具与合成数据，真实 SQLite/WAL/同根覆盖；无日常安装/数据覆盖、真实凭据/模型/机器人或 tag。见[回退与恢复报告](../../local-edition/rollback-restore.md)，18 未开始。
 

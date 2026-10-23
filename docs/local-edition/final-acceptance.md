@@ -1,6 +1,6 @@
 # 18 整体验收记录
 
-Status: in-progress
+Status: ready-for-human
 
 对应[18 工单](../issues/zcode-local/18-end-to-end-acceptance.md)。父规格 [T01–T36](spec.md#验收场景矩阵) 为唯一验收矩阵；本报告只定位证据，不重写场景定义。当前不代表用户已验收。
 
@@ -16,9 +16,26 @@ Status: in-progress
 - CLI 工具 3 文件 / 33 通过；V4/项目执行、原 CommandInbox/持久化 6 文件 / 169 通过。均为受控模型与渠道边界，不能证明真实 PM 的语义判断。
 - 设置界面 5 项通过：原生核验、生产 RPC 编解码、服务保存/重建读取、忙碌拒绝、其他群隔离及 1000/390 宽度、两种语言/主题。它是隔离 UI 夹具，不是日常应用的全引导流程。
 - 根类型检查通过；CLI 32/32 turbo 类型任务成功（缓存结果如实保留）；根 Lint 0 errors / 97 存量 warnings，CLI 0 errors / 70 warnings / 13 条原样上游行数诊断。
-- 维护/备份/安装/恢复命令、当前候选包与公开内容核对仍在进行。
+- 维护/备份/安装/恢复首批 79 项中 78 通过、1 失败：owner 冲突用例期望 install-startup-unconfirmed，实际提前返回 install-exit-unconfirmed。其本机记录已有 accepted 响应，结束后 owner 已清理；原因未确认，不将并发/调度猜测当根因。原批次退出 1 保留。该用例独立复跑 1/1 通过，完整到达冲突分支并核对新目标、previous 与有效备份。
+- 两次真实候选维护入口内的 45 项维护/备份检查通过；是重复验证，不与首批数量相加。实际构建中的类型/Lint/架构及依赖/闭包审计通过，affected 官方全选后按仓库合同跳过根 UT。
+- 架构 0 新违规；scripts 运行语义由命令场景验证。仓库级 fmt:check 实际退出 1，报告 2143 个文件，未记全绿、未改写无关格式。
 
 历史 01–17 工单均为 done；本机 issue-13 原始证据目录当前不存在，13 的历史报告仍可读，不能声称重新验证了缺失的原始日志。本轮重新执行协作与 CLI 机制回归；历史真实应用、官网 Reader、凭据计数等按原报告的源码和范围引用，不当作当前真实群验收。
+
+## 证据定位与公开边界
+
+[证据索引](acceptance-evidence-index.json) 为 T01–T36 每个 ID 提供原工单、当前检查、历史证据及限制，不包含场景定义。T19/T20/T23 的真实模型语义、T27 当前凭据/连接、T36 真实群均待验收；T25 官网 Reader 保留为历史证据；T30 未发布标签。
+
+真实维护 check 通过 GitHub API 再次观察官方 main=`3c5b2276`、版本 3.16.2、latest release=`v3.14.3`。公开历史扫描检查 540 个本地新增/修改 blob，上游精确等价补丁为空、blockers 为空；这不替代语义审阅。Local 诊断调用与适配器的审阅确认：路由仅写 scope/动作/结果和 input/delivery/requirement/revision 元信息，经 createServiceLogger 的 debug 输出；停止/恢复警告写阶段、原因及 error 类型。未在已审阅新增路径发现正文采集或新增上传目的地，不扩大为全部既有日志审计。未读取日常日志或凭据。
+
+## 当前可核对候选
+
+当前 ready 候选位于本机私有 `${HOME}/.local/share/zcode-local/research/issue-18/candidate-2/candidate.json`，完整源码 `cd6bc0f23b0bc18ec8f6b7a50f6c5e3ee3370e36`，展示/分支版本 `3.16.2-local.1`。相对 f2dfa97f 仅增加 18 初始验收文档，无业务代码变化。
+
+- 应用：`artifacts/mac-arm64/ZCode Local.app`；身份 dev.zcode.app.local，平台短版本 3.16.2 / 内部版本 3.16.2001，维护协议 1。
+- 标准维护入口完成 ASAR/package/build-meta、源码、完整应用树、deep/strict 签名、完整 ZIP 成员与只读 DMG 内容核对；随后独立重新核对源码/元数据、签名、完整应用树和两个归档 hash。
+- 首次 candidate-1 已生成签名应用与 ZIP，但 dmg-builder 工具下载 ETIMEDOUT，无 ready 清单。重试使用全新 candidate-2，复用 issue-14 先前已验证的完整 dmg-builder 1.2.0 工具缓存到新隔离 HOME，继续执行原构建链；没有新建打包链、关闭主机/签名校验或手写 ready 清单。
+- 原 `/Applications/ZCode.app` 只读 deep/strict 签名检查通过；当前候选尚未启动、安装或接管日常数据。预期发布标签仅记录，未创建或发布。
 
 ## 真实群门禁
 
@@ -41,4 +58,13 @@ Status: in-progress
 
 ## 交付状态
 
-隔离检查和候选准备进行中，真实群与用户最终验收待执行。18 不标 done，父 spec 不关闭，不发布 tag。
+隔离证据与 ready 候选已准备，真实群与用户最终验收待执行，18 为 ready-for-human。需要用户先结束在办任务并正常退出官网应用，再按原受控入口核对明确选择的 home/data 根、启动候选并核实指定群的原生身份/授权/绑定与实际空闲；不使用普通双击绕过互斥。真实步骤不改业务代码、不部署、不制造未授权中断。
+
+父 spec 不关闭，18 不标 done。首批安装断言失败及真实群/凭据/标签/当前运行验证缺口均保留。证据根内各检查 JSON 记录命令、退出码与源码；候选自身的 source 独立记录，避免把文档端点与业务源码端点混淆。
+
+## 候选哈希
+
+应用树 SHA-256：`29a6ebe405d6f327171d407c704b1fab39b24e58489734b7c3ed95bac5c37de1`。
+
+- `artifacts/ZCode Local-3.16.2-local.1-mac-arm64.dmg`：204582229 bytes，SHA-256 `691259fdf917fc35860d9fcbe3824d5a3906e2dd7aafcbc121dd802d1154e934`。
+- `artifacts/ZCode Local-3.16.2-local.1-mac-arm64.zip`：195279719 bytes，SHA-256 `c0b4eea98fce3bfb3094dd63be89544db00085e15ab118569139c1b8d3e81e46`。

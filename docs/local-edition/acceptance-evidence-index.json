@@ -1,0 +1,483 @@
+{
+  "schema": 1,
+  "kind": "local-final-acceptance-evidence-index",
+  "spec": "spec.md",
+  "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
+  "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
+  "overall": "pending-real-group-and-user-acceptance",
+  "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
+  "checks": {
+    "root-related": {
+      "exitCode": 0,
+      "command": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "packages/services/test/botCollaborationHandoffs.test.ts",
+        "packages/services/test/botCollaborationSettings.test.ts",
+        "packages/services/test/botCollaborationStopRuntime.test.ts",
+        "packages/services/src/bot-collaboration/contract.test.ts",
+        "packages/shared/src/local-collaboration/contract.test.ts",
+        "packages/shared/src/channel-mentions/contract.test.ts",
+        "packages/services/test/channelReply.test.ts",
+        "packages/services/test/botGroupDelivery.test.ts",
+        "packages/services/test/botsService.groups.test.ts",
+        "packages/services/test/botsGroupSessions.test.ts",
+        "packages/services/test/botsGroupMemberDirectory.test.ts",
+        "packages/services/test/botsFeishuProvider.test.ts",
+        "packages/services/test/feishuGroupMentions.test.ts",
+        "packages/services/test/groupQueueCard.test.ts",
+        "packages/services/test/botGroupInputSource.test.ts",
+        "packages/services/test/botGroupRuntimeSnapshot.test.ts",
+        "packages/desktop/test/desktopProductIdentity.test.ts",
+        "packages/desktop/test/forceUpdateGuard.test.ts",
+        "packages/shared/test/forceUpdate.test.ts",
+        "packages/desktop/test/localLaunch.test.ts",
+        "packages/desktop/src/main/local-launch/contract.test.ts",
+        "packages/desktop/test/botGroupTaskScope.test.ts",
+        "packages/ui/test/botCollaborationSettings.test.ts",
+        "packages/ui/test/botGroupDeliveryAction.test.ts",
+        "packages/ui/test/useDesktopUpdateMenu.test.ts",
+        "packages/ui/test/localConversationCommands.test.ts",
+        "packages/services/test/zcodeLegacyTaskCompatTaskIndex.test.ts"
+      ],
+      "evidence": "root-related.log",
+      "scope": "isolated-synthetic-and-process-fixtures"
+    },
+    "cli-core": {
+      "exitCode": 0,
+      "command": [
+        "pnpm",
+        "--dir",
+        "apps/zcode-cli",
+        "--filter",
+        "@zcode/core",
+        "exec",
+        "vitest",
+        "run",
+        "tests/reply-to-channel.test.ts",
+        "tests/channel-reply-permission.test.ts",
+        "tests/task-stop-tool.test.ts"
+      ],
+      "evidence": "cli-core.log",
+      "scope": "isolated-synthetic-and-process-fixtures"
+    },
+    "cli-runtime": {
+      "exitCode": 0,
+      "command": [
+        "pnpm",
+        "--dir",
+        "apps/zcode-cli",
+        "--filter",
+        "@zcode/bootstrap",
+        "exec",
+        "vitest",
+        "run",
+        "tests/project-execution/runtime.test.ts",
+        "tests/persistent-command-facts.test.ts",
+        "tests/persistent-command-index.test.ts",
+        "tests/command-inbox.test.ts",
+        "tests/v4-history-first.test.ts",
+        "tests/v4-gateway.test.ts"
+      ],
+      "evidence": "cli-runtime.log",
+      "scope": "isolated-synthetic-and-process-fixtures"
+    },
+    "settings-ui": {
+      "exitCode": 0,
+      "command": ["pnpm", "test:local-collaboration-ui"],
+      "evidence": "settings-ui.log",
+      "scope": "isolated-synthetic-and-process-fixtures"
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "command": ["pnpm", "typecheck"],
+      "evidence": "typecheck.log",
+      "scope": "isolated-synthetic-and-process-fixtures"
+    },
+    "lint": {
+      "exitCode": 0,
+      "command": ["pnpm", "lint"],
+      "evidence": "lint.log",
+      "scope": "isolated-synthetic-and-process-fixtures"
+    },
+    "cli-typecheck": {
+      "exitCode": 0,
+      "command": ["pnpm", "--dir", "apps/zcode-cli", "typecheck"],
+      "evidence": "cli-typecheck.log",
+      "scope": "isolated-synthetic-and-process-fixtures"
+    },
+    "cli-lint": {
+      "exitCode": 0,
+      "command": ["pnpm", "--dir", "apps/zcode-cli", "lint"],
+      "evidence": "cli-lint.log",
+      "scope": "isolated-synthetic-and-process-fixtures"
+    },
+    "maintenance": {
+      "exitCode": 1,
+      "command": [
+        "node",
+        "--test",
+        "scripts/local-maintenance.test.mjs",
+        "scripts/local-backup.test.mjs",
+        "scripts/local-install.test.mjs",
+        "scripts/local-recovery.test.mjs"
+      ],
+      "evidence": "maintenance.log",
+      "scope": "isolated-synthetic-and-process-fixtures"
+    },
+    "install-owner-rerun": {
+      "exitCode": 0,
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=takeover whose home and data roots disagree",
+        "scripts/local-install.test.mjs"
+      ],
+      "evidence": "install-owner-rerun.log",
+      "scope": "isolated-synthetic-and-process-fixtures"
+    },
+    "candidate-build": {
+      "source": "cd6bc0f23b0bc18ec8f6b7a50f6c5e3ee3370e36",
+      "evidence": [
+        "candidate-build.log",
+        "candidate-retry.log",
+        "candidate-2/candidate.json",
+        "builder-cache-reuse.json"
+      ],
+      "status": "ready",
+      "artifactVerification": "ASAR/metadata/signature/complete ZIP/DMG tree verified by maintenance entry"
+    },
+    "candidate-public-content-check": {
+      "evidence": "candidate-2/check.json",
+      "checkedBlobs": 540,
+      "equivalentPatches": [],
+      "blockers": [],
+      "scope": "branch history vs fixed official base"
+    },
+    "logging-source-review": {
+      "evidence": "diagnostic-public-review.json",
+      "status": "scoped-source-review",
+      "dailyLogsRead": false
+    },
+    "architecture": {
+      "evidence": "architecture.log",
+      "newViolations": 0,
+      "managedScope": "packages/apps modules; scripts excluded"
+    },
+    "format-repository": {
+      "evidence": "format-repository.log",
+      "exitCode": 1,
+      "reportedFiles": 2143,
+      "scope": "whole repository, no unrelated reformatting"
+    },
+    "official-signature": {
+      "command": ["codesign", "--verify", "--deep", "--strict", "/Applications/ZCode.app"],
+      "exitCode": 0,
+      "scope": "read-only actual installed official application signature; no app start or data access"
+    },
+    "candidate-independent": {
+      "evidence": ["candidate-independent.json", "candidate-independent.log"],
+      "scope": "metadata/signature/whole tree/archive hashes",
+      "status": "pass"
+    }
+  },
+  "scenarios": {
+    "T01": {
+      "issues": ["../issues/zcode-local/04-group-collaboration-settings.md"],
+      "currentEvidence": ["root-related"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T02": {
+      "issues": [
+        "../issues/zcode-local/05-trusted-handoffs.md",
+        "../issues/zcode-local/11-stop-execution.md"
+      ],
+      "currentEvidence": ["root-related"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T03": {
+      "issues": ["../issues/zcode-local/05-trusted-handoffs.md"],
+      "currentEvidence": ["root-related", "cli-core"],
+      "status": "mechanism-pass",
+      "limits": [
+        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+      ]
+    },
+    "T04": {
+      "issues": ["../issues/zcode-local/05-trusted-handoffs.md"],
+      "currentEvidence": ["root-related", "cli-core"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T05": {
+      "issues": ["../issues/zcode-local/05-trusted-handoffs.md"],
+      "currentEvidence": ["root-related"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T06": {
+      "issues": ["../issues/zcode-local/04-group-collaboration-settings.md"],
+      "currentEvidence": ["root-related", "settings-ui"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T07": {
+      "issues": ["../issues/zcode-local/06-dispatch-role-validation.md"],
+      "currentEvidence": ["root-related", "cli-core"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T08": {
+      "issues": ["../issues/zcode-local/07-silent-acknowledgments.md"],
+      "currentEvidence": ["root-related", "cli-core"],
+      "status": "mechanism-pass",
+      "limits": [
+        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+      ]
+    },
+    "T09": {
+      "issues": ["../issues/zcode-local/07-silent-acknowledgments.md"],
+      "currentEvidence": ["root-related", "cli-core"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T10": {
+      "issues": ["../issues/zcode-local/07-silent-acknowledgments.md"],
+      "currentEvidence": ["root-related", "cli-core"],
+      "status": "mechanism-pass",
+      "limits": [
+        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+      ]
+    },
+    "T11": {
+      "issues": ["../issues/zcode-local/10-collaboration-chain-admission.md"],
+      "currentEvidence": ["root-related"],
+      "status": "mechanism-pass",
+      "limits": [
+        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+      ]
+    },
+    "T12": {
+      "issues": [
+        "../issues/zcode-local/08-recipient-selection.md",
+        "../issues/zcode-local/10-collaboration-chain-admission.md",
+        "../issues/zcode-local/12-state-reconciliation.md"
+      ],
+      "currentEvidence": ["root-related"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T13": {
+      "issues": ["../issues/zcode-local/08-recipient-selection.md"],
+      "currentEvidence": ["root-related", "cli-core"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T14": {
+      "issues": ["../issues/zcode-local/08-recipient-selection.md"],
+      "currentEvidence": ["root-related", "cli-core"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T15": {
+      "issues": [
+        "../issues/zcode-local/08-recipient-selection.md",
+        "../issues/zcode-local/12-state-reconciliation.md"
+      ],
+      "currentEvidence": ["root-related", "cli-core"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T16": {
+      "issues": [
+        "../issues/zcode-local/04-group-collaboration-settings.md",
+        "../issues/zcode-local/05-trusted-handoffs.md",
+        "../issues/zcode-local/09-project-serial-execution.md"
+      ],
+      "currentEvidence": ["root-related"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T17": {
+      "issues": [
+        "../issues/zcode-local/04-group-collaboration-settings.md",
+        "../issues/zcode-local/09-project-serial-execution.md"
+      ],
+      "currentEvidence": ["root-related", "settings-ui"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T18": {
+      "issues": ["../issues/zcode-local/09-project-serial-execution.md"],
+      "currentEvidence": ["root-related", "cli-runtime"],
+      "status": "mechanism-pass",
+      "limits": [
+        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+      ]
+    },
+    "T19": {
+      "issues": ["../issues/zcode-local/13-pm-review-acceptance.md"],
+      "currentEvidence": ["root-related"],
+      "status": "limited-real-model-pending",
+      "limits": [
+        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+      ]
+    },
+    "T20": {
+      "issues": ["../issues/zcode-local/13-pm-review-acceptance.md"],
+      "currentEvidence": ["root-related"],
+      "status": "limited-real-model-pending",
+      "limits": [
+        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+      ]
+    },
+    "T21": {
+      "issues": ["../issues/zcode-local/11-stop-execution.md"],
+      "currentEvidence": ["root-related", "cli-runtime", "cli-core"],
+      "status": "mechanism-pass",
+      "limits": [
+        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+      ]
+    },
+    "T22": {
+      "issues": ["../issues/zcode-local/12-state-reconciliation.md"],
+      "currentEvidence": ["root-related", "cli-runtime"],
+      "status": "mechanism-pass",
+      "limits": [
+        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+      ]
+    },
+    "T23": {
+      "issues": ["../issues/zcode-local/13-pm-review-acceptance.md"],
+      "currentEvidence": ["root-related", "cli-core"],
+      "status": "limited-real-model-pending",
+      "limits": [
+        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+      ]
+    },
+    "T24": {
+      "issues": ["../issues/zcode-local/04-group-collaboration-settings.md"],
+      "currentEvidence": ["root-related", "settings-ui"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T25": {
+      "issues": [
+        "../issues/zcode-local/03-data-compatibility-ownership.md",
+        "../issues/zcode-local/04-group-collaboration-settings.md"
+      ],
+      "currentEvidence": ["root-related"],
+      "status": "historical-reader-current-regression",
+      "limits": [
+        "Fixed official Reader evidence is historical; current root regression is not a newly executed official Reader run."
+      ]
+    },
+    "T26": {
+      "issues": ["../issues/zcode-local/03-data-compatibility-ownership.md"],
+      "currentEvidence": ["root-related"],
+      "status": "mechanism-pass",
+      "limits": [
+        "Current process-fixture checks plus historical signed-application evidence; no daily application takeover."
+      ]
+    },
+    "T27": {
+      "issues": [
+        "../issues/zcode-local/03-data-compatibility-ownership.md",
+        "../issues/zcode-local/15-backup-retention.md",
+        "../issues/zcode-local/16-safe-installation.md"
+      ],
+      "currentEvidence": ["maintenance"],
+      "status": "limited-current-credentials-pending",
+      "limits": [
+        "No current real credential or robot connection check; historical issue 03 counts do not prove current runtime connectivity."
+      ]
+    },
+    "T28": {
+      "issues": ["../issues/zcode-local/02-local-app.md"],
+      "currentEvidence": ["root-related"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T29": {
+      "issues": [
+        "../issues/zcode-local/01-baseline-candidate.md",
+        "../issues/zcode-local/14-versioned-candidates.md"
+      ],
+      "currentEvidence": ["candidate-build"],
+      "status": "current-source-and-capability-review",
+      "limits": [
+        "Current official main was independently observed through GitHub API; accepted first-edition capability gap remains disclosed."
+      ]
+    },
+    "T30": {
+      "issues": [
+        "../issues/zcode-local/02-local-app.md",
+        "../issues/zcode-local/14-versioned-candidates.md"
+      ],
+      "currentEvidence": ["candidate-build"],
+      "status": "artifacts-verified-tag-unpublished",
+      "limits": [
+        "Expected version tag is recorded, not created or published; no release or install claimed."
+      ]
+    },
+    "T31": {
+      "issues": ["../issues/zcode-local/16-safe-installation.md"],
+      "currentEvidence": ["maintenance", "install-owner-rerun"],
+      "status": "pass-with-recorded-batch-failure",
+      "limits": [
+        "Initial maintenance batch 78/79; owner-conflict test stopped earlier than expected. Focused rerun 1/1 passed; root cause unconfirmed and initial failure remains recorded."
+      ]
+    },
+    "T32": {
+      "issues": [
+        "../issues/zcode-local/15-backup-retention.md",
+        "../issues/zcode-local/17-rollback-restore.md"
+      ],
+      "currentEvidence": ["maintenance"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T33": {
+      "issues": ["../issues/zcode-local/17-rollback-restore.md"],
+      "currentEvidence": ["maintenance"],
+      "status": "mechanism-pass",
+      "limits": []
+    },
+    "T34": {
+      "issues": [
+        "../issues/zcode-local/02-local-app.md",
+        "../issues/zcode-local/03-data-compatibility-ownership.md",
+        "../issues/zcode-local/16-safe-installation.md"
+      ],
+      "currentEvidence": ["candidate-build"],
+      "status": "signed-artifacts-verified-runtime-pending",
+      "limits": [
+        "Current candidate has verified ad-hoc/runtime signature; current candidate app was not started. Historical actual startup evidence is scoped to issue 16 source."
+      ]
+    },
+    "T35": {
+      "issues": [
+        "../issues/zcode-local/05-trusted-handoffs.md",
+        "../issues/zcode-local/08-recipient-selection.md",
+        "../issues/zcode-local/14-versioned-candidates.md"
+      ],
+      "currentEvidence": ["candidate-public-content-check", "logging-source-review"],
+      "status": "source-audit",
+      "limits": [
+        "Static/history scan and scoped semantic review do not prove all future runtime logs safe; no daily logs collected."
+      ]
+    },
+    "T36": {
+      "issues": ["../issues/zcode-local/18-end-to-end-acceptance.md"],
+      "currentEvidence": [],
+      "status": "not-run",
+      "limits": [
+        "User confirmed Local is not running; native group identities, idle lease/task facts, live PM behavior, and user final acceptance pending. No test messages sent."
+      ]
+    }
+  }
+}
