@@ -76,4 +76,4 @@ sequenceDiagram
 
 ## Delivery
 
-实现与验证见 [12 状态核对报告](../../local-edition/state-reconciliation.md)。276 项根相关、169 项 CLI、根/CLI 类型、Lint/架构与变更格式、固定官网 Reader 和独立双路复审通过。一次完整根全量 20141 通过、3 个固定 5173 端口冲突失败、11 跳过，退出码 1；本轮核实占用为 breakx/frontend Vite，未终止其他项目、未宣称全绿。原生 fixture 新诊断 0、签名有效。未知租约/无收据/不可关联旧 token 保守保持未知；真实群留 18。仅本地源码交付，13 未开始。实现 SHA 入库后回填。
+实现与验证见 [12 状态核对报告](../../local-edition/state-reconciliation.md)。276 项根相关、169 项 CLI、根/CLI 类型、Lint/架构与变更格式、固定官网 Reader 和独立双路复审通过。一次完整根全量 20141 通过、3 个固定 5173 端口冲突失败、11 跳过，退出码 1；本轮核实占用为 breakx/frontend Vite，未终止其他项目、未宣称全绿。原生 fixture 新诊断 0、签名有效。未知租约/无收据/不可关联旧 token 保守保持未知；真实群留 18。仅本地源码交付，13 未开始。实现提交 `d565c608da8d7c60f593134ca50a2977dfb48436`。

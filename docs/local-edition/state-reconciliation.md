@@ -2,7 +2,7 @@
 
 Status: done
 
-工单：[12](../issues/zcode-local/12-state-reconciliation.md)，基线 `4967777c9f817b0bb96cf1d4bc649388686c1e68`，分支 `3.16.2-local.1`。实现 SHA 在入库后回填。父规格冻结 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 保持不变。
+工单：[12](../issues/zcode-local/12-state-reconciliation.md)，基线 `4967777c9f817b0bb96cf1d4bc649388686c1e68`，分支 `3.16.2-local.1`。实现提交 `d565c608da8d7c60f593134ca50a2977dfb48436`。父规格冻结 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 保持不变。
 
 ## 行为与所有者
 
