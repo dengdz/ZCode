@@ -1,6 +1,6 @@
 # 17 程序回退与数据快照恢复
 
-Status: in-progress
+Status: done
 
 对应[工单 17](../issues/zcode-local/17-rollback-restore.md)。产品规则、所有者、事件顺序和验收范围以该工单及冻结父规格为准，不复制验收矩阵。
 
@@ -41,7 +41,7 @@ mise exec -- pnpm local:maintain restore-plan \
   --backup-root /absolute/private-backups
 ```
 
-先阅读 snapshotTime、loss 和 warning。loss 的 added 是当前新增、恢复后丢失的文件/链接数，modified 是会被旧值覆盖的数量，removed 是当前已删除、恢复后重新出现的旧成员数；不输出正文，也不声称识别数据库内每条任务的差异。恢复是旧快照的全量业务替换，不是跨版合并。真实数据必须由用户主动选择并明确确认；本轮只验证合成数据。
+先阅读 snapshotTime、loss 和 warning。loss 同时提供 home/data 的 components 明细及汇总；added 是当前新增、恢复后丢失的文件/链接数，modified 是会被旧值覆盖的数量，removed 是当前已删除、恢复后重新出现的旧成员数；不输出正文，也不声称识别数据库内每条任务的差异。恢复是旧快照的全量业务替换，不是跨版合并。真实数据必须由用户主动选择并明确确认；本轮只验证合成数据。
 
 ```sh
 mise exec -- pnpm local:maintain restore \
@@ -67,4 +67,23 @@ mise exec -- pnpm local:maintain restore \
 
 ## 验证与交付
 
-实施与复审进行中。证据位于仓库外 `~/.local/share/zcode-local/research/issue-17/`；最终结果在本节收尾记录。当前不涉及日常应用安装、日常数据接管、真实凭据/模型/机器人、发布标签或 18 的整体真实验收。
+最终源码 `ca707b5f600c1924c14fb9d07ebe1aecdefde4b3`，实现提交 `dfe1d288`，补正 `ca707b5f`。父规格冻结 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 未变。后续文档提交只归档结果。
+
+| 检查             | 真实结果                                                                                                                                                                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 恢复命令入口     | 最终 13/13；程序回退保留当前新内容、拒绝 incompatible/旧审阅/旧数据计划/损坏快照/错误身份/未知 owner；精确恢复确认、Local v1/profile 边界、真实 SQLite/WAL、同根去重、重复恢复拒绝、替换失败/逆向失败/进程崩溃与有效当前备份、立即及后续 pin 保留 |
+| 原维护/备份/安装 | 初次完整 66/66；补正后的备份/安装最终 44/44；未把两次运行数量相加冒充独立场景                                                                                                                                                                     |
+| 启动/契约        | 最终 2 文件 / 25 项通过，含两版占用、双根身份、异常 owner、原 token 切换保护                                                                                                                                                                      |
+| 根类型 / Lint    | pnpm typecheck 通过；pnpm lint 0 errors / 97 条存量 warnings                                                                                                                                                                                      |
+| 架构 / 格式      | 0 新违规；本票变更范围 oxfmt 通过；scripts 不受架构模块策略托管，运行行为由命令场景验证                                                                                                                                                           |
+| pre-push         | schema 8 项、架构工具 36 项与 Lint/架构通过；affected 官方选中 2063/2063 后按合同跳过 UT，不是全量测试                                                                                                                                            |
+| 仓库级格式       | pnpm fmt:check 退出 1，报告 2144 个全仓文件；未改写无关文件、未记全绿                                                                                                                                                                             |
+| 两轴复审         | 固定 68088f7e…ca707b5f；Standards 0 项，Spec 初轮 P2/P3 均关闭，最终无遗留                                                                                                                                                                        |
+
+初次 restore replace 回归暴露 home 的 setting.json 移到 before 后，原 abort 会重新读取它而拒绝恢复；补正为仅在原 token 的双根 owner/gate 和无进程证据成立时通过显式根撤销。逆向失败或 crash 保守保留门，无超时夺权。首轮测试对失败后根校验拒绝的错误码期望过窄，实际安全拒绝 data-root-mismatch；已修正为允许该真实边界，不把测试断言失配归因业务破坏。
+
+新增真实 SQLite/WAL 场景先失败：stage 上 integrity_check 即使 query_only 仍改写 shm 哈希。独立临时副本差异检查确认改写成员为 tasks.sqlite-shm。现在只在 15 独立恢复演练副本核验 SQLite；待写入 stage 与已核验快照逐项一致，避免污染恢复载荷。回归随后通过。pin P2 的即时回归先以 4≠5 失败，补正为在保留清理前 pin 当前备份、全部 pin 排除普通三组名额后通过。首次 pre-push 在工作树有待提交修改时被 affected 门禁拒绝；提交后干净重跑通过。
+
+证据根 `~/.local/share/zcode-local/research/issue-17/`：restore-preview-red/green.log、restore-red/green.log、rollback-first/green.log、old-program-red.log、recovery-first/final/post-review.log、restore-failures-green.log、sqlite-one-root.log/sqlite-one-root-green.log、retention-immediate-red.log、maintenance-install.log、backup-install-post-review.log、launch-final.log、typecheck-post-review.log、lint-post-review.log、pre-push-first/final.log、fmt-repository.log 和 format-changed.log。早期失败日志按原样保留，名称带 green 不替代其中实际退出结果；最终恢复回归以 recovery-post-review.log 的 13/13 为准。
+
+命令测试在仓库外临时应用/HOME/data 上使用合成业务数据、真实 ASAR/SQLite 和可执行进程夹具；codesign、构建工具与 GitHub 边界由既有 fixture 控制，不当作真实签名候选或真实 GUI 演练。没有执行根全量单测、启动真实签名候选、安装日常应用、接管日常数据、读取真实凭据、连接真实模型/机器人或发布 tag。18 未开始。

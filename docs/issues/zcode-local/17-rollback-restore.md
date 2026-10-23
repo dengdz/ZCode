@@ -1,6 +1,6 @@
 # 17: 分开提供程序回退与数据快照恢复
 
-Status: in-progress
+Status: done
 
 Issue-Tracker: local-markdown
 
@@ -22,9 +22,9 @@ Issue-Tracker: local-markdown
 
 ## Acceptance criteria
 
-- [ ] 旧程序兼容时保留当前业务数据；不兼容时禁止直接打开。
-- [ ] 必须恢复旧数据时先备份当前数据，展示旧快照时间和损失影响，明确确认前不覆盖。
-- [ ] 恢复失败保留可核对状态与有效快照，不宣称无损跨版合并，隔离演练验证可恢复结果。
+- [x] 旧程序兼容时保留当前业务数据；不兼容时禁止直接打开。
+- [x] 必须恢复旧数据时先备份当前数据，展示旧快照时间和损失影响，明确确认前不覆盖。
+- [x] 恢复失败保留可核对状态与有效快照，不宣称无损跨版合并，隔离演练验证可恢复结果。
 
 ## Spec coverage
 
@@ -74,3 +74,13 @@ sequenceDiagram
         end
     end
 ```
+
+## Completion（2026-10-23）
+
+完成源码端点 `ca707b5f600c1924c14fb9d07ebe1aecdefde4b3`，实现 `dfe1d288`，补正 `ca707b5f`。程序回退要求绑定数据指纹与两端源码的兼容证据，数据恢复独立预览/确认、备份当前并保持停止；失败保留 journal、before/after、当前有效基线与 owner/gate。早期无维护协议应用可兼容回退并保持停止。恢复 abort 只在原双根 owner/gate token 一致且无新进程时使用显式根，普通启动根校验不变。
+
+13 项恢复进程场景通过，包含真实 SQLite/WAL、同根、精确确认、回退保留新内容、旧计划拒绝、替换/逆向失败、崩溃与 pin 保留；最终备份/安装 44 项、维护 22 项、启动/契约 25 项通过。根类型、Lint 0 errors / 97 存量 warnings、架构 0 新违规、变更格式通过；pre-push schema 8 项、架构工具 36 项通过，affected 官方选中 2063/2063 后按合同跳过 UT，不代表全量。仓库级 fmt:check 仍报告 2144 个全仓文件，未记全绿。首次 pre-push 因实现尚未提交被脏工作树门禁拒绝，干净提交后重跑通过。
+
+固定比较 `68088f7e...ca707b5f` 两轴复审：Standards 0 项；Spec 首轮 P2（pin 占普通保留名额）与 P3（预览缺组件明细）均补正关闭。真实 SQLite 回归暴露 stage integrity 改写 shm，已仅在独立演练副本核验 SQLite，stage 用完整树同一性验证；红/绿与独立差异证据均保留。
+
+操作、失败核对与边界见[交付报告](../../local-edition/rollback-restore.md)，本机证据根 `~/.local/share/zcode-local/research/issue-17/`。测试使用临时可执行夹具、真实 ASAR/SQLite 和受控签名/构建边界，未启动真实签名候选、未安装日常应用、未接管日常数据、未读真实凭据或连接模型/机器人。18 未开始。
