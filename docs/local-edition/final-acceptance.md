@@ -28,7 +28,7 @@ Status: in-progress
 
 [证据索引](acceptance-evidence-index.json) 为 T01–T36 每个 ID 提供原工单、当前检查、历史证据及限制，不包含场景定义。T19/T20/T23 的真实模型语义、T27 当前凭据/连接、T36 真实群均待验收；T25 官网 Reader 保留为历史证据；T30 未发布标签。
 
-真实维护 check 通过 GitHub API 再次观察官方 main=`3c5b2276`、版本 3.16.2、latest release=`v3.14.3`。公开历史扫描检查 540 个本地新增/修改 blob，上游精确等价补丁为空、blockers 为空；这不替代语义审阅。Local 诊断调用与适配器的审阅确认：路由仅写 scope/动作/结果和 input/delivery/requirement/revision 元信息，经 createServiceLogger 的 debug 输出；停止/恢复警告写阶段、原因及 error 类型。未在已审阅新增路径发现正文采集或新增上传目的地，不扩大为全部既有日志审计。未读取日常日志或凭据。
+真实维护 check 通过 GitHub API 再次观察官方 main=`3c5b2276`、版本 3.16.2、latest release=`v3.14.3`。公开历史扫描检查 540 个本地新增/修改 blob，上游精确等价补丁为空、blockers 为空；这不替代语义审阅。Local 诊断调用与适配器的审阅确认：路由仅写 scope/动作/结果和 input/delivery/requirement/revision 元信息，经 createServiceLogger 的 debug 输出；停止/恢复警告写阶段、原因及 error 类型。未在已审阅新增路径发现正文采集或新增上传目的地，不扩大为全部既有日志审计。候选准备阶段未读取日常日志或提取凭据；启动后诊断仅计数匹配的已知告警，不收集消息正文。
 
 ## 当前可核对候选
 
@@ -105,6 +105,8 @@ Status: in-progress
 
 原 `local:launch` 脚本经显式选定的实际 home/data、官网路径与已验签 Local 路径启动候选；owner 为 running，存活 launcher/应用 PID 与 runtime 的 token、PID、3.16.2-local.1 版本及 ready 一致。调试端口仅监听 127.0.0.1。官网应用仍未运行，未替换其包；本次 Local 直接运行私有候选，使用版本独立的 Electron profile 和共用业务根。启动不是恢复旧快照，也未执行实际数据覆盖。
 
-真实 UI 读取原有群会话和机器人，指定执行者显示飞书 WebSocket 运行及“已连通”。仅据此确认该现有应用连接状态，不当作所有模型、所有凭据或 PM 协作已验收。初次协作界面因 busy/未确认锁住；只读检查选定群 7 个上下文、6 个当前任务及 11 个相关任务引用，无远程上下文、无 pending/unknown 投递。调用现有任务服务的 block-reason 与 owned-work 读接口，首轮 6 idle/5 busy，随后 11/11 idle、无前台/队列阻塞；刷新后设置门禁解除。没有清租约、停止或重发任务，具体后台 busy 项未进一步归因。
+真实 UI 读取原有群会话和机器人，指定执行者显示飞书 WebSocket 运行及“已连通”。仅据此确认该现有应用连接状态，不当作所有模型、所有凭据或 PM 协作已验收。初次协作界面因 busy/未确认锁住；只读检查选定群 7 个上下文、6 个当前任务及 11 个相关任务引用，无远程上下文、无 pending/unknown 投递。调用现有任务服务的 block-reason 与 owned-work 读接口，首轮 6 idle/5 busy，随后 11/11 idle、无前台/队列阻塞；刷新后设置门禁解除。没有清租约、停止或重发任务，具体 busy 项未进一步归因。
 
 群协作当前 revision 0、未启用。只为用户指定的 PM 与一名执行者生成两个原生身份核验挑战，等待同一既有绑定用户在原群原生 @ 确认（10 分钟有效）；一次命令与真实身份只保存在私有材料，不写公开报告。此步必须由真人渠道完成，不能从桌面脚本伪造原生身份。尚未保存协作配置、尚未发起只读验收需求，18 继续 in-progress，最终用户验收未完成。Local 保持运行，未知状态时不擅自退出或切换。
+
+受控启动文档增量固定复审 `8c752d58...23c5726e`：Standards 0；Spec 发现 1 项 P3（把 busy→idle 写成具体后台工作自然结束），已改为两轮权威观察事实，保留未清租约/未停止/未重发和未归因边界。该修正仅为证据表述，不改变运行代码。
