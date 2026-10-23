@@ -400,11 +400,11 @@ export async function switchApplication(options, recovery) {
       officialApp,
       appManifest: current.absolute,
       backupRoot,
+      recoveryPlanId: recovery?.planId,
     });
     if (backup?.status !== "usable" || !backup.id) fail("backup-not-ready");
     backupId = backup.id;
     await verifyReadyBackup(backupRoot, backup.id);
-    await recovery?.preserve(backup.id);
     await recovery?.validate(roots);
     console.log(JSON.stringify({ status: "switching", backupId }));
     await verifyApplication(current, currentApp);

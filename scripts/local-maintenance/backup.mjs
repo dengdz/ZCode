@@ -25,6 +25,7 @@ import {
   backupDirectories,
   privateDirectory,
   disjointBackup,
+  pinBackup,
 } from "./backup-root.mjs";
 
 export const included = (path) =>
@@ -188,22 +189,25 @@ async function retain(context, identity) {
   const usable = (await listing(context)).filter(
     (item) => item.status === "usable" && item.identity === identity,
   );
-  // 失败与未知组不参与排序；至少三组已重验的同身份基线才允许删除更旧组。
-  if (usable.length <= 3) return;
-  for (const item of usable.slice(0, 3)) await verify(context, item.id, true);
-  for (const item of usable.slice(3)) {
-    await verify(context, item.id);
-    // 恢复计划与失败前备份仍是人工恢复依据；不能被后续普通备份的三组清理挤掉。
+  const ordinary = [];
+  for (const item of usable) {
+    // pin 是额外恢复依据，不能占用最近三组普通基线的名额；未知标记也保守保留。
     try {
       await lstat(join(context.root, item.id, ".recovery-pin"));
-      continue;
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
+      ordinary.push(item);
     }
+  }
+  if (ordinary.length <= 3) return;
+  for (const item of ordinary.slice(0, 3)) await verify(context, item.id, true);
+  for (const item of ordinary.slice(3)) {
+    await verify(context, item.id);
     await rm(join(context.root, item.id), { recursive: true });
   }
 }
-async function createBackup(context, options, roots) {
+
+async function createBackup(context, options, roots, recoveryPlanId) {
   const app = await realpath(absoluteOption(options["--local-app"]));
   disjointBackup(context.root, [app, join(roots.home, ".zcode"), join(roots.dataRoot, ".zcode")]);
   const raw = await readFile(absoluteOption(options["--app-manifest"]));
@@ -279,6 +283,7 @@ async function createBackup(context, options, roots) {
   });
   await rename(join(directory, "backup.json.tmp"), join(directory, "backup.json"));
   await rm(join(directory, "pending.json"));
+  if (recoveryPlanId !== undefined) await pinBackup(context, id, recoveryPlanId);
   await retain(context, manifest.identity);
   return { status: "usable", id, source: manifest.source };
 }
@@ -342,6 +347,7 @@ export async function createVerifiedBackup(input) {
         "--app-manifest": input.appManifest,
       },
       input.roots,
+      input.recoveryPlanId,
     ),
   );
 }

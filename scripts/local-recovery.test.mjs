@@ -1,4 +1,6 @@
 import test from "node:test";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import assert from "node:assert/strict";
 import { readFile, writeFile, readdir, mkdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
@@ -7,6 +9,7 @@ import { installFixture, waitForGone, waitForObserved } from "./test/local-insta
 
 async function recoveryFixture(t, options) {
   const f = await installFixture(t, options);
+  if (options?.prepare) await options.prepare(f);
   const installed = await f.run("install", ...f.args);
   assert.equal(installed.code, 0, installed.stderr);
   const result = JSON.parse(installed.stdout.trim().split("\n").at(-1));
@@ -31,6 +34,10 @@ test("restore preview shows snapshot losses and refuses missing confirmation wit
   assert.equal(plan.status, "confirmation-required");
   assert.match(plan.snapshotTime, /^2026-/);
   assert.equal(plan.loss.modified, 1);
+  assert.deepEqual(plan.loss.components, [
+    { role: "home", added: 0, modified: 0, removed: 0 },
+    { role: "data", added: 0, modified: 1, removed: 0 },
+  ]);
   assert.match(plan.warning, /新增|丢失/);
   const denied = await f.run(
     "restore",
@@ -267,6 +274,33 @@ test("pinned recovery snapshot survives later backup retention", async (t) => {
   const f = await recoveryFixture(t);
   const preview = await f.run("restore-plan", ...f.recoveryArgs);
   assert.equal(preview.code, 0, preview.stderr);
+  const plan = JSON.parse(preview.stdout);
+  for (let index = 0; index < 3; index++) {
+    const backup = await f.run(
+      "backup",
+      "--app-manifest",
+      join(f.candidateOutput, "candidate.json"),
+      ...f.args.slice(f.args.indexOf("--home")),
+    );
+    assert.equal(backup.code, 0, backup.stderr);
+  }
+  const restored = await f.run(
+    "restore",
+    "--backup-root",
+    f.backups,
+    "--plan",
+    plan.id,
+    "--confirm",
+    plan.planSha256,
+  );
+  assert.equal(restored.code, 0, restored.stderr);
+  const currentBackupId = JSON.parse(restored.stdout.trim().split("\n").at(-1)).currentBackupId;
+  const immediate = await f.run("backup-list", "--backup-root", f.backups);
+  assert.equal(
+    JSON.parse(immediate.stdout).backups.filter((item) => item.status === "usable").length,
+    5,
+  );
+
   for (let index = 0; index < 4; index++) {
     const result = await f.run(
       "backup",
@@ -278,7 +312,8 @@ test("pinned recovery snapshot survives later backup retention", async (t) => {
   }
   const listing = await f.run("backup-list", "--backup-root", f.backups);
   const backups = JSON.parse(listing.stdout).backups.filter((item) => item.status === "usable");
-  assert.equal(backups.length, 4);
+  assert.equal(backups.length, 5);
+  assert.ok(backups.some((item) => item.id === currentBackupId));
   assert.ok(backups.some((item) => item.id === f.backupId));
   assert.equal((await readdir(f.backups)).filter((name) => name.startsWith("recovery-")).length, 1);
 });
@@ -353,4 +388,76 @@ test("recovery rejects a snapshot changed after preview and a review for a diffe
     await readFile(join(f.localApp, "Contents/Resources/fixture-version"), "utf8"),
     "3.16.2-local.2",
   );
+});
+
+test("restore recovers real clean-WAL SQLite and one-root home/data exactly once", async (t) => {
+  const exec = promisify(execFile);
+  const f = await recoveryFixture(t, {
+    prepare: async (fixture) => {
+      await writeFile(join(fixture.home, ".zcode/v2/history.json"), "synthetic task history");
+      fixture.data = fixture.home;
+      fixture.args[fixture.args.indexOf("--data-root") + 1] = fixture.home;
+      await writeFile(
+        join(fixture.home, ".zcode/v2/setting.json"),
+        JSON.stringify({ dataBaseDir: fixture.home }),
+      );
+      await exec("sqlite3", [
+        join(fixture.home, ".zcode/v2/tasks.sqlite"),
+        "PRAGMA journal_mode=WAL; CREATE TABLE work(value TEXT); INSERT INTO work VALUES('snapshot');",
+      ]);
+    },
+  });
+  await exec("sqlite3", [
+    join(f.data, ".zcode/v2/tasks.sqlite"),
+    "INSERT INTO work VALUES('new work');",
+  ]);
+  const preview = await f.run("restore-plan", ...f.recoveryArgs);
+  assert.equal(preview.code, 0, preview.stderr);
+  const plan = JSON.parse(preview.stdout);
+  const result = await f.run(
+    "restore",
+    "--backup-root",
+    f.backups,
+    "--plan",
+    plan.id,
+    "--confirm",
+    plan.planSha256,
+  );
+  assert.equal(result.code, 0, result.stderr);
+  const restored = JSON.parse(result.stdout.trim().split("\n").at(-1));
+  assert.equal(
+    (
+      await exec("sqlite3", [
+        join(f.data, ".zcode/v2/tasks.sqlite"),
+        "SELECT group_concat(value, ',') FROM work;",
+      ])
+    ).stdout.trim(),
+    "snapshot",
+  );
+  const current = JSON.parse(
+    await readFile(join(f.backups, restored.currentBackupId, "backup.json"), "utf8"),
+  );
+  assert.deepEqual(
+    current.components.map((part) => part.role),
+    ["application", "home"],
+  );
+  assert.equal(
+    (
+      await exec("sqlite3", [
+        join(f.backups, restored.currentBackupId, "payload/home/.zcode/v2/tasks.sqlite"),
+        "SELECT group_concat(value, ',') FROM work;",
+      ])
+    ).stdout.trim(),
+    "snapshot,new work",
+  );
+  const repeat = await f.run(
+    "restore",
+    "--backup-root",
+    f.backups,
+    "--plan",
+    plan.id,
+    "--confirm",
+    plan.planSha256,
+  );
+  assert.equal(repeat.code, 1);
 });

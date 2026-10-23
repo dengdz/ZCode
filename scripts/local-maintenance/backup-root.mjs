@@ -85,3 +85,22 @@ export function absoluteOption(value) {
   if (!value || !isAbsolute(value) || resolve(value) === "/") fail("explicit-source-required");
   return resolve(value);
 }
+
+export async function pinBackup(context, id, planId) {
+  if (!backupId(id) || !/^recovery-[a-f0-9-]{36}$/.test(planId ?? "")) fail("recovery-pin-invalid");
+  await privateDirectory(join(context.root, id));
+  const file = join(context.root, id, ".recovery-pin");
+  try {
+    await writeFile(file, planId + "\n", { flag: "wx", mode: 0o600 });
+  } catch (error) {
+    if (error.code !== "EEXIST") throw error;
+    const info = await lstat(file);
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      info.mode & 0o077 ||
+      info.uid !== process.getuid()
+    )
+      fail("recovery-pin-invalid");
+  }
+}

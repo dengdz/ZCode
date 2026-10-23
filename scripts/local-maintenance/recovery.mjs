@@ -17,16 +17,10 @@ import {
   absoluteOption,
   disjointBackup,
   privateDirectory,
+  pinBackup,
   withBackupRoot,
 } from "./backup-root.mjs";
-import {
-  copyTree,
-  createVerifiedBackup,
-  sameTree,
-  sqliteIntegrity,
-  tree,
-  verifyReadyBackup,
-} from "./backup.mjs";
+import { copyTree, createVerifiedBackup, sameTree, tree, verifyReadyBackup } from "./backup.mjs";
 import { canonicalPath, digest, within } from "./checks.mjs";
 import {
   readManifest,
@@ -43,24 +37,9 @@ async function launchContract() {
     .localLaunch;
 }
 async function pin(root, id, planId) {
-  await withBackupRoot(root, false, async (context) => {
-    await privateDirectory(join(context.root, id));
-    const file = join(context.root, id, ".recovery-pin");
-    try {
-      await writeFile(file, planId + "\n", { flag: "wx", mode: 0o600 });
-    } catch (error) {
-      if (error.code !== "EEXIST") throw error;
-      const info = await lstat(file);
-      if (
-        !info.isFile() ||
-        info.isSymbolicLink() ||
-        info.mode & 0o077 ||
-        info.uid !== process.getuid()
-      )
-        fail("recovery-pin-invalid");
-    }
-  });
+  await withBackupRoot(root, false, (context) => pinBackup(context, id, planId));
 }
+
 async function dataState(roots) {
   const components = [];
   for (const [role, root] of [
@@ -145,17 +124,20 @@ async function snapshot(paths, id) {
   };
 }
 async function lossSummary(current, old) {
-  const loss = { added: 0, modified: 0, removed: 0 };
+  const loss = { added: 0, modified: 0, removed: 0, components: [] };
   for (const component of current.components) {
+    const counts = { role: component.role, added: 0, modified: 0, removed: 0 };
     const live = (await tree(component.source, true)).members;
     const previous = (await tree(join(old.directory, `payload/${component.role}/.zcode`))).members;
     for (const [name, member] of live) {
       if (member.kind === "directory") continue;
-      if (!previous.has(name)) loss.added++;
-      else if (!equal(member, previous.get(name))) loss.modified++;
+      if (!previous.has(name)) counts.added++;
+      else if (!equal(member, previous.get(name))) counts.modified++;
     }
     for (const [name, member] of previous)
-      if (member.kind !== "directory" && !live.has(name)) loss.removed++;
+      if (member.kind !== "directory" && !live.has(name)) counts.removed++;
+    loss.components.push(counts);
+    for (const key of ["added", "modified", "removed"]) loss[key] += counts[key];
   }
   return loss;
 }
@@ -303,7 +285,7 @@ async function rollback(options) {
         validateReview();
         await validatePlan(context, roots);
       },
-      preserve: (id) => pin(paths.backupRoot, id, plan.id),
+      planId: plan.id,
     },
   );
 }
@@ -369,10 +351,10 @@ async function restore(options) {
       officialApp: paths.officialApp,
       appManifest: paths.currentManifest,
       backupRoot: paths.backupRoot,
+      recoveryPlanId: plan.id,
     });
     journal.currentBackupId = backup.id;
     await verifyReadyBackup(paths.backupRoot, backup.id);
-    await pin(paths.backupRoot, backup.id, plan.id);
     journal.phase = "current-backed-up";
     await save();
     console.log(
@@ -392,8 +374,9 @@ async function restore(options) {
       await mkdir(stage, { mode: 0o700 });
       const after = join(stage, "after");
       await copyTree(source, after);
-      const staged = await sameTree(after, component);
-      await sqliteIntegrity(after, staged.members);
+      // SQLite 核验会修改 WAL 的 shm，即使 query_only 也不是逐字节只读。
+      // validatePlan 已在独立演练副本核验 SQLite；这里只核对完整树同一性，不能再污染将要恢复的载荷。
+      await sameTree(after, component);
       await mkdir(join(stage, "before/local"), { recursive: true, mode: 0o700 });
       const current = join(root, ".zcode");
       const local = await lstat(join(current, "local"));
