@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "upstreamCommit": "3c5b227649371507ddc4eb46ac5133afe6db1cab",
+  "officialBase": "3c5b227649371507ddc4eb46ac5133afe6db1cab",
+  "officialVersion": "3.16.2",
+  "publicContentReviewed": true,
+  "capabilityEvidence": "2026-10-23 GitHub API 官方 main 仍为所选 3.16.2 源码锚点，latest release 为 v3.14.3；能力差异沿用 docs/local-edition/baseline-3.16.2.md 的已确认公开 Computer Use 缺口及用户接受，01–13 各报告记录本地实现与合成/实际验证边界；未把真实模型或群协作列为通过。维护入口 14 见对应工单契约。",
+  "blockers": [],
+  "patches": [
+    {
+      "commit": "efae59158847d23c11930310b81dcae965caf547",
+      "decision": "retain",
+      "evidence": "既有多应用绑定；docs/local-edition/baseline-3.16.2.md；上游源码锚点未变化，仍无官方解决证据。"
+    },
+    {
+      "commit": "f8fbaaa0d7913349e4b417c013efadaf6a058255",
+      "decision": "retain",
+      "evidence": "02 Local 身份与更新边界；docs/local-edition/local-app-candidate.md；上游源码锚点未变化，仍无官方解决证据。"
+    },
+    {
+      "commit": "d079cb84cec9d09d9ed66390a202a90d1f3eda42",
+      "decision": "retain",
+      "evidence": "03 受控启动及共享数据；docs/local-edition/shared-data-ownership.md；上游源码锚点未变化，仍无官方解决证据。"
+    },
+    {
+      "commit": "e277a9fe6e054eec2100288d0ed0aafe234aff8f",
+      "decision": "retain",
+      "evidence": "03a 原生测试夹具；docs/local-edition/launch-fixture-popup-fix.md；上游源码锚点未变化，仍无官方解决证据。"
+    },
+    {
+      "commit": "766cec7d3494cd7dc38ef4af19dacf3fe0a6a411",
+      "decision": "retain",
+      "evidence": "04 群设置；docs/local-edition/group-collaboration-settings.md；上游源码锚点未变化，仍无官方解决证据。"
+    },
+    {
+      "commit": "1a46a27656a10c19797747ac52ebd7ca784a6e57",
+      "decision": "retain",
+      "evidence": "05 可信交接；docs/local-edition/trusted-handoffs.md；上游源码锚点未变化，仍无官方解决证据。"
+    },
+    {
+      "commit": "d8efc8945138aa16bb4cbf9f2644c2a5c7340a64",
+      "decision": "retain",
+      "evidence": "06 职责与引用；docs/local-edition/dispatch-role-validation.md；上游源码锚点未变化，仍无官方解决证据。"
+    },
+    {
+      "commit": "736e3200e67f1c2bf010e75db087ea7a3f97a2da",
+      "decision": "retain",
+      "evidence": "07 静默；docs/local-edition/silent-acknowledgments.md；上游源码锚点未变化，仍无官方解决证据。"
+    },
+    {
+      "commit": "8e6913e2709c8241bf5fefc9d3a0efd492d70416",
+      "decision": "retain",
+      "evidence": "08 选人与续发；docs/local-edition/recipient-selection.md；上游源码锚点未变化，仍无官方解决证据。"
+    },
+    {
+      "commit": "387fbb3e260e3bab2804ca84011cd3ab768591f8",
+      "decision": "retain",
+      "evidence": "09 项目串行；docs/local-edition/project-serial-execution.md；上游源码锚点未变化，仍无官方解决证据。"
+    },
+    {
+      "commit": "c8b8f4570ababb8be49ea1f8e822f5ef3adb8770",
+      "decision": "retain",
+      "evidence": "10 长链；docs/local-edition/collaboration-chain-admission.md；上游源码锚点未变化，仍无官方解决证据。"
+    },
+    {
+      "commit": "e36b48d65240e35cfff123f7af966d8f2fd9c441",
+      "decision": "retain",
+      "evidence": "11 停止；docs/local-edition/stop-execution.md；上游源码锚点未变化，仍无官方解决证据。"
+    },
+    {
+      "commit": "d565c608da8d7c60f593134ca50a2977dfb48436",
+      "decision": "retain",
+      "evidence": "12 恢复核对；docs/local-edition/state-reconciliation.md；上游源码锚点未变化，仍无官方解决证据。"
+    },
+    {
+      "commit": "4f3cbff2b574c48ccb92ab44dc51b7f816fa5d45",
+      "decision": "retain",
+      "evidence": "13 PM 验收；docs/local-edition/pm-review-acceptance.md；上游源码锚点未变化，仍无官方解决证据。"
+    }
+  ]
+}
