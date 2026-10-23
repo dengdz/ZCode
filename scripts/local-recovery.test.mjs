@@ -2,7 +2,7 @@ import test from "node:test";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import assert from "node:assert/strict";
-import { readFile, writeFile, readdir, mkdir } from "node:fs/promises";
+import { readFile, writeFile, readdir, mkdir, symlink, readlink, rm } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
 import { installFixture, waitForGone, waitForObserved } from "./test/local-install-fixture.mjs";
@@ -133,6 +133,55 @@ async function reviewedRollback(f, plan, decision = "compatible") {
   );
   return f.run("rollback", "--backup-root", f.backups, "--plan", plan.id, "--compatibility", file);
 }
+
+test("confirmed restore replaces plugin link objects and never restores or changes external content", async (t) => {
+  const f = await recoveryFixture(t, {
+    prepare: async (fixture) => {
+      const base = join(fixture.home, ".zcode/cli/plugins/cache/vendor/plugin");
+      await mkdir(base, { recursive: true });
+      await writeFile(join(fixture.root, "external.txt"), "original external");
+      await symlink(join(fixture.root, "external.txt"), join(base, "AGENTS.md"));
+    },
+  });
+  const link = join(f.home, ".zcode/cli/plugins/cache/vendor/plugin/AGENTS.md");
+  await writeFile(join(f.root, "external.txt"), "external changed independently");
+  await rm(link);
+  await symlink(join(f.root, "missing-new-target"), link);
+  const preview = await f.run("restore-plan", ...f.recoveryArgs);
+  assert.equal(preview.code, 0, preview.stderr);
+  const plan = JSON.parse(preview.stdout);
+  assert.equal(plan.pluginResourceLinks.snapshot, 1);
+  assert.equal(plan.pluginResourceLinks.current, 1);
+  assert.match(plan.pluginResourceLinks.warning, /外部.*不.*保证/);
+  assert.ok(!preview.stdout.includes("missing-new-target"));
+  assert.equal(plan.loss.modified, 2);
+  const restored = await f.run(
+    "restore",
+    "--backup-root",
+    f.backups,
+    "--plan",
+    plan.id,
+    "--confirm",
+    plan.planSha256,
+  );
+  assert.equal(restored.code, 0, restored.stderr);
+  assert.equal(await readlink(link), join(f.root, "external.txt"));
+  assert.equal(
+    await readFile(join(f.root, "external.txt"), "utf8"),
+    "external changed independently",
+  );
+  const result = JSON.parse(restored.stdout.trim().split("\n").at(-1));
+  assert.equal(
+    await readlink(
+      join(
+        f.backups,
+        result.currentBackupId,
+        "payload/home/.zcode/cli/plugins/cache/vendor/plugin/AGENTS.md",
+      ),
+    ),
+    join(f.root, "missing-new-target"),
+  );
+});
 
 test("program rollback keeps current work and requires an exact compatible review", async (t) => {
   const f = await recoveryFixture(t);

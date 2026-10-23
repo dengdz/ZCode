@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, writeFile, readFile, symlink, cp } from "node:fs/promises";
+import { mkdir, writeFile, readFile, symlink, readlink, rm, cp } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
@@ -108,6 +108,77 @@ test("retention keeps three usable baselines and never counts incomplete or corr
   assert.equal(await readFile(join(f.backups, "unrelated.txt"), "utf8"), "preserve");
   assert.equal(await readFile(join(f.data, ".zcode/v2/history.json"), "utf8"), '{"revision":4}');
 });
+
+test("plugin resource links are verified as objects without requiring external targets", async (t) => {
+  const f = await backupFixture(t);
+  const base = join(f.home, ".zcode/cli/plugins");
+  await mkdir(join(base, "cache/vendor/plugin"), { recursive: true });
+  await mkdir(join(base, "marketplaces/vendor"), { recursive: true });
+  const outside = join(f.root, "outside");
+  await mkdir(outside);
+  await writeFile(join(outside, "secret.txt"), "outside bytes must stay outside");
+  const links = [
+    ["cache/vendor/plugin/AGENTS.md", join(outside, "secret.txt")],
+    ["cache/vendor/plugin/skills", outside],
+    ["marketplaces/vendor/AGENTS.md", join(outside, "missing")],
+  ];
+  for (const [name, target] of links) await symlink(target, join(base, name));
+  const result = await f.run("backup", ...f.args);
+  assert.equal(result.code, 0, result.stderr);
+  const backup = JSON.parse(result.stdout);
+  assert.equal(backup.pluginResourceLinks.count, 3);
+  assert.match(backup.pluginResourceLinks.warning, /外部.*不.*保证/);
+  assert.ok(!result.stdout.includes(outside));
+  const manifestPath = join(f.backups, backup.id, "backup.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const component = manifest.components.find((part) => part.role === "home");
+  assert.equal(component.linkPolicy, "plugin-resource-link-objects-v1");
+  assert.equal(component.linkDependencies.length, 3);
+  for (const [name, target] of links)
+    assert.equal(
+      await readlink(join(f.backups, backup.id, "payload/home/.zcode/cli/plugins", name)),
+      target,
+    );
+  // 删除外部目标后，独立演练仍只验证链接对象，不能读取或要求目标存在。
+  await rm(outside, { recursive: true });
+  const verified = await f.run("backup-verify", "--backup-root", f.backups, "--id", backup.id);
+  assert.equal(verified.code, 0, verified.stderr);
+  assert.equal(JSON.parse(verified.stdout).pluginResourceLinks.count, 3);
+  const listing = await f.run("backup-list", "--backup-root", f.backups);
+  assert.equal(JSON.parse(listing.stdout).backups[0].pluginResourceLinks.count, 3);
+  // 旧 schema 无策略不能被默认为允许外链；显式策略也必须逐条核对依赖。
+  const original = JSON.stringify(manifest);
+  delete component.linkPolicy;
+  delete component.linkDependencies;
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  assert.notEqual(
+    (await f.run("backup-verify", "--backup-root", f.backups, "--id", backup.id)).code,
+    0,
+  );
+  const changed = JSON.parse(original);
+  changed.components.find((part) => part.role === "home").linkDependencies[0].target = "/forged";
+  await writeFile(manifestPath, JSON.stringify(changed));
+  assert.notEqual(
+    (await f.run("backup-verify", "--backup-root", f.backups, "--id", backup.id)).code,
+    0,
+  );
+});
+
+for (const name of [
+  "cli/plugins/cache",
+  "cli/plugins/marketplaces",
+  "cli/plugins/other/resource",
+  "v2/business",
+])
+  test(`external link outside plugin resource descendants remains rejected: ${name}`, async (t) => {
+    const f = await backupFixture(t);
+    const link = join(f.home, ".zcode", name);
+    await mkdir(join(link, ".."), { recursive: true });
+    await symlink(f.root, link);
+    const result = await f.run("backup", ...f.args);
+    assert.equal(result.code, 1, result.stdout);
+    assert.match(result.stderr, /backup-external-link/);
+  });
 
 test("backup rejects a manifest with a forged source anchor even when the application tree matches", async (t) => {
   const f = await backupFixture(t);

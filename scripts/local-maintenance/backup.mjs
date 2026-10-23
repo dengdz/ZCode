@@ -33,17 +33,48 @@ export const included = (path) =>
 const location = (role) =>
   role === "application" ? "payload/application.app" : `payload/${role}/.zcode`;
 const sha = (value) => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
-export async function tree(path, data = false) {
+export const pluginLinkPolicy = "plugin-resource-link-objects-v1";
+const pluginResource = (path) =>
+  typeof path === "string" &&
+  /^cli\/plugins\/(cache|marketplaces)\/.+/.test(path) &&
+  path.split("/").every((part) => part && part !== "." && part !== ".." && !part.includes("\\"));
+export const pluginLinkSummary = (components) => ({
+  count: components.reduce((count, part) => count + (part.linkDependencies?.length ?? 0), 0),
+  warning: "仅保留插件资源链接对象；外部目标内容、存在性和可用性不在备份或恢复保证内。",
+});
+function validLinkPolicy(part) {
+  if (part.linkPolicy === undefined) return part.linkDependencies === undefined;
+  return (
+    part.role !== "application" &&
+    part.linkPolicy === pluginLinkPolicy &&
+    Array.isArray(part.linkDependencies) &&
+    part.linkDependencies.length > 0 &&
+    part.linkDependencies.every(
+      (link, index, links) =>
+        pluginResource(link?.path) &&
+        typeof link.target === "string" &&
+        digest(link.target) === link.sha256 &&
+        (index === 0 || links[index - 1].path < link.path),
+    )
+  );
+}
+export async function tree(path, data = false, linkPolicy) {
   const info = await lstat(path);
   if (!info.isDirectory() || info.isSymbolicLink()) fail("backup-source-type");
   const members = await applicationTree(path, { include: data ? included : () => true });
   let bytes = 4096;
+  const linkDependencies = [];
   for (const [name, member] of members) {
     bytes += 4096;
     const file = join(path, name);
     if (member.kind === "file") bytes += (await lstat(file)).size;
     if (member.kind === "link") {
       const link = await readlink(file);
+      // 实际插件资源会链接仓库外目录；经用户确认只保存链接对象，不 realpath、不读取目标，缺失目标也不影响对象校验。
+      if (linkPolicy === pluginLinkPolicy && pluginResource(name)) {
+        linkDependencies.push({ path: name, target: link, sha256: member.sha256 });
+        continue;
+      }
       // 快照不能把业务路径或绝对链接带回在用源；只接受范围内可解析的相对链接。
       if (
         isAbsolute(link) ||
@@ -53,7 +84,18 @@ export async function tree(path, data = false) {
         fail("backup-external-link");
     }
   }
-  return { sha256: treeDigest(members), mode: info.mode & 0o777, bytes, members };
+  return {
+    sha256: treeDigest(members),
+    mode: info.mode & 0o777,
+    bytes,
+    members,
+    ...(linkDependencies.length
+      ? {
+          linkPolicy: pluginLinkPolicy,
+          linkDependencies: linkDependencies.sort((a, b) => (a.path < b.path ? -1 : 1)),
+        }
+      : {}),
+  };
 }
 export async function copyTree(source, target, data = false) {
   await cp(source, target, {
@@ -61,13 +103,19 @@ export async function copyTree(source, target, data = false) {
     errorOnExist: true,
     force: false,
     verbatimSymlinks: true,
+    dereference: false,
     preserveTimestamps: true,
     filter: (path) => !data || included(relative(source, path).split("\\").join("/")),
   });
 }
 export async function sameTree(path, expected, data = false) {
-  const actual = await tree(path, data);
-  if (actual.sha256 !== expected.sha256 || actual.mode !== expected.mode)
+  const actual = await tree(path, data, expected.linkPolicy);
+  if (
+    actual.sha256 !== expected.sha256 ||
+    actual.mode !== expected.mode ||
+    actual.linkPolicy !== expected.linkPolicy ||
+    JSON.stringify(actual.linkDependencies) !== JSON.stringify(expected.linkDependencies)
+  )
     fail("backup-content-mismatch");
   return actual;
 }
@@ -136,7 +184,8 @@ function validManifest(manifest, id, owner) {
         !Number.isInteger(part.mode) ||
         part.mode < 0 ||
         part.mode > 0o777 ||
-        !isAbsolute(part.source),
+        !isAbsolute(part.source) ||
+        !validLinkPolicy(part),
     )
   )
     fail("backup-manifest-invalid");
@@ -178,6 +227,7 @@ async function listing(context) {
         createdAt: manifest.createdAt,
         sequence: manifest.sequence,
         identity: manifest.identity,
+        pluginResourceLinks: pluginLinkSummary(manifest.components),
       });
     } catch (e) {
       backups.push({ id, status: "unusable", reason: e.maintenanceCode ?? "backup-incomplete" });
@@ -231,7 +281,7 @@ async function createBackup(context, options, roots, recoveryPlanId) {
   ]) {
     if (role === "data" && roots.home === roots.dataRoot) continue;
     const source = join(root, ".zcode");
-    components.push({ role, source, ...(await tree(source, true)) });
+    components.push({ role, source, ...(await tree(source, true, pluginLinkPolicy)) });
   }
   if (!(await lstat(join(roots.dataRoot, ".zcode/v2"))).isDirectory())
     fail("backup-business-data-missing");
@@ -285,7 +335,12 @@ async function createBackup(context, options, roots, recoveryPlanId) {
   await rm(join(directory, "pending.json"));
   if (recoveryPlanId !== undefined) await pinBackup(context, id, recoveryPlanId);
   await retain(context, manifest.identity);
-  return { status: "usable", id, source: manifest.source };
+  return {
+    status: "usable",
+    id,
+    source: manifest.source,
+    pluginResourceLinks: pluginLinkSummary(manifest.components),
+  };
 }
 export async function backupCommand(command, options) {
   if (process.platform !== "darwin") fail("unsupported-backup-host");
@@ -293,7 +348,12 @@ export async function backupCommand(command, options) {
     return withBackupRoot(options["--backup-root"], false, async (context) => {
       if (command === "backup-list") return { backups: await listing(context) };
       const manifest = await verify(context, options["--id"], true);
-      return { status: "usable", id: manifest.id, source: manifest.source };
+      return {
+        status: "usable",
+        id: manifest.id,
+        source: manifest.source,
+        pluginResourceLinks: pluginLinkSummary(manifest.components),
+      };
     });
   }
   const home = await realpath(absoluteOption(options["--home"]));

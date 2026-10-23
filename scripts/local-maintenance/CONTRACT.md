@@ -23,6 +23,8 @@ API 实时核对上游 commit 和公开 fork；本机已有相同 Git 对象可�
 
 备份契约见 [15 Implementation contract](../../docs/issues/zcode-local/15-backup-retention.md#implementation-contract2026-10-23)。同一入口提供 backup、backup-list、backup-verify；备份根与来源全部显式选择，不隐式访问日常数据。backup 使用当前 Local 的 candidate.json 对应完整应用，持有 local-launch 公开维护临界区；ready backup.json 是唯一成功事实。清单内容每次重验，保留策略按数据身份保护最近三组有效恢复基线。失败不执行安装，也不清理旧基线。恢复演练只写本次备份根的独立临时副本，不覆盖源；业务恢复仍归 17。
 
+15/17 在 18 验收中补充经用户确认的 `plugin-resource-link-objects-v1`：仅数据组件 `cli/plugins/cache/`、`cli/plugins/marketplaces/` 的后代链接可按对象保留，不跟随、解析或写入目标；目录本身及祖先和其他业务外链仍拒绝。组件清单显式记录策略及依赖，旧清单无标记保持严格。verify/list 与恢复确认预览披露数量和外部内容不受保证，目标字符串仅留私有清单。恢复顺序及 owner/gate 不变。
+
 ## 安装（16）
 
 安装契约见 [16 Implementation contract](../../docs/issues/zcode-local/16-safe-installation.md#implementation-contract2026-10-23)。`local:maintain install` 接收新 `candidate.json`、描述当前 Local 的 `candidate.json`、显式 home/data/应用/备份根；两个清单和完整应用树每次都重新核对，新候选 build-meta 必须声明 `localMaintenanceProtocol: 1`。当前应用正在运行但旧构建没有该协议时要求先完全退出，不发送可能被默认处理的信号。

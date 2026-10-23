@@ -20,7 +20,15 @@ import {
   pinBackup,
   withBackupRoot,
 } from "./backup-root.mjs";
-import { copyTree, createVerifiedBackup, sameTree, tree, verifyReadyBackup } from "./backup.mjs";
+import {
+  copyTree,
+  createVerifiedBackup,
+  sameTree,
+  tree,
+  verifyReadyBackup,
+  pluginLinkPolicy,
+  pluginLinkSummary,
+} from "./backup.mjs";
 import { canonicalPath, digest, within } from "./checks.mjs";
 import {
   readManifest,
@@ -48,8 +56,16 @@ async function dataState(roots) {
   ]) {
     if (role === "data" && roots.home === roots.dataRoot) continue;
     const path = join(root, ".zcode");
-    const value = await tree(path, true);
-    components.push({ role, source: path, sha256: value.sha256, mode: value.mode });
+    const value = await tree(path, true, pluginLinkPolicy);
+    components.push({
+      role,
+      source: path,
+      sha256: value.sha256,
+      mode: value.mode,
+      ...(value.linkPolicy
+        ? { linkPolicy: value.linkPolicy, linkDependencies: value.linkDependencies }
+        : {}),
+    });
   }
   return { components, sha256: digest(JSON.stringify(components)) };
 }
@@ -127,8 +143,11 @@ async function lossSummary(current, old) {
   const loss = { added: 0, modified: 0, removed: 0, components: [] };
   for (const component of current.components) {
     const counts = { role: component.role, added: 0, modified: 0, removed: 0 };
-    const live = (await tree(component.source, true)).members;
-    const previous = (await tree(join(old.directory, `payload/${component.role}/.zcode`))).members;
+    const live = (await tree(component.source, true, pluginLinkPolicy)).members;
+    const saved = old.components.find((part) => part.role === component.role);
+    const previous = (
+      await tree(join(old.directory, `payload/${component.role}/.zcode`), false, saved.linkPolicy)
+    ).members;
     for (const [name, member] of live) {
       if (member.kind === "directory") continue;
       if (!previous.has(name)) counts.added++;
@@ -164,6 +183,11 @@ async function createPlan(command, options) {
       currentDataSha256: data.sha256,
       snapshotTime: old.createdAt,
       loss: await lossSummary(data, old),
+      pluginResourceLinks: {
+        current: pluginLinkSummary(data.components).count,
+        snapshot: pluginLinkSummary(old.components).count,
+        warning: pluginLinkSummary(old.components).warning,
+      },
       createdAt: new Date().toISOString(),
       warning:
         mode === "data"
@@ -366,7 +390,9 @@ async function restore(options) {
       const root = component.role === "home" ? paths.home : paths.dataRoot;
       const stage = join(root, `.zcode-restore-${plan.id}`);
       const source = join(old.directory, `payload/${component.role}/.zcode`);
-      const required = BigInt((await tree(source)).bytes + 64 * 1024 * 1024);
+      const required = BigInt(
+        (await tree(source, false, component.linkPolicy)).bytes + 64 * 1024 * 1024,
+      );
       const space = await statfs(root, { bigint: true });
       if (space.bavail * space.bsize < required) fail("restore-insufficient-space");
       journal.stages.push(stage);

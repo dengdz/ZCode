@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "pending-backup-link-boundary-alignment-real-group-and-user-acceptance",
+  "overall": "in-progress-approved-plugin-link-correction-before-live-launch",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
