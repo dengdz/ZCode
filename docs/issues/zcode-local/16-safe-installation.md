@@ -1,6 +1,6 @@
 # 16: 从维护入口安全切换到候选版本
 
-Status: in-progress
+Status: done
 
 Issue-Tracker: local-markdown
 
@@ -22,9 +22,9 @@ Issue-Tracker: local-markdown
 
 ## Acceptance criteria
 
-- [ ] 候选验证通过、任务结束和备份成功后提示并正常退出、替换 Local、启动和核对连接，不逐步重复审批。
-- [ ] 忙碌、未知、退出失败、备份失败或兼容检查失败时停止切换，不强杀，不覆盖官网应用。
-- [ ] 隔离安装演练成功，故障如实报告并保留恢复依据；真实日常切换仍遵守用户主动发起和系统权限条件。
+- [x] 候选验证通过、任务结束和备份成功后提示并正常退出、替换 Local、启动和核对连接，不逐步重复审批。
+- [x] 忙碌、未知、退出失败、备份失败或兼容检查失败时停止切换，不强杀，不覆盖官网应用。
+- [x] 隔离安装演练成功，故障如实报告并保留恢复依据；真实日常切换仍遵守用户主动发起和系统权限条件。
 
 ## Spec coverage
 
@@ -89,3 +89,11 @@ sequenceDiagram
         M-->>U: 成功；保留 backup-id 与真实结果
     end
 ```
+
+## Completion（2026-10-23）
+
+维护入口新增 `install`，以 token 绑定切换门串行退出、备份、替换、takeover 和结果落盘；Main 使用 idle/commit 两阶段确认，真实 Host readiness 与任务计数控制自动退出。当前应用/候选完整树、build-meta、签名、版本路径和官网真实路径隔离均重新核验；失败保留 recovery evidence，回滚失败 fail closed。
+
+最终源码 `82619df1d39c8cbc55a3074d15a84b19da51aaa5`，实现/补正提交 `5985be20`、`b9817f9e`、`3a210d8f`、`82619df1`。实际验证 21 项安装进程、45 项维护/备份、68 项启动/协议、类型/Lint/架构与变更格式通过；仓库级格式命令仍报告 2144 个全仓文件，未记全绿。
+
+使用实际签名 local.1 与仓库外 drill-only local.2 app bundle 完成真实文件切换：备份 `backup-ab2f30be-6082-4fe5-89e6-0b90e2a6533e` 独立 verify 成功，switch `switch-ff034d6f-d877-41f4-a1c4-b82ae8e78602` ready，local.2 本地 Host ready 后再次正常退出。local.2 DMG builder 下载超时，没有 ready 交付包；未安装日常应用、未接管日常数据、未连接真实模型/机器人、未发布标签。详见[交付报告](../../local-edition/safe-installation.md)。17 未开始。

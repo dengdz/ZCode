@@ -4,9 +4,9 @@
 
 父规格：[ZCode Local spec](../../local-edition/spec.md)。[已确认拆分](../../local-edition/ticket-plan.md)。父 Issue 保持不变，执行状态以各子工单为准。
 
-当前集成分支：`3.16.2-local.1`。01–15 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)，09 见[同项目串行报告](../../local-edition/project-serial-execution.md)，10 见[合法长链报告](../../local-edition/collaboration-chain-admission.md)，11 见[实际停止报告](../../local-edition/stop-execution.md)，12 见[状态核对报告](../../local-edition/state-reconciliation.md)，13 见[PM 审核与验收报告](../../local-edition/pm-review-acceptance.md)，14 见[版本候选维护报告](../../local-edition/versioned-candidates.md)，15 见[备份与保留报告](../../local-edition/backup-retention.md)；日常安装与数据切换继续受后续工单门禁约束。
+当前集成分支：`3.16.2-local.1`。01–16 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)，09 见[同项目串行报告](../../local-edition/project-serial-execution.md)，10 见[合法长链报告](../../local-edition/collaboration-chain-admission.md)，11 见[实际停止报告](../../local-edition/stop-execution.md)，12 见[状态核对报告](../../local-edition/state-reconciliation.md)，13 见[PM 审核与验收报告](../../local-edition/pm-review-acceptance.md)，14 见[版本候选维护报告](../../local-edition/versioned-candidates.md)，15 见[备份与保留报告](../../local-edition/backup-retention.md)，16 见[安全切换报告](../../local-edition/safe-installation.md)；日常安装与数据切换继续受后续工单门禁约束。
 
-执行策略：按编号一次一票。本轮完成 [15 备份应用与业务数据并验证保留策略](15-backup-retention.md)，03a 测试弹窗修复继续有效。01–15 已完成，16–18 未开始。普通本地提交沿用既有授权；origin 已核实为用户公开 fork，upstream 为只拉取的官方。14 只生成隔离候选，15 只备份与核验，真实切换和用户验收遵守后续工单门禁。
+执行策略：按编号一次一票。本轮完成 [16 从维护入口安全切换到候选版本](16-safe-installation.md)，03a 测试弹窗修复继续有效。01–16 已完成，17–18 未开始。普通本地提交沿用既有授权；origin 已核实为用户公开 fork，upstream 为只拉取的官方。16 的真实切换只在仓库外隔离 HOME/data、签名应用与合成业务数据中演练，未接管日常安装，真实验收继续遵守后续工单门禁。
 
 | 编号 | Issue                                                                            | 直接前置   |
 | ---- | -------------------------------------------------------------------------------- | ---------- |
@@ -30,6 +30,8 @@
 | 18   | [完成整体回归与真实群只读验收](18-end-to-end-acceptance.md)                      | 13、17     |
 
 ## Progress
+
+- 2026-10-23：16 完成。维护入口新增 install、token 切换门、idle/commit 两阶段退出、当前应用备份、候选/备份重验、原子替换、takeover 和独立切换结果；busy/unknown/无响应/非零退出/并发/launcher 或回滚失败均 fail closed。21 项安装进程、45 项维护/备份、68 项启动/协议、类型/Lint/架构和变更格式通过；仓库级格式命令仍报告全仓问题，未记全绿。实际签名 local.1 → 仓库外 drill-only local.2 app bundle 完成备份、替换、启动、Host ready 和正常退出；local.2 DMG builder 下载超时，未产出可发布候选。未安装日常应用、未接管日常数据、未连接真实模型/机器人、未发布标签。见[安全切换报告](../../local-edition/safe-installation.md)，17 未开始。
 
 - 2026-10-23：15 完成。维护入口新增 backup/list/verify，复用原启动 owner 双根锁，完整应用/业务/Local 记录恢复演练和每身份三组有效基线保护落地；44 项维护进程、18 项启动/契约、类型、Lint、架构和变更格式通过，pre-push affected 全选按合同跳过。真实签名候选加合成 SQLite 数据备份与 verify 成功；WAL/磁盘与故障隔离覆盖。两轴 2 项 P2 和 2 项 P3 已关闭，最后源码 `410b533b`。未启动/安装、未接管日常数据、未连接真实模型/机器人、未发布 tag。见[15 报告](../../local-edition/backup-retention.md)，16 未开始。
 
