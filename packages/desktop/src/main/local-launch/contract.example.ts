@@ -23,3 +23,12 @@ export async function exampleLocalAbortSwitch(
 ) {
   return port.abortSwitch(input, takeoverToken, async ({ dataRoot }) => dataRoot);
 }
+
+/** 切换结果落盘后释放本次切换门；running owner 与 runtime 必须仍匹配。 */
+export async function exampleLocalCompleteSwitch(
+  port: LocalLaunchContract,
+  input: LocalLaunchInput,
+  takeoverToken: string,
+) {
+  return port.completeSwitch(input, takeoverToken);
+}

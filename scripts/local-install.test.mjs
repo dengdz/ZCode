@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { checkedFixture, buildTools } from "./test/local-maintenance-fixture.mjs";
@@ -74,7 +74,15 @@ process.on("SIGUSR2", () => {
   const request = JSON.parse(readFileSync(join(maintenance, "switch-request.json"), "utf8"));
   const state = readFileSync(join(home, "fixture-runtime-state"), "utf8").trim();
   if (state === "silent") return;
-  if (state === "late-idle") {
+  let committed = false;
+  try {
+    const commit = JSON.parse(readFileSync(join(maintenance, "switch-commit.json"), "utf8"));
+    committed =
+      commit.requestId === request.requestId &&
+      commit.token === request.token &&
+      commit.appPid === process.pid;
+  } catch {}
+  if (state === "late-idle" && !committed) {
     setTimeout(() => {
       writeFileSync(join(maintenance, "switch-response.json"), JSON.stringify({
         schema: 1,
@@ -86,21 +94,15 @@ process.on("SIGUSR2", () => {
         runningTaskCount: 0,
         createdAt: new Date().toISOString(),
       }));
-    }, 300);
+    }, 800);
     return;
   }
-  let status = state === "busy" ? "busy" : state === "unknown" ? "unknown" : "idle";
-  if (status === "idle") {
-    try {
-      const commit = JSON.parse(readFileSync(join(maintenance, "switch-commit.json"), "utf8"));
-      if (
-        commit.requestId === request.requestId &&
-        commit.token === request.token &&
-        commit.appPid === process.pid
-      )
-        status = "accepted";
-    } catch {}
-  }
+  let status = state === "busy" || (state === "idle-then-busy" && committed)
+    ? "busy"
+    : state === "unknown"
+      ? "unknown"
+      : "idle";
+  if (status === "idle" && committed) status = "accepted";
   writeFileSync(join(maintenance, "switch-response.json"), JSON.stringify({
     schema: 1,
     kind: "local-maintenance-response",
@@ -342,6 +344,41 @@ test("install can proceed when Local is already normally stopped", async (t) => 
   }
 });
 
+test("concurrent installs serialize behind one switch gate", async (t) => {
+  const f = await installFixture(t);
+  await writeFile(join(f.home, "fixture-runtime-state"), "late-idle");
+  const launch = launchLocal(f);
+  await waitForObserved(f.home, f.current.source.version);
+  try {
+    const [left, right] = await Promise.all([
+      f.run("install", ...f.args),
+      f.run("install", ...f.args),
+    ]);
+    const results = [left, right];
+    assert.deepEqual(results.map((result) => result.code).sort(), [0, 1]);
+    const rejected = results.find((result) => result.code !== 0);
+    assert.match(rejected.stderr, /install-unknown/);
+    await waitForObserved(f.home, f.candidate.source.version);
+    assert.equal(
+      await readFile(join(f.localApp, "Contents/Resources/fixture-version"), "utf8"),
+      f.candidate.source.version,
+    );
+    const listed = await f.run("backup-list", "--backup-root", join(f.root, "backups"));
+    assert.equal(
+      JSON.parse(listed.stdout).backups.filter((item) => item.status === "usable").length,
+      1,
+    );
+    assert.equal(
+      (await readdir(join(f.root, "backups"))).filter((name) => name.startsWith("switch-")).length,
+      1,
+    );
+  } finally {
+    await writeFile(join(f.home, `release-${f.candidate.source.version}`), "exit").catch(() => {});
+    await waitForGone(join(f.data, ".zcode/local/launch-owner.json")).catch(() => {});
+    await launch.done;
+  }
+});
+
 test("a stopped pre-protocol Local can be upgraded", async (t) => {
   const f = await installFixture(t, { currentProtocol: null });
   try {
@@ -527,6 +564,46 @@ test("an absent exit acknowledgment never counts as a clean shutdown", async (t)
   }
 });
 
+test("a task that appears after idle keeps the app and releases the retry gate", async (t) => {
+  const f = await installFixture(t);
+  await writeFile(join(f.home, "fixture-runtime-state"), "idle-then-busy");
+  const launch = launchLocal(f);
+  await waitForObserved(f.home, f.current.source.version);
+  try {
+    const installed = await f.run("install", ...f.args);
+    assert.equal(installed.code, 1, installed.stderr);
+    assert.match(installed.stderr, /install-busy/);
+    assert.equal(
+      await readFile(join(f.localApp, "Contents/Resources/fixture-version"), "utf8"),
+      f.current.source.version,
+    );
+    const owner = JSON.parse(
+      await readFile(join(f.data, ".zcode/local/launch-owner.json"), "utf8"),
+    );
+    assert.equal(owner.phase, "running");
+    assert.doesNotThrow(() => process.kill(owner.childPid, 0));
+    const maintenance = join(f.data, ".zcode/local/maintenance");
+    await assert.rejects(readFile(join(maintenance, "switch-request.json")), {
+      code: "ENOENT",
+    });
+    await assert.rejects(readFile(join(maintenance, "switch-commit.json")), {
+      code: "ENOENT",
+    });
+    assert.equal((await readdir(maintenance)).includes("switch-gate"), false);
+    await assert.rejects(readdir(join(f.root, "backups")));
+
+    await writeFile(join(f.home, "fixture-runtime-state"), "idle");
+    const retried = await f.run("install", ...f.args);
+    assert.equal(retried.code, 0, retried.stderr);
+    await waitForObserved(f.home, f.candidate.source.version);
+  } finally {
+    await writeFile(join(f.home, `release-${f.current.source.version}`), "exit");
+    await writeFile(join(f.home, `release-${f.candidate.source.version}`), "exit").catch(() => {});
+    await waitForGone(join(f.data, ".zcode/local/launch-owner.json")).catch(() => {});
+    await launch.done;
+  }
+});
+
 test("a late idle response cannot quit the app after the request timed out", async (t) => {
   const f = await installFixture(t);
   await writeFile(join(f.home, "fixture-runtime-state"), "late-idle");
@@ -588,6 +665,27 @@ test("install rejects overlapping Local and official application identities", as
   await assert.rejects(readdir(join(f.root, "backups")));
 });
 
+test("install rejects a candidate whose symlinked application resolves inside the official app", async (t) => {
+  const f = await installFixture(t);
+  const alias = join(f.root, "candidate-alias");
+  await symlink(f.candidateOutput, alias, "dir");
+  const overlappingArgs = [...f.args];
+  overlappingArgs[overlappingArgs.indexOf("--candidate") + 1] = join(alias, "candidate.json");
+  overlappingArgs[overlappingArgs.indexOf("--official-app") + 1] = f.candidateOutput;
+  try {
+    const installed = await f.run("install", ...overlappingArgs);
+    assert.equal(installed.code, 1, installed.stderr);
+    assert.match(installed.stderr, /install-path-overlap/);
+    assert.equal(
+      await readFile(join(f.localApp, "Contents/Resources/fixture-version"), "utf8"),
+      f.current.source.version,
+    );
+    await assert.rejects(readdir(join(f.root, "backups")));
+  } finally {
+    await writeFile(join(f.home, `release-${f.candidate.source.version}`), "exit").catch(() => {});
+  }
+});
+
 test("install revalidates candidate content instead of trusting ready manifest text", async (t) => {
   const f = await installFixture(t);
   await writeFile(
@@ -636,6 +734,44 @@ test("startup failure keeps the new target, previous app and verified backup as 
     await writeFile(join(f.home, `release-${f.current.source.version}`), "exit").catch(() => {});
     await launch.done;
   }
+});
+
+test("a failed rollback keeps switching ownership and both application copies", async (t) => {
+  const f = await installFixture(t);
+  const preload = join(f.root, "fail-target-rollback.mjs");
+  await writeFile(
+    preload,
+    `import fsPromises from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
+const rename = fsPromises.rename;
+let failTargetRestore = false;
+fsPromises.rename = async (source, target) => {
+  if (String(source).includes(".ZCode Local.staging-") && String(target).endsWith("/ZCode Local.app")) {
+    failTargetRestore = true;
+    return Promise.reject(Object.assign(new Error("injected target failure"), { code: "EACCES" }));
+  }
+  if (failTargetRestore && String(source).includes(".ZCode Local.previous-") && String(target).endsWith("/ZCode Local.app"))
+    return Promise.reject(Object.assign(new Error("injected restore failure"), { code: "EACCES" }));
+  return rename(source, target);
+};
+syncBuiltinESMExports();
+`,
+  );
+  f.env.NODE_OPTIONS = `--import=${pathToFileURL(preload).href}`;
+  const installed = await f.run("install", ...f.args);
+  assert.equal(installed.code, 1, installed.stderr);
+  assert.match(installed.stderr, /install-rollback-unconfirmed/);
+  const owner = JSON.parse(await readFile(join(f.data, ".zcode/local/launch-owner.json"), "utf8"));
+  assert.equal(owner.phase, "switching");
+  await assert.rejects(readFile(join(f.localApp, "Contents/Resources/fixture-version")), {
+    code: "ENOENT",
+  });
+  assert.ok(
+    (await readdir(f.applications)).some((name) => name.startsWith(".ZCode Local.previous-")),
+  );
+  assert.ok(
+    (await readdir(f.applications)).some((name) => name.startsWith(".ZCode Local.staging-")),
+  );
 });
 
 test("a takeover launcher failure before app start restores the old target", async (t) => {

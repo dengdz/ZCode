@@ -46,7 +46,7 @@ const isProcessAlive = (pid) => {
 };
 
 async function readManifest(path, kind) {
-  const absolute = absoluteOption(path);
+  const absolute = await canonicalPath(absoluteOption(path));
   const raw = await readFile(absolute);
   const manifest = JSON.parse(raw);
   if (
@@ -61,11 +61,13 @@ async function readManifest(path, kind) {
   return { absolute, raw, manifest };
 }
 
-function applicationPath(entry) {
+async function applicationPath(entry) {
   if (!entry.manifest.app || !isAbsolute(entry.absolute)) fail("candidate-application-invalid");
-  const app = resolve(dirname(entry.absolute), entry.manifest.app);
-  if (!within(dirname(entry.absolute), app) || app === dirname(entry.absolute))
-    fail("candidate-application-invalid");
+  const root = dirname(entry.absolute);
+  const requested = resolve(root, entry.manifest.app);
+  if (!within(root, requested) || requested === root) fail("candidate-application-invalid");
+  const app = await canonicalPath(requested);
+  if (!within(root, app) || app === root) fail("candidate-application-invalid");
   return app;
 }
 
@@ -252,16 +254,17 @@ async function startTakeoverLauncher(input, takeoverToken) {
   child.unref();
 }
 
-async function abortUnstartedSwitch(localLaunch, input, takeoverToken, paths) {
+async function abortUnstartedSwitch(localLaunch, input, takeoverToken, paths, replacement) {
   return localLaunch.abortSwitch(input, takeoverToken, async () => {
-    await rename(paths.currentApp, paths.staging);
-    try {
-      await rename(paths.rollbackPath, paths.currentApp);
-    } catch (error) {
-      await rename(paths.staging, paths.currentApp).catch(() => {});
-      throw error;
+    if (replacement.replacedCurrent) {
+      await rename(paths.currentApp, paths.staging);
+      replacement.replacedCurrent = false;
     }
-    await rm(paths.staging, { recursive: true, force: true }).catch(() => {});
+    if (replacement.movedCurrent) {
+      await rename(paths.rollbackPath, paths.currentApp);
+      replacement.movedCurrent = false;
+    }
+    await rm(paths.staging, { recursive: true, force: true });
   });
 }
 
@@ -297,7 +300,7 @@ export async function installCommand(options) {
   const comparison = compareVersions(candidateVersion, currentVersion);
   if (comparison === null) fail("install-version-invalid");
   if (comparison <= 0) fail("install-version-not-newer");
-  const candidateApp = applicationPath(candidate);
+  const candidateApp = await applicationPath(candidate);
   const currentApp = await realpath(absoluteOption(options["--local-app"]));
   const home = await realpath(absoluteOption(options["--home"]));
   const dataRoot = await realpath(absoluteOption(options["--data-root"]));
@@ -367,61 +370,49 @@ export async function installCommand(options) {
     process.env.ZCODE_MAINTENANCE_REQUEST_TIMEOUT_MS ?? 5_000,
   );
   let backupId;
-  const switched = await localLaunch
-    .switchToCandidate(
-      {
-        home,
-        dataRoot,
-        applications,
-        requestTimeoutMs:
-          Number.isSafeInteger(configuredRequestTimeout) && configuredRequestTimeout > 0
-            ? configuredRequestTimeout
-            : 5_000,
-      },
-      async (roots) => {
-        let movedCurrent = false;
-        let replacedCurrent = false;
-        try {
-          const backup = await createVerifiedBackup({
-            roots,
-            localApp: currentApp,
-            officialApp,
-            appManifest: current.absolute,
-            backupRoot,
-          });
-          if (backup?.status !== "usable" || !backup.id) fail("backup-not-ready");
-          backupId = backup.id;
-          await verifyReadyBackup(backupRoot, backup.id);
-          console.log(JSON.stringify({ status: "switching", backupId }));
-          await verifyApplication(current, currentApp);
-          await verifyApplication(candidate, staging);
-          await rename(currentApp, rollbackPath);
-          movedCurrent = true;
-          try {
-            await rename(staging, currentApp);
-            replacedCurrent = true;
-          } catch (error) {
-            await rename(rollbackPath, currentApp);
-            movedCurrent = false;
-            throw error;
-          }
-          await verifyApplication(candidate, currentApp);
-          return { from: current.manifest.source, to: candidate.manifest.source };
-        } catch (error) {
-          if (movedCurrent) {
-            if (replacedCurrent)
-              await rm(currentApp, { recursive: true, force: true }).catch(() => {});
-            await rename(rollbackPath, currentApp).catch(() => {});
-          }
-          throw error;
-        }
-      },
-    )
-    .catch(async (error) => {
-      await rm(staging, { recursive: true, force: true }).catch(() => {});
-      throw error;
+  const replacement = { movedCurrent: false, replacedCurrent: false };
+  const switchInput = {
+    home,
+    dataRoot,
+    applications,
+    requestTimeoutMs:
+      Number.isSafeInteger(configuredRequestTimeout) && configuredRequestTimeout > 0
+        ? configuredRequestTimeout
+        : 5_000,
+  };
+  const switched = await localLaunch.switchToCandidate(switchInput, async (roots) => {
+    const backup = await createVerifiedBackup({
+      roots,
+      localApp: currentApp,
+      officialApp,
+      appManifest: current.absolute,
+      backupRoot,
     });
-  if (switched.kind !== "completed") {
+    if (backup?.status !== "usable" || !backup.id) fail("backup-not-ready");
+    backupId = backup.id;
+    await verifyReadyBackup(backupRoot, backup.id);
+    console.log(JSON.stringify({ status: "switching", backupId }));
+    await verifyApplication(current, currentApp);
+    await verifyApplication(candidate, staging);
+    await rename(currentApp, rollbackPath);
+    replacement.movedCurrent = true;
+    await rename(staging, currentApp);
+    replacement.replacedCurrent = true;
+    await verifyApplication(candidate, currentApp);
+    return { from: current.manifest.source, to: candidate.manifest.source };
+  });
+  if (switched.kind === "failed") {
+    const aborted = await abortUnstartedSwitch(
+      localLaunch,
+      switchInput,
+      switched.takeoverToken,
+      { currentApp, staging, rollbackPath },
+      replacement,
+    ).catch(() => null);
+    if (aborted?.kind !== "completed") fail("install-rollback-unconfirmed");
+    throw switched.error;
+  }
+  if (switched.kind === "blocked") {
     await rm(staging, { recursive: true, force: true }).catch(() => {});
     fail(`install-${switched.reason}`);
   }
@@ -445,11 +436,13 @@ export async function installCommand(options) {
           : 20_000,
     });
   } catch (error) {
-    await abortUnstartedSwitch(localLaunch, takeoverInput, switched.takeoverToken, {
-      currentApp,
-      staging,
-      rollbackPath,
-    }).catch(() => {});
+    await abortUnstartedSwitch(
+      localLaunch,
+      takeoverInput,
+      switched.takeoverToken,
+      { currentApp, staging, rollbackPath },
+      replacement,
+    ).catch(() => {});
     throw error;
   }
   await rm(rollbackPath, { recursive: true, force: true }).catch(() => {});
@@ -462,6 +455,11 @@ export async function installCommand(options) {
     appPid: startupOwner.childPid,
     connectionCheck: "local-host-ready",
   });
+  const completed = await localLaunch.completeSwitch(
+    { ...takeoverInput, expectedVersion: candidateVersion },
+    switched.takeoverToken,
+  );
+  if (completed.kind !== "completed") fail(`install-complete-${completed.reason}`);
   return {
     status: "installed",
     switchId,

@@ -30,6 +30,11 @@ export interface LocalSwitchInput extends LocalMaintenanceInput {
   requestTimeoutMs?: number;
 }
 
+export interface LocalSwitchCompletionInput extends LocalMaintenanceInput {
+  /** 仅清理已经在本次 takeover 中登记的切换门。 */
+  expectedVersion?: string;
+}
+
 export type LocalSwitchBlockedReason =
   | "occupied"
   | "busy"
@@ -49,6 +54,12 @@ export type LocalSwitchResult<T> =
       reason: LocalSwitchBlockedReason;
       edition?: LocalLaunchEdition;
       runningTaskCount?: number;
+    }
+  | {
+      /** 回调失败时仍保留 switching owner 与切换门，调用方必须先恢复目标再 abort。 */
+      kind: "failed";
+      takeoverToken: string;
+      error: unknown;
     };
 
 export interface LocalLaunchContract {
@@ -65,6 +76,14 @@ export interface LocalLaunchContract {
     input: LocalSwitchInput,
     operation: (roots: { home: string; dataRoot: string }) => Promise<T>,
   ): Promise<LocalSwitchResult<T>>;
+  /**
+   * 新应用 ready 且切换结果落盘后，以 takeover token 清理本次切换门。
+   * 任一新 owner、runtime 或版本不符都保留门，避免并发安装覆盖证据。
+   */
+  completeSwitch(
+    input: LocalSwitchCompletionInput,
+    takeoverToken: string,
+  ): Promise<LocalMaintenanceResult<undefined>>;
   /**
    * 只撤销尚未产生新应用 PID 的 switching owner。
    * 恢复目标仍在同一跨根锁内执行，任何新 owner 或运行进程都拒绝。

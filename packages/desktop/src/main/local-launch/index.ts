@@ -1,5 +1,5 @@
 import { spawn, execFile } from "node:child_process";
-import { mkdir, realpath, readFile, rm } from "node:fs/promises";
+import { lstat, mkdir, realpath, readFile, rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { atomicWritePrivateTextFile, withFileLock } from "@zcode/shared/node";
 import { basename, join, resolve } from "node:path";
@@ -8,12 +8,15 @@ import type {
   LocalLaunchContract,
   LocalLaunchEdition,
   LocalMaintenanceInput,
+  LocalSwitchCompletionInput,
   LocalSwitchInput,
 } from "./contract.js";
 import {
+  claimLocalMaintenanceSwitch,
   clearLocalMaintenanceFiles,
   readLocalMaintenanceResponse,
   readLocalMaintenanceRuntime,
+  releaseLocalMaintenanceSwitch,
   writeLocalMaintenanceCommit,
   writeLocalMaintenanceRequest,
 } from "./maintenance.js";
@@ -21,6 +24,7 @@ import { desktopProductIdentities } from "../../../scripts/desktop-product-ident
 export type {
   LocalLaunchInput,
   LocalLaunchResult,
+  LocalSwitchCompletionInput,
   LocalSwitchInput,
   LocalSwitchResult,
 } from "./contract.js";
@@ -202,6 +206,14 @@ async function admission(
   dataRoot: string,
 ) {
   try {
+    await lstat(join(dataRoot, ".zcode/local/maintenance/switch-gate"));
+    return { kind: "blocked", reason: "unconfirmed" } as const;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      return { kind: "blocked", reason: "unconfirmed" } as const;
+    }
+  }
+  try {
     await readFile(join(dataRoot, ".zcode/local/maintenance/switch-request.json"));
     return { kind: "blocked", reason: "unconfirmed" } as const;
   } catch (error) {
@@ -285,25 +297,27 @@ async function waitForCleanExit(
   return false;
 }
 
-async function requestApplicationExit(
-  roots: { home: string; dataRoot: string; files: readonly string[] },
-  applications: LocalMaintenanceInput["applications"],
-  timeoutMs: number,
-): Promise<
+type RequestApplicationExitResult = (
   | { kind: "idle" }
   | { kind: "busy"; runningTaskCount: number }
   | { kind: "unknown" }
   | { kind: "exit-unconfirmed" }
-> {
+) & { keepGate: boolean };
+
+async function requestApplicationExit(
+  roots: { home: string; dataRoot: string; files: readonly string[] },
+  applications: LocalMaintenanceInput["applications"],
+  timeoutMs: number,
+): Promise<RequestApplicationExitResult> {
   const owner = await consistentOwner(roots.files).catch(() => undefined);
-  if (owner === undefined) return { kind: "unknown" };
+  if (owner === undefined) return { kind: "unknown", keepGate: false };
   if (!owner) {
     try {
       return (await runningApplication(applications)) === null
-        ? { kind: "idle" }
-        : { kind: "unknown" };
+        ? { kind: "idle", keepGate: true }
+        : { kind: "unknown", keepGate: false };
     } catch {
-      return { kind: "unknown" };
+      return { kind: "unknown", keepGate: false };
     }
   }
   if (
@@ -313,7 +327,7 @@ async function requestApplicationExit(
     !isProcessAlive(owner.childPid) ||
     !isProcessAlive(owner.launcherPid)
   )
-    return { kind: "unknown" };
+    return { kind: "unknown", keepGate: false };
   const readyDeadline = Date.now() + Math.max(timeoutMs, 0);
   let runtimeReady = false;
   while (Date.now() < readyDeadline) {
@@ -328,11 +342,11 @@ async function requestApplicationExit(
         break;
       }
     } catch {
-      return { kind: "unknown" };
+      return { kind: "unknown", keepGate: false };
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  if (!runtimeReady) return { kind: "unknown" };
+  if (!runtimeReady) return { kind: "unknown", keepGate: false };
   const request = await writeLocalMaintenanceRequest({
     dataRoot: roots.dataRoot,
     token: owner.token,
@@ -342,7 +356,7 @@ async function requestApplicationExit(
     process.kill(owner.childPid, "SIGUSR2");
   } catch {
     await clearLocalMaintenanceFiles(roots.dataRoot);
-    return { kind: "unknown" };
+    return { kind: "unknown", keepGate: false };
   }
   // 第一步只取得 idle/busy/unknown，不触发退出；超时撤销请求不会让 Main 稍后误退出。
   const idleDeadline = Date.now() + Math.max(timeoutMs, 0);
@@ -353,15 +367,19 @@ async function requestApplicationExit(
       response = await readLocalMaintenanceResponse(roots.dataRoot, request);
     } catch {
       await clearLocalMaintenanceFiles(roots.dataRoot);
-      return { kind: "unknown" };
+      return { kind: "unknown", keepGate: false };
     }
     if (response?.status === "busy") {
       await clearLocalMaintenanceFiles(roots.dataRoot);
-      return { kind: "busy", runningTaskCount: response.runningTaskCount };
+      return {
+        kind: "busy",
+        runningTaskCount: response.runningTaskCount,
+        keepGate: false,
+      };
     }
     if (response?.status === "unknown") {
       await clearLocalMaintenanceFiles(roots.dataRoot);
-      return { kind: "unknown" };
+      return { kind: "unknown", keepGate: false };
     }
     if (response?.status === "idle") {
       idle = true;
@@ -369,24 +387,24 @@ async function requestApplicationExit(
     }
     if (response?.status === "accepted") {
       await clearLocalMaintenanceFiles(roots.dataRoot);
-      return { kind: "unknown" };
+      return { kind: "unknown", keepGate: false };
     }
     if (!isProcessAlive(owner.childPid)) {
       await clearLocalMaintenanceFiles(roots.dataRoot);
-      return { kind: "exit-unconfirmed" };
+      return { kind: "exit-unconfirmed", keepGate: false };
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   if (!idle) {
     await clearLocalMaintenanceFiles(roots.dataRoot);
-    return { kind: "unknown" };
+    return { kind: "unknown", keepGate: false };
   }
 
   await writeLocalMaintenanceCommit(roots.dataRoot, request);
   try {
     process.kill(owner.childPid, "SIGUSR2");
   } catch {
-    return { kind: "exit-unconfirmed" };
+    return { kind: "exit-unconfirmed", keepGate: true };
   }
   const exitDeadline = Date.now() + Math.max(timeoutMs, 0);
   while (Date.now() < exitDeadline) {
@@ -394,26 +412,30 @@ async function requestApplicationExit(
     try {
       response = await readLocalMaintenanceResponse(roots.dataRoot, request);
     } catch {
-      return { kind: "exit-unconfirmed" };
+      return { kind: "exit-unconfirmed", keepGate: true };
     }
     if (response?.status === "busy") {
       await clearLocalMaintenanceFiles(roots.dataRoot);
-      return { kind: "busy", runningTaskCount: response.runningTaskCount };
+      return {
+        kind: "busy",
+        runningTaskCount: response.runningTaskCount,
+        keepGate: false,
+      };
     }
     if (response?.status === "unknown") {
       await clearLocalMaintenanceFiles(roots.dataRoot);
-      return { kind: "unknown" };
+      return { kind: "unknown", keepGate: false };
     }
     if (response?.status === "accepted") {
       // accepted 之后 Main 已进入正常退出；任何超时或进程异常都必须保守保留请求证据。
       return (await waitForCleanExit(roots.files, applications, Math.max(10_000, timeoutMs)))
-        ? { kind: "idle" }
-        : { kind: "exit-unconfirmed" };
+        ? { kind: "idle", keepGate: true }
+        : { kind: "exit-unconfirmed", keepGate: true };
     }
-    if (!isProcessAlive(owner.childPid)) return { kind: "exit-unconfirmed" };
+    if (!isProcessAlive(owner.childPid)) return { kind: "exit-unconfirmed", keepGate: true };
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  return { kind: "exit-unconfirmed" };
+  return { kind: "exit-unconfirmed", keepGate: true };
 }
 
 export const localLaunch: LocalLaunchContract = {
@@ -433,6 +455,9 @@ export const localLaunch: LocalLaunchContract = {
       throw new Error("Controlled Local switching currently supports macOS only");
     const roots = await maintenanceRoots(input);
     if (!roots) return { kind: "blocked", reason: "data-root-mismatch" };
+    const takeoverToken = randomUUID();
+    if (!(await claimLocalMaintenanceSwitch(roots.dataRoot, takeoverToken)))
+      return { kind: "blocked", reason: "unknown" };
     const admitted = await withOwnerLocks(roots.files, async () => {
       const owner = await consistentOwner(roots.files).catch(() => undefined);
       if (owner === undefined) return { kind: "blocked", reason: "unknown" } as const;
@@ -463,39 +488,39 @@ export const localLaunch: LocalLaunchContract = {
       if (running) return { kind: "blocked", reason: "unknown", edition: running } as const;
       return null;
     });
-    if (admitted) return admitted;
+    if (admitted) {
+      await releaseLocalMaintenanceSwitch(roots.dataRoot, takeoverToken);
+      return admitted;
+    }
 
     const exited = await requestApplicationExit(
       roots,
       input.applications,
       input.requestTimeoutMs ?? 5_000,
     );
-    if (exited.kind === "busy")
+    if (exited.kind === "busy") {
+      if (!exited.keepGate) await releaseLocalMaintenanceSwitch(roots.dataRoot, takeoverToken);
       return {
         kind: "blocked",
         reason: "busy",
         runningTaskCount: exited.runningTaskCount,
       };
-    if (exited.kind !== "idle") return { kind: "blocked", reason: exited.kind };
+    }
+    if (exited.kind !== "idle") {
+      if (!exited.keepGate) await releaseLocalMaintenanceSwitch(roots.dataRoot, takeoverToken);
+      return { kind: "blocked", reason: exited.kind };
+    }
 
-    const takeoverToken = randomUUID();
     return withOwnerLocks(roots.files, async () => {
       const current = await consistentOwner(roots.files).catch(() => undefined);
-      if (current !== null) {
-        await clearLocalMaintenanceFiles(roots.dataRoot);
-        return { kind: "blocked", reason: "unknown" } as const;
-      }
+      if (current !== null) return { kind: "blocked", reason: "unknown" } as const;
       let running: LocalLaunchEdition | null;
       try {
         running = await runningApplication(input.applications);
       } catch {
-        await clearLocalMaintenanceFiles(roots.dataRoot);
         return { kind: "blocked", reason: "unknown" } as const;
       }
-      if (running) {
-        await clearLocalMaintenanceFiles(roots.dataRoot);
-        return { kind: "blocked", reason: "occupied", edition: running };
-      }
+      if (running) return { kind: "blocked", reason: "occupied", edition: running } as const;
       const switching: Owner = {
         version: 1,
         token: takeoverToken,
@@ -504,17 +529,44 @@ export const localLaunch: LocalLaunchContract = {
         phase: "switching",
       };
       await writeOwnerFiles(roots.files, switching);
-      await clearLocalMaintenanceFiles(roots.dataRoot).catch(() => {});
       try {
         const value = await operation({ home: roots.home, dataRoot: roots.dataRoot });
         return { kind: "completed", takeoverToken, value } as const;
       } catch (error) {
-        const owner = await consistentOwner(roots.files).catch(() => null);
-        if (owner?.token === takeoverToken && owner.phase === "switching")
-          await removeOwnerFiles(roots.files);
-        await clearLocalMaintenanceFiles(roots.dataRoot);
-        throw error;
+        return { kind: "failed", takeoverToken, error } as const;
       }
+    });
+  },
+  async completeSwitch(input: LocalSwitchCompletionInput, takeoverToken) {
+    if (process.platform !== "darwin")
+      throw new Error("Controlled Local switching currently supports macOS only");
+    const roots = await maintenanceRoots(input);
+    if (!roots) return { kind: "blocked", reason: "data-root-mismatch" };
+    return withOwnerLocks(roots.files, async () => {
+      const owner = await consistentOwner(roots.files).catch(() => undefined);
+      if (
+        !owner ||
+        owner.edition !== "local" ||
+        owner.phase !== "running" ||
+        !owner.childPid ||
+        !isProcessAlive(owner.launcherPid) ||
+        !isProcessAlive(owner.childPid)
+      )
+        return { kind: "blocked", reason: "unconfirmed" } as const;
+      let runtime: Awaited<ReturnType<typeof readLocalMaintenanceRuntime>>;
+      try {
+        runtime = await readLocalMaintenanceRuntime(roots.dataRoot, owner.token, owner.childPid);
+      } catch {
+        return { kind: "blocked", reason: "unconfirmed" } as const;
+      }
+      if (
+        runtime?.state !== "ready" ||
+        (input.expectedVersion !== undefined && runtime.version !== input.expectedVersion)
+      )
+        return { kind: "blocked", reason: "unconfirmed" } as const;
+      await clearLocalMaintenanceFiles(roots.dataRoot);
+      await releaseLocalMaintenanceSwitch(roots.dataRoot, takeoverToken);
+      return { kind: "completed", value: undefined } as const;
     });
   },
   async abortSwitch(input, takeoverToken, operation) {
@@ -547,8 +599,9 @@ export const localLaunch: LocalLaunchContract = {
         current.childPid !== undefined
       )
         throw new Error("Switching ownership changed during abort");
-      await removeOwnerFiles(roots.files);
       await clearLocalMaintenanceFiles(roots.dataRoot);
+      await releaseLocalMaintenanceSwitch(roots.dataRoot, takeoverToken);
+      await removeOwnerFiles(roots.files);
       return { kind: "completed", value } as const;
     });
   },
@@ -583,7 +636,6 @@ export const localLaunch: LocalLaunchContract = {
         }
         if (running) return { kind: "blocked", reason: "occupied", edition: running } as const;
         await writeOwnerFiles(files, owner);
-        await clearLocalMaintenanceFiles(dataRoot).catch(() => {});
         return null;
       }
       const blocked = await admission(files, input.applications, dataRoot);

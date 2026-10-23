@@ -1,4 +1,4 @@
-import { lstat, mkdir, readFile, rm } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { atomicWritePrivateTextFile } from "@zcode/shared/node";
@@ -37,6 +37,13 @@ export interface LocalMaintenanceCommit {
   createdAt: string;
 }
 
+export interface LocalMaintenanceSwitchGate {
+  schema: 1;
+  kind: "local-maintenance-switch-gate";
+  token: string;
+  createdAt: string;
+}
+
 export type LocalMaintenanceTaskState =
   | { kind: "ready"; runningTaskCount: number }
   | { kind: "unknown" };
@@ -65,6 +72,10 @@ function maintenanceDirectory(dataRoot: string): string {
   return join(dataRoot, ".zcode", "local", "maintenance");
 }
 
+function maintenanceSwitchGateDirectory(dataRoot: string): string {
+  return join(maintenanceDirectory(dataRoot), "switch-gate");
+}
+
 async function ensureMaintenanceDirectory(dataRoot: string): Promise<string> {
   const directory = maintenanceDirectory(dataRoot);
   await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -78,6 +89,69 @@ async function ensureMaintenanceDirectory(dataRoot: string): Promise<string> {
   )
     throw new Error("Local maintenance directory is not private");
   return directory;
+}
+
+export async function claimLocalMaintenanceSwitch(
+  dataRoot: string,
+  token: string,
+): Promise<LocalMaintenanceSwitchGate | null> {
+  const directory = await ensureMaintenanceDirectory(dataRoot);
+  const gateDirectory = maintenanceSwitchGateDirectory(dataRoot);
+  try {
+    await mkdir(gateDirectory, { mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return null;
+    throw error;
+  }
+  const gateInfo = await lstat(gateDirectory);
+  if (
+    !gateInfo.isDirectory() ||
+    gateInfo.isSymbolicLink() ||
+    (gateInfo.mode & 0o077) !== 0 ||
+    typeof process.getuid !== "function" ||
+    gateInfo.uid !== process.getuid()
+  ) {
+    await rm(gateDirectory, { recursive: true, force: true });
+    throw new Error("Local maintenance switch gate is not private");
+  }
+  const controlFiles = new Set([
+    "switch-request.json",
+    "switch-response.json",
+    "switch-commit.json",
+  ]);
+  if ((await readdir(directory)).some((name) => controlFiles.has(name))) {
+    await rm(gateDirectory, { recursive: true, force: true });
+    return null;
+  }
+  const gate: LocalMaintenanceSwitchGate = {
+    schema: 1,
+    kind: "local-maintenance-switch-gate",
+    token,
+    createdAt: new Date().toISOString(),
+  };
+  await atomicWritePrivateTextFile(join(gateDirectory, "gate.json"), JSON.stringify(gate));
+  return gate;
+}
+
+export async function releaseLocalMaintenanceSwitch(
+  dataRoot: string,
+  token: string,
+): Promise<void> {
+  const gateDirectory = maintenanceSwitchGateDirectory(dataRoot);
+  const value = JSON.parse(await readFile(join(gateDirectory, "gate.json"), "utf8")) as Record<
+    string,
+    unknown
+  >;
+  if (
+    value.schema !== 1 ||
+    value.kind !== "local-maintenance-switch-gate" ||
+    value.token !== token ||
+    typeof value.createdAt !== "string" ||
+    !Number.isFinite(Date.parse(value.createdAt)) ||
+    !hasOnlyKeys(value, ["schema", "kind", "token", "createdAt"])
+  )
+    throw new Error("Invalid Local maintenance switch gate");
+  await rm(gateDirectory, { recursive: true });
 }
 
 function isPid(value: unknown): value is number {
