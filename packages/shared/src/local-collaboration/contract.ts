@@ -108,6 +108,7 @@ export const collaborationBlockedResultSchema = z
       "role_mismatch",
       "recipient_mismatch",
       "reference_unavailable",
+      "recovery_unknown",
     ]),
     message: z.string().min(1).max(1000),
     targetBotId: id.optional(),
@@ -116,3 +117,12 @@ export const collaborationBlockedResultSchema = z
   })
   .strict();
 export type CollaborationBlockedResult = z.infer<typeof collaborationBlockedResultSchema>;
+
+/** 原 runtime 的只读证据；unknown 不能用来授权重放输入。 */
+export const collaborationTaskEvidenceSchema = z
+  .object({
+    ownedWork: z.enum(["idle", "busy", "unknown"]),
+    inputs: z.array(z.object({ inputId: id, admission: z.enum(["accepted", "unknown"]) }).strict()),
+  })
+  .strict();
+export type CollaborationTaskEvidence = z.infer<typeof collaborationTaskEvidenceSchema>;

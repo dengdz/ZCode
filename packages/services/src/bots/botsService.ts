@@ -1,4 +1,7 @@
-import type { CollaborationStopTarget } from "#src/bot-collaboration/contract.js";
+import type {
+  CollaborationStopTarget,
+  CollaborationStopNotice,
+} from "#src/bot-collaboration/contract.js";
 import { replyToBotChannel } from "#src/bots/channelReply.js";
 import { createBotCollaboration, SELECTION_CARD_PREFIX } from "#src/bot-collaboration/index.js";
 import {
@@ -33,6 +36,7 @@ import { completeNewModelSelection } from "@zcode/provider";
 import {
   ALL_BOT_WORKSPACES,
   channelReplyHostRequestSchema,
+  collaborationTaskEvidenceSchema,
   ZCODE_PRODUCT_FLAVOR,
   parseRemoteWorkspaceIdentity,
   CONVERSATION_SELECTION_MAX_TEXT_LENGTH,
@@ -810,6 +814,14 @@ export function createBotsService(
     (deps.localCollaborationEnabled ?? ZCODE_PRODUCT_FLAVOR === "local")
       ? createBotCollaboration({
           file: join(getAppConfigDir(), "..", "local", "v1", "collaboration.json"),
+          isAdmissionOwnerAlive: async (pid) => {
+            try {
+              process.kill(pid, 0);
+              return true;
+            } catch (error) {
+              return (error as NodeJS.ErrnoException).code === "ESRCH" ? false : undefined;
+            }
+          },
           diagnose: (event) => botsLogger.debug(undefined, "Local collaboration routing", event),
           readConfig: async () => {
             const config = await repo.readConfig();
@@ -830,37 +842,92 @@ export function createBotsService(
           listWorkspaces: () => listWorkspaceRefs(),
           canUseWorkspace: (bot, workspaceId) =>
             isWorkspaceAllowed(workspaceId, bot.allowedWorkspaces),
-          publishStop: async (notice) => {
-            const bot = findBot(await repo.readConfig(), notice.botId);
-            if (!bot || bot.provider !== notice.provider) return;
-            const id =
-              notice.state === "stopped"
-                ? "collaborationStopped"
+          confirmDelivery: async (scope, delivery) => {
+            const bot = findBot(await repo.readConfig(), scope.botId);
+            if (!bot || bot.provider !== scope.provider || !delivery.providerMessageId)
+              return "unknown";
+            return getGroupDeliverySender(bot, scope.chatId, scope.threadId).confirm(
+              delivery.id,
+              async (saved) => {
+                if (!saved.providerMessageId || (saved.appId && saved.appId !== bot.feishuAppId))
+                  return false;
+                return (
+                  (await providers[bot.provider]?.confirmDelivery?.(bot, {
+                    messageId: saved.providerMessageId,
+                    chatId: scope.chatId,
+                    threadId: scope.threadId,
+                    senderId: scope.senderId,
+                  })) === "sent"
+                );
+              },
+            );
+          },
+          readTask: async (target) => {
+            const control = await collaborationTaskControl(target);
+            if (!control?.tasks.readBotCollaborationTask)
+              throw new Error("Collaboration recovery unavailable");
+            const evidence = collaborationTaskEvidenceSchema.parse(
+              await control.tasks.readBotCollaborationTask(control.input),
+            );
+            const key = getBotConversationKey({
+              botId: target.botId,
+              chatType: "group",
+              chatId: target.chatId,
+              threadId: target.threadId,
+            });
+            await serializeStateWrite(async () => {
+              await repo.updateContext(key, (latest) => {
+                const workspace = latest?.group?.taskWorkspaces?.[target.taskId] ?? latest;
+                if (
+                  !latest?.group ||
+                  !workspace ||
+                  latest.group.authorizationId !== control.context.group!.authorizationId ||
+                  (latest.activeTaskId !== target.taskId &&
+                    !latest.group.taskIds.includes(target.taskId)) ||
+                  getWorkspaceKey(workspace.workspacePath, workspace.workspaceIdentity) !==
+                    getWorkspaceKey(target.workspacePath, target.workspaceIdentity)
+                )
+                  throw new Error("Collaboration recovery binding changed");
+                // /new 保留原 taskIds/input：历史核对不要求它仍活跃，且不授予旧输入发送权。
+                // Repo 锁内只改 admission，不用旧整表快照覆盖其他 owner 已写入的渠道收据。
+                for (const proof of evidence.inputs) {
+                  const input = latest.group.inputs?.[proof.inputId];
+                  if (
+                    target.inputIds.includes(proof.inputId) &&
+                    input?.taskId === target.taskId &&
+                    input.source.authorizationId === latest.group.authorizationId &&
+                    input.admission === "pending" &&
+                    proof.admission === "accepted"
+                  )
+                    input.admission = "accepted";
+                }
+                return latest;
+              });
+            });
+            return evidence;
+          },
+          publishRecovery: (notice) =>
+            publishCollaborationNotice(
+              notice,
+              notice.state === "unknown"
+                ? "collaborationRecoveryUnknown"
                 : notice.state === "stopping"
                   ? "collaborationStopping"
-                  : "collaborationStopUnavailable";
-            await getGroupDeliverySender(
-              bot,
-              notice.chatId,
-              notice.threadId,
-            )({
-              id: notice.deliveryId,
-              taskId: notice.taskId,
-              sourceCommandId: notice.inputId,
-              authorizationId: notice.authorizationId,
-              appId: bot.feishuAppId,
-              text: msg(await readMessageLocale(), id),
-              replyToMessageId: notice.messageId,
-              mentionedUserIds: [notice.ownerId],
-              threadId: notice.threadId,
-              status: "pending",
-              updatedAt: Date.now(),
-            });
-          },
+                  : "collaborationStopped",
+            ),
+          publishStop: (notice) =>
+            publishCollaborationNotice(
+              notice,
+              notice.state === "unavailable"
+                ? "collaborationStopUnavailable"
+                : notice.state === "stopping"
+                  ? "collaborationStopping"
+                  : "collaborationStopped",
+            ),
           resumeTask: async (target) => {
             const control = await collaborationTaskControl(target);
             return Boolean(
-              control &&
+              control?.tasks.controlBotCollaborationTask &&
               (
                 await control.tasks.controlBotCollaborationTask!({
                   ...control.input,
@@ -874,7 +941,7 @@ export function createBotsService(
             let unavailable = false;
             for (const target of targets) {
               const control = await collaborationTaskControl(target);
-              if (!control) {
+              if (!control?.tasks.controlBotCollaborationTask) {
                 unavailable = true;
                 continue;
               }
@@ -948,6 +1015,18 @@ export function createBotsService(
                 ),
             );
             for (const context of states) {
+              if (!(await isRemoteWorkspaceConnected(context))) return false;
+              if (
+                Object.values(context.group?.deliveries ?? {}).some(
+                  (item) =>
+                    !item.id.startsWith("local-stop-status:") &&
+                    !item.id.startsWith("local-recovery-status:") &&
+                    (item.status === "unknown" || item.status === "pending") &&
+                    (!item.authorizationId ||
+                      item.authorizationId === context.group?.authorizationId),
+                )
+              )
+                return false;
               const taskIds = new Set(
                 [
                   context.activeTaskId,
@@ -963,6 +1042,20 @@ export function createBotsService(
                   (await tasks.getBotGroupTaskBlockReason({ ...target, taskId }))
                 )
                   return false;
+                if (!tasks.readBotCollaborationTask) return false;
+                const evidence = collaborationTaskEvidenceSchema.parse(
+                  await tasks.readBotCollaborationTask({
+                    taskId,
+                    workspacePath: target.workspacePath,
+                    ...(target.workspaceIdentity
+                      ? { workspaceIdentity: target.workspaceIdentity }
+                      : {}),
+                    inputIds: Object.entries(context.group?.inputs ?? {})
+                      .filter(([, input]) => input.taskId === taskId)
+                      .map(([id]) => id),
+                  }),
+                );
+                if (evidence.ownedWork !== "idle") return false;
               }
             }
             if (current) {
@@ -1728,6 +1821,77 @@ export function createBotsService(
     streamSubscriptions.delete(key);
   }
 
+  async function publishCollaborationNotice(
+    notice: Omit<CollaborationStopNotice, "state">,
+    message:
+      | "collaborationRecoveryUnknown"
+      | "collaborationStopUnavailable"
+      | "collaborationStopping"
+      | "collaborationStopped",
+  ) {
+    const bot = findBot(await repo.readConfig(), notice.botId);
+    if (!bot || bot.provider !== notice.provider) return;
+    await getGroupDeliverySender(
+      bot,
+      notice.chatId,
+      notice.threadId,
+    )({
+      id: notice.deliveryId,
+      taskId: notice.taskId,
+      sourceCommandId: notice.inputId,
+      authorizationId: notice.authorizationId,
+      appId: bot.feishuAppId,
+      text: msg(await readMessageLocale(), message),
+      replyToMessageId: notice.messageId,
+      mentionedUserIds: [notice.ownerId],
+      threadId: notice.threadId,
+      status: "pending",
+      updatedAt: Date.now(),
+    });
+  }
+
+  async function recoverCollaborationScope(
+    scope: { provider: "feishu" | "lark"; chatId: string; threadId?: string },
+    continuePending: boolean,
+  ) {
+    const recovery = await collaboration?.control({
+      kind: "recover",
+      scope,
+      notify: continuePending,
+    });
+    if (recovery?.kind !== "recovery" || recovery.state !== "ready" || !continuePending)
+      return recovery;
+    try {
+      for (const selectionId of recovery.cards) {
+        const card = await collaboration!.recipientSelection({
+          kind: "present",
+          selectionId,
+          locale: await readMessageLocale(),
+        });
+        if (card?.kind === "card") {
+          const bot = findBot(await repo.readConfig(), card.botId);
+          if (bot) await getGroupDeliverySender(bot, card.chatId, card.threadId)(card.delivery);
+        }
+      }
+      for (const request of recovery.requests) {
+        const result = await service.replyToChannel!(request);
+        if (result.status !== "sent")
+          return {
+            ...recovery,
+            state: "unknown" as const,
+            blockers: ["selection_delivery_unknown"],
+          };
+      }
+    } catch (error) {
+      botsLogger.warn(undefined, "Local collaboration pending recovery unavailable", {
+        reason: "recovery_action_unknown",
+        errorType: error instanceof Error ? error.name : typeof error,
+      });
+      return { ...recovery, state: "unknown" as const, blockers: ["recovery_action_unknown"] };
+    }
+    return recovery;
+  }
+
   async function restoreGroupSynchronization(context: BotContextState): Promise<void> {
     if (!context.group?.enabled || !context.activeTaskId || shutdownPromise) return;
     const bot = findBot(await repo.readConfig(), context.botId);
@@ -1737,8 +1901,13 @@ export function createBotsService(
       bot.providerUserId !== context.group.ownerId
     )
       return;
-    // 恢复仅订阅后续事件；远端断开时不建立新连接，也不重放已接收输入。
+    // 恢复先核对原事实，仅在原 owner 证明未发送时续接待发请求。
+    // 远端断开时不建立新连接，也不重放已接收输入。
     if (!(await isRemoteWorkspaceConnected(context))) return;
+    await recoverCollaborationScope(
+      { provider: bot.provider, chatId: context.group.chatId, threadId: context.group.threadId },
+      true,
+    );
     await watchTaskStream(
       bot,
       {
@@ -2343,7 +2512,6 @@ export function createBotsService(
     )
       return undefined;
     const tasks = await resolveZCodeTaskServiceForContext({ ...context, ...workspace });
-    if (!tasks.controlBotCollaborationTask) return undefined;
     return {
       tasks,
       context,
@@ -8951,13 +9119,30 @@ export function createBotsService(
     },
     async replyToChannel(request) {
       if (request.collaboration?.kind === "stop") {
-        const state = await collaboration?.stop(channelReplyHostRequestSchema.parse(request));
-        if (!state) throw new Error("collaboration.unavailable");
-        return { status: "stop_requested", state };
+        const result = await collaboration?.control({
+          kind: "stop",
+          message: channelReplyHostRequestSchema.parse(request),
+        });
+        if (result?.kind !== "stop") throw new Error("collaboration.unavailable");
+        return { status: "stop_requested", state: result.state };
       }
       const result = await replyToBotChannel(request, {
         prepare: collaboration
-          ? (request, scope, id, trusted) => collaboration.prepareReply(request, scope, id, trusted)
+          ? async (request, scope, id, trusted) => {
+              const recovery = await recoverCollaborationScope(scope, false);
+              if (
+                recovery?.kind === "recovery" &&
+                recovery.state !== "ready" &&
+                !recovery.stoppedInputIds.includes(request.inputId)
+              )
+                return {
+                  status: "blocked",
+                  reason: "recovery_unknown",
+                  message:
+                    "Nothing new was sent. Original execution or delivery state is unknown; inspect the existing records before redispatching.",
+                };
+              return collaboration.prepareReply(request, scope, id, trusted);
+            }
           : undefined,
         readState: () => repo.readState(),
         readConfig: () => repo.readConfig(),
@@ -9032,6 +9217,28 @@ export function createBotsService(
         chatId: params.chatId,
         threadId: params.threadId,
       });
+      const binding = await collaboration?.readSettings({
+        kind: "binding",
+        scope: {
+          provider: findBot(await repo.readConfig(), params.botId)?.provider as "feishu" | "lark",
+          chatId: params.chatId,
+        },
+      });
+      if (binding?.kind === "binding" && binding.binding?.enabled) {
+        await collaboration!.control({
+          kind: "recover",
+          scope: {
+            provider: binding.binding.provider,
+            chatId: params.chatId,
+            threadId: params.threadId,
+          },
+        });
+        const saved = (await repo.readState()).bots[key]?.group?.deliveries?.[params.deliveryId];
+        if (params.received && saved?.status === "sent") return saved;
+        throw new Error(
+          "Local delivery remains unknown or already confirmed; do not turn missing receipts into resend permission",
+        );
+      }
       let reconciled: BotGroupDelivery | undefined;
       await serializeStateWrite(async () => {
         const bot = findBot(await repo.readConfig(), params.botId);
@@ -10153,7 +10360,7 @@ export function createBotsService(
           case "stop": {
             const auth = await withAuthorizedContext(message, "stop");
             if (!auth.ok) return auth.reply;
-            const collaborationStop = await collaboration?.stop(message);
+            const collaborationStop = await collaboration?.control({ kind: "stop", message });
             if (collaborationStop) return [];
             if (auth.context.group?.threadId) await cancelTopicInputs(message.actor);
             if (!auth.context.activeTaskId) {
@@ -10453,8 +10660,52 @@ export function createBotsService(
   };
   if (collaboration) {
     const receive = service.handleInboundMessage;
-    service.handleInboundMessage = (message) =>
-      collaboration.withInbound(message, () => receive(message));
+    service.handleInboundMessage = async (message) => {
+      if (
+        message.actor.chatType === "group" &&
+        message.actor.chatId &&
+        isFeishuBotProvider(message.actor.provider) &&
+        (await collaboration.authorize(message)) === "allow" &&
+        !["stop", "group.disable"].includes(
+          parseBotCommand(message.commandText ?? message.text).type,
+        )
+      ) {
+        const recovery = await recoverCollaborationScope(
+          {
+            provider: message.actor.provider,
+            chatId: message.actor.chatId,
+            threadId: message.actor.threadId,
+          },
+          true,
+        );
+        if (
+          recovery?.kind === "recovery" &&
+          (recovery.state !== "ready" ||
+            (recovery.stoppedAll &&
+              parseBotCommand(message.commandText ?? message.text).type === "status"))
+        )
+          return recovery.noticeClaimed
+            ? []
+            : [
+                {
+                  ...createOutbound(
+                    message.actor,
+                    msg(
+                      await readMessageLocale(),
+                      recovery.state === "stopping"
+                        ? "collaborationStopping"
+                        : recovery.state === "unknown"
+                          ? "collaborationRecoveryUnknown"
+                          : "collaborationStopped",
+                    ),
+                  ),
+                  mentionedUserIds:
+                    message.senderType === "app" ? [] : [message.actor.providerUserId],
+                },
+              ];
+      }
+      return collaboration.withInbound(message, () => receive(message));
+    };
   }
   if (runStartupBackgroundTasks) {
     // 远端连接没有 Bot 专属事件源；只检查已存在的连接，不建立额外连接或重放历史。

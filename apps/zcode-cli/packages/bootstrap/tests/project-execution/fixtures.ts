@@ -121,6 +121,12 @@ export async function fixture() {
         },
       })) as CommandAck;
     };
+    const query = async (sessionId: string, commandId: string) =>
+      request({
+        id: `query-${++counter}`,
+        method: V4_METHODS.commandsQuery,
+        params: { commands: [{ sessionId, commandId }] },
+      });
     const create = async (workspaceId = home) => {
       await mkdir(workspaceId, { recursive: true });
       const ack = await command(null, "createSession", { workspaceId });
@@ -147,7 +153,7 @@ export async function fixture() {
         throw new Error("Expected snapshot");
       return assembled.frame.payload.snapshot;
     };
-    return { server, command, create, snapshot };
+    return { server, command, create, snapshot, query };
   };
   const first = client(makeServer());
   return {

@@ -46,11 +46,24 @@ export type RecipientSelectionOutcome =
   | { kind: "render"; message: BotOutboundMessage }
   | { kind: "resume"; request: ChannelReplyHostRequest }
   | { kind: "notice"; message: RecipientSelectionNotice; update: boolean };
+export type CollaborationControlCommand =
+  | { kind: "stop"; message: BotInboundMessage | ChannelReplyHostRequest }
+  | { kind: "recover"; scope: CollaborationScope & { threadId?: string }; notify?: boolean };
+export interface CollaborationRecovery {
+  kind: "recovery";
+  state: "ready" | "stopping" | "unknown";
+  noticeClaimed?: boolean;
+  stoppedInputIds: string[];
+  stoppedAll: boolean;
+  blockers: string[];
+  cards: string[];
+  requests: ChannelReplyHostRequest[];
+}
 export interface BotCollaborationContract {
   /** 可信真人向 PM 叫停原需求；先持久屏障，状态只取原运行时核对结果。 */
-  stop(
-    message: BotInboundMessage | ChannelReplyHostRequest,
-  ): Promise<CollaborationStopState | undefined>;
+  control(
+    command: CollaborationControlCommand,
+  ): Promise<{ kind: "stop"; state: CollaborationStopState } | CollaborationRecovery | undefined>;
   /** 群的可信入站方向；其他真人和未关联机器人不能触发运行时。 */
   authorize(message: BotInboundMessage): Promise<"legacy" | "allow" | "redirect" | "deny">;
   /** 在既有运行时受理前关联原需求；只返回模型材料，不修改官网来源结构。 */

@@ -379,3 +379,39 @@ it("同一会话排队续跑能替换自身旧租约，不阻塞第二项", asyn
   f.releases.shift()!();
   await expect.poll(() => f.apps.get(session)!.runtime.hasResidencyBlockingWork()).toBe(false);
 });
+
+it("12 重启查询原受理记录而不重放模型，未知 commandId 仍为 unknown", async () => {
+  const f = await fixture();
+  const session = await f.create();
+  const result = join(f.home, "preserved-before-recovery.txt");
+  await writeFile(result, "original result");
+  const accepted = await f.command(session, "sendText", {
+    text: "Original accepted work",
+    projectExecutionScope: { projectId: "fixed", workspaceKey: f.home },
+  });
+  await expect.poll(() => f.started.length).toBe(1);
+  f.releases.shift()!();
+  await expect
+    .poll(() => f.command(session, "inspectOwnedWork", {}))
+    .toMatchObject({ result: { type: "ownedWorkState", state: "idle" } });
+  await f.server.shutdown();
+  f.server.disposeProjections();
+  const restored = f.otherClient();
+  expect(await restored.query(session, accepted.commandId)).toMatchObject({
+    results: [
+      {
+        key: { sessionId: session, commandId: accepted.commandId },
+        result: { result: { type: "inputAccepted", inputId: accepted.commandId } },
+      },
+    ],
+  });
+  await restored.snapshot(session, "web-remote-replayable");
+  expect(await restored.command(session, "inspectOwnedWork", {})).toMatchObject({
+    result: { type: "ownedWorkState", state: "idle" },
+  });
+  expect(await restored.query(session, "never-observed-command")).toMatchObject({
+    results: [{ result: "unknown" }],
+  });
+  expect(f.started).toHaveLength(1);
+  expect(await readFile(result, "utf8")).toBe("original result");
+});

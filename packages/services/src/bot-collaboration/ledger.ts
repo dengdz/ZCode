@@ -46,6 +46,7 @@ export const inputSchema = collaborationScopeSchema
     replyIntent: z.enum(["silent", "visible", "selection"]).optional(),
     selectionId: z.string().optional(),
     silentCalls: z.array(z.string()).optional(),
+    recoveryNoticeIds: z.array(z.string()).optional(),
   })
   .strict();
 export const handoffSchema = collaborationScopeSchema
@@ -136,7 +137,15 @@ export const ledgerSchema = z
     admissions: z
       .array(
         collaborationScopeSchema
-          .extend({ id: z.string(), ownerPid: z.number().int().positive() })
+          .extend({
+            id: z.string(),
+            ownerPid: z.number().int().positive(),
+            botId: z.string().optional(),
+            messageId: z.string().optional(),
+            threadId: z.string().optional(),
+            revision: z.number().int().positive().optional(),
+            inputId: z.string().optional(),
+          })
           .strict(),
       )
       .default([]),

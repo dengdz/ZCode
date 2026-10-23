@@ -24,17 +24,20 @@ it("只读空配置不生成默认授权或覆盖业务文件", async () => {
       await service.recipientSelection({ kind: "present", selectionId: "unknown-card" }),
     ).toBeUndefined();
     expect(
-      await service.stop({
-        botId: "pm",
-        text: "/stop",
-        senderType: "user",
-        actor: {
+      await service.control({
+        kind: "stop",
+        message: {
           botId: "pm",
-          provider: "feishu",
-          chatType: "group",
-          chatId: "oc_synthetic",
-          providerUserId: "ou_synthetic",
-          providerMessageId: "om_stop",
+          text: "/stop",
+          senderType: "user",
+          actor: {
+            botId: "pm",
+            provider: "feishu",
+            chatType: "group",
+            chatId: "oc_synthetic",
+            providerUserId: "ou_synthetic",
+            providerMessageId: "om_stop",
+          },
         },
       }),
     ).toBeUndefined();

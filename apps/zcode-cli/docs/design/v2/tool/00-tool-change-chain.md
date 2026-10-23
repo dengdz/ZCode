@@ -1842,3 +1842,9 @@ ReplyToChannel 可缺省派单 targetBotId → Host 严格 requiredDuty 与可�
 ## Local 真实叫停（11，2026-10-22）
 
 ReplyToChannel 增加 collaboration {kind: stop}，parts 仅一个空 text，不接收目标 ID。工具所属 assistant 的 canonical input → 原 Host 任务/群/输入/真人来源核对 → 同一 Local 停止屏障 → 原运行时控制 → strict {status: stop_requested, state: stopped|stopping|unavailable}。只有 PM 的可信授权真人输入可以调用，机器人回报不能借 PM 身份叫停。stop_requested 不表示消息送达或执行结束；Host 通过原投递 owner 向原用户报告实际状态，模型不追加确认。重复调用与重启沿原调用身份，已确认的旧停止不作用到新需求。保持既有 trace、权限、取消和 network 副作用声明；停止不撤销文件或外部结果。
+
+## Local 恢复前核对（12，2026-10-23）
+
+ReplyToChannel 保留同一个工具与输入 schema。原 sent/unknown 收据重读先于新发送校验；新发送准备在 Host 核对原输入、runtime 事实、停止屏障及卡片原领取记录。恢复事实不明返回严格 blocked/recovery_unknown，明确没有创建新的发送或执行，不要求模型重述或重派原工作。原已选请求只有在尚未领取发送且无投递事实时才沿相同 toolCallId 续发；claimed/unknown 不盲目补发。新增只读 SDK/Provider 查询不改变 tool 权限、trace、取消或网络副作用边界。
+
+Local 12 冷启动核对补充：既有 commands/query 的 transcript fallback 只在 canonical user message 的完整 conversationInputIntent 严格通过且 sourceCommandId 对齐时补 inputAccepted，delivery 取原 admitted 值；assistant、timeline、缺失或无效 intent 不升级。无新协议类型、无输入重放。

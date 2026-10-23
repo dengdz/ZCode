@@ -1,4 +1,5 @@
-import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { cp, mkdir, mkdtemp, rm, readFile, writeFile, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
@@ -29,10 +30,11 @@ async function setup(
     root_id: "om_root",
     create_time: "1",
     msg_type: "text",
-    sender: { id: sender, sender_type: senderType },
+    sender: { id: sender, id_type: "open_id", sender_type: senderType },
     body: { content: JSON.stringify({ text: "Synthetic history" }) },
   });
   const history = [historyRecord("om_root"), historyRecord("om_request")];
+  let loseReceipt = false;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string | URL | Request, options?: RequestInit) => {
@@ -64,6 +66,10 @@ async function setup(
             "app",
           ),
         );
+        if (loseReceipt) {
+          loseReceipt = false;
+          return Response.json({ code: 0, data: {} });
+        }
         return Response.json({ code: 0, data: { message_id: id } });
       }
       if (url.includes("/chats/"))
@@ -152,13 +158,26 @@ async function setup(
   tasks.readBotTopicExecution = vi.fn(async () => undefined);
   tasks.stopBotTopicExecution = vi.fn(async () => undefined);
   tasks.invalidateBotTopicInputs = vi.fn(async () => undefined);
-  tasks.submitBotGroupInput = vi.fn(async (params) => ({
-    commandId: params.commandId,
-    status: "accepted",
-    revisionAtDecision: 1,
-    result: { type: "inputAccepted", inputId: params.commandId, delivery: "queue" },
-  }));
-  const create = (local = true) => {
+  const acceptedInputIds = new Set<string>();
+  tasks.submitBotGroupInput = vi.fn(async (params) => {
+    acceptedInputIds.add(params.commandId);
+    return {
+      commandId: params.commandId,
+      status: "accepted",
+      revisionAtDecision: 1,
+      result: { type: "inputAccepted", inputId: params.commandId, delivery: "queue" },
+    };
+  });
+  Object.assign(tasks, {
+    readBotCollaborationTask: vi.fn(async (params: { inputIds: string[] }) => ({
+      ownedWork: "idle",
+      inputs: params.inputIds.map((inputId) => ({
+        inputId,
+        admission: acceptedInputIds.has(inputId) ? "accepted" : "unknown",
+      })),
+    })),
+  });
+  const create = (local = true, runStartupBackgroundTasks = false) => {
     const service = f.createBotsService({
       repo,
       ...f.createBotProjectServices([{ workspacePath: "/project" }]),
@@ -166,7 +185,7 @@ async function setup(
       zcodeTaskService: tasks,
       localCollaborationEnabled: local,
       settingService: f.createSettingService({ locale }),
-      runStartupBackgroundTasks: false,
+      runStartupBackgroundTasks,
     });
     cleanups.push(() => service.disposeAllAndWait());
     return service;
@@ -246,8 +265,559 @@ async function setup(
   const emit = async (event: ZCodeStreamEvent) => {
     await listeners.get(event.taskId)?.(event);
   };
-  return { service, create, repo, tasks, sent, human, home, native, emit };
+  return {
+    service,
+    create,
+    repo,
+    tasks,
+    sent,
+    human,
+    home,
+    native,
+    emit,
+    history,
+    loseNextReceipt: () => {
+      loseReceipt = true;
+    },
+  };
 }
+
+it("12 重建先核对原 commandId；丢 ACK 的已受理输入不重跑且能继续原需求回报", async () => {
+  const f = await setup();
+  f.tasks.submitBotGroupInput = vi.fn(async () => {
+    throw new Error("Synthetic ACK lost after acceptance");
+  });
+  await expect(f.service.handleInboundMessage(f.human())).rejects.toThrow("ACK lost");
+  const original = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0];
+  const read = vi.fn(async (params: { inputIds: string[] }) => ({
+    ownedWork: "idle",
+    inputs: params.inputIds.map((inputId) => ({ inputId, admission: "accepted" })),
+  }));
+  Object.assign(f.tasks, { readBotCollaborationTask: read });
+  await f.service.disposeAllAndWait();
+  const restored = f.create();
+  await restored.handleInboundMessage({ ...f.human("pm", "om_recovery_status"), text: "/status" });
+  expect(read).toHaveBeenCalledWith({
+    taskId: "task-pm",
+    workspacePath: "/project",
+    inputIds: [original.commandId],
+  });
+  await restored.handleInboundMessage(f.human());
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+  const result = await restored.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: original.commandId,
+    toolCallId: "recovered-final",
+    parts: [{ type: "text", text: "Original result preserved" }],
+    collaboration: { kind: "final" },
+  });
+  expect(result.status).toBe("sent");
+  expect(JSON.stringify(f.sent.at(-1)!.body)).toContain("ou_owner_pm");
+});
+
+it("12 新任务继续核对历史受理，切换 active task 不会永久阻断新需求", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const original = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  f.tasks.createTask = vi.fn(async () => ({
+    taskId: "task-pm-next",
+    title: "Next task",
+    workspacePath: "/project",
+    provider: "glm",
+  }));
+  await f.service.handleInboundMessage({ ...f.human("pm", "om_new_command"), text: "/new" });
+  await f.service.handleInboundMessage(f.human("pm", "om_next_requirement"));
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(2);
+  const next = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  expect(next.taskId).not.toBe(original.taskId);
+  await f.service.handleInboundMessage(f.human("pm", "om_followup_next_requirement"));
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(3);
+  expect(
+    (
+      await f.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: next.taskId,
+        inputId: next.commandId,
+        toolCallId: "next-final",
+        parts: [{ type: "text", text: "New result" }],
+        collaboration: { kind: "final" },
+      })
+    ).status,
+  ).toBe("sent");
+});
+
+it("12 启动后台先核对原受理，不等新入站、不重放模型输入或打开外部连接", async () => {
+  const f = await setup();
+  f.tasks.submitBotGroupInput = vi.fn(async () => {
+    throw Error("Synthetic lost ACK");
+  });
+  await expect(f.service.handleInboundMessage(f.human())).rejects.toThrow("lost ACK");
+  const original = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  const read = vi.fn(async (params: { inputIds: string[] }) => ({
+    ownedWork: "idle",
+    inputs: params.inputIds.map((inputId) => ({ inputId, admission: "accepted" })),
+  }));
+  Object.assign(f.tasks, { readBotCollaborationTask: read });
+  await f.service.disposeAllAndWait();
+  // 无凭据的合成 Bot 不启动 Provider 长连接，启动恢复仍走真实 service 装配。
+  const config = await f.repo.readConfig();
+  await f.repo.writeConfig({
+    ...config,
+    bots: config.bots.map((bot) => ({ ...bot, credentialRef: undefined })),
+  });
+  const posts = f.sent.length;
+  f.create(true, true);
+  await expect
+    .poll(
+      async () =>
+        Object.values((await f.repo.readState()).bots).find((state) => state.botId === "pm")?.group
+          ?.inputs?.[original.commandId]?.admission,
+    )
+    .toBe("accepted");
+  expect(read).toHaveBeenCalledWith(
+    expect.objectContaining({ taskId: "task-pm", inputIds: [original.commandId] }),
+  );
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+  expect(f.sent).toHaveLength(posts);
+});
+
+it("12 状态不明时说明并阻止新派单，查询明确后才继续原请求", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  let known = false;
+  Object.assign(f.tasks, {
+    readBotCollaborationTask: vi.fn(async (params: { inputIds: string[] }) => ({
+      ownedWork: known ? "busy" : "unknown",
+      inputs: params.inputIds.map((inputId) => ({ inputId, admission: "accepted" })),
+    })),
+  });
+  await f.service.disposeAllAndWait();
+  const restored = f.create();
+  const replies = await restored.handleInboundMessage({
+    ...f.human("pm", "om_unknown_recovery"),
+    text: "/status",
+  });
+  expect(JSON.stringify([replies, f.sent.at(-1)?.body])).toContain("状态尚未核对清楚");
+  const request = {
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    toolCallId: "after-recovery",
+    parts: [{ type: "text" as const, text: "Build APP" }],
+    collaboration: { kind: "dispatch" as const, targetBotId: "app", requiredDuty: "APP" },
+  };
+  const sent = f.sent.length;
+  expect(await restored.replyToChannel!(request)).toMatchObject({
+    status: "blocked",
+    reason: "recovery_unknown",
+  });
+  expect(f.sent).toHaveLength(sent);
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+  known = true;
+  expect((await restored.replyToChannel!(request)).status).toBe("sent");
+});
+
+it("12 状态未知也允许原用户撤销群授权，旧输出与卡片不能复活", async () => {
+  const f = await setup();
+  const { request } = await pendingRecipient(f);
+  Object.assign(f.tasks, {
+    readBotCollaborationTask: vi.fn(async (params: { inputIds: string[] }) => ({
+      ownedWork: "unknown",
+      inputs: params.inputIds.map((inputId) => ({ inputId, admission: "accepted" })),
+    })),
+  });
+  const posts = f.sent.length;
+  await f.service.handleInboundMessage({
+    ...f.human("pm", "om_disable_unknown"),
+    text: "/disable",
+  });
+  expect(
+    Object.values((await f.repo.readState()).bots).find((item) => item.botId === "pm")?.group
+      ?.enabled,
+  ).toBe(false);
+  const result = await f.service.replyToChannel!(request).catch(() => undefined);
+  expect(result?.status).not.toBe("sent");
+  expect(f.sent).toHaveLength(posts);
+});
+
+it.each([false, true])(
+  "12 发送结果不明先按原消息核对，有可验证收据=%s；未知不重发",
+  async (knownReceipt) => {
+    const f = await setup();
+    await f.service.handleInboundMessage(f.human());
+    const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+    const request = {
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: input.commandId,
+      toolCallId: "lost-delivery-receipt",
+      parts: [{ type: "text" as const, text: "Original APP dispatch" }],
+      collaboration: { kind: "dispatch" as const, targetBotId: "app", requiredDuty: "APP" },
+    };
+    if (!knownReceipt) f.loseNextReceipt();
+    const first = await f.service.replyToChannel!(request);
+    if (!("deliveryId" in first)) throw Error("Missing original delivery");
+    if (knownReceipt) {
+      const state = await f.repo.readState();
+      const context = Object.values(state.bots).find((item) => item.botId === "pm" && item.group)!;
+      context.group!.deliveries![first.deliveryId]!.status = "unknown";
+      await f.repo.writeState(state);
+    } else expect(first.status).toBe("unknown");
+    const sent = f.sent.length;
+    await f.service.disposeAllAndWait();
+    const restored = f.create();
+    const status = await restored.handleInboundMessage({
+      ...f.human("pm", "om_delivery_recovery"),
+      text: "/status",
+    });
+    const replay = await restored.replyToChannel!(request);
+    expect(replay.status).toBe(knownReceipt ? "sent" : "unknown");
+    expect(f.sent).toHaveLength(sent + (knownReceipt ? 0 : 1));
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+    if (!knownReceipt) {
+      expect(JSON.stringify([status, f.sent.at(-1)?.body])).toContain("状态尚未核对清楚");
+      await expect(
+        restored.reconcileGroupResult!({
+          botId: "pm",
+          chatId: "oc_group",
+          deliveryId: first.deliveryId,
+          received: false,
+        }),
+      ).rejects.toThrow();
+      expect(
+        (await restored.replyToChannel!({ ...request, toolCallId: "must-not-reissue" })).status,
+      ).toBe("blocked");
+    }
+  },
+);
+
+it.each(["sender", "id-type", "group", "thread", "deleted", "missing"])(
+  "12 原投递核对不匹配仍为 unknown，不能重发：%s",
+  async (boundary) => {
+    const f = await setup("omt_delivery_proof");
+    await f.service.handleInboundMessage(f.human());
+    const original = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+    const request = {
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: original.commandId,
+      toolCallId: "original-proof",
+      parts: [{ type: "text" as const, text: "Original APP work" }],
+      collaboration: { kind: "dispatch" as const, targetBotId: "app", requiredDuty: "APP" },
+    };
+    const first = await f.service.replyToChannel!(request);
+    if (!("deliveryId" in first) || first.status !== "sent")
+      throw Error("Original delivery missing");
+    const state = await f.repo.readState();
+    Object.values(state.bots).find(
+      (item) => item.botId === "pm" && item.group?.threadId === "omt_delivery_proof",
+    )!.group!.deliveries![first.deliveryId]!.status = "unknown";
+    await f.repo.writeState(state);
+    const record = f.history.find((item) => item.message_id === f.sent.at(-1)!.id)!;
+    if (boundary === "sender") record.sender.id = "ou_unrelated";
+    if (boundary === "id-type") record.sender.id_type = "union_id";
+    if (boundary === "group") record.chat_id = "oc_other";
+    if (boundary === "thread") record.thread_id = "omt_other";
+    if (boundary === "deleted") Object.assign(record, { deleted: true });
+    if (boundary === "missing") f.history.splice(f.history.indexOf(record), 1);
+    await f.service.disposeAllAndWait();
+    const restored = f.create();
+    await restored.handleInboundMessage({ ...f.human("pm", "om_verify_receipt"), text: "/status" });
+    expect((await restored.replyToChannel!(request)).status).toBe("unknown");
+    expect(
+      f.sent.filter((item) => JSON.stringify(item.body).includes("Original APP work")),
+    ).toHaveLength(1);
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+  },
+);
+
+it("12 多 owner 恢复通知先领取一次，通知丢收据也不自动重发，原用户与线程不变", async () => {
+  const f = await setup("omt_recovery_notice");
+  await f.service.handleInboundMessage(f.human());
+  Object.assign(f.tasks, {
+    readBotCollaborationTask: vi.fn(async (params: { inputIds: string[] }) => ({
+      ownedWork: "unknown",
+      inputs: params.inputIds.map((inputId) => ({ inputId, admission: "accepted" })),
+    })),
+  });
+  await f.service.disposeAllAndWait();
+  f.loseNextReceipt();
+  const owners = [f.create(), f.create()];
+  await Promise.all(
+    owners.map((owner, index) =>
+      owner.handleInboundMessage({ ...f.human("pm", `om_notice_${index}`), text: "/status" }),
+    ),
+  );
+  const notices = f.sent.filter((item) => JSON.stringify(item.body).includes("状态尚未核对清楚"));
+  expect(notices).toHaveLength(1);
+  expect(JSON.stringify(notices[0]!.body)).toContain("ou_owner_pm");
+  expect(notices[0]!.url).toContain("/om_request/reply");
+  for (const owner of owners) await owner.disposeAllAndWait();
+  await f
+    .create()
+    .handleInboundMessage({ ...f.human("pm", "om_notice_after_restart"), text: "/status" });
+  expect(
+    f.sent.filter((item) => JSON.stringify(item.body).includes("状态尚未核对清楚")),
+  ).toHaveLength(1);
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+  const evidence = process.env.ZCODE_TEST_ARTIFACT_DIR;
+  if (evidence) {
+    await mkdir(evidence, { recursive: true });
+    await cp(f.home, join(evidence, "recovery-notice-topic"), { recursive: true });
+  }
+});
+
+it.each([undefined, "omt_recover_selected"])(
+  "12 重建安全续接已选择但尚未领取发送的原消息一次：%s",
+  async (threadId) => {
+    const f = await setup(threadId);
+    const { card } = await pendingRecipient(f);
+    let readable = false;
+    Object.assign(f.tasks, {
+      readBotCollaborationTask: vi.fn(async (params: { inputIds: string[] }) => ({
+        ownedWork: readable ? "idle" : "unknown",
+        inputs: params.inputIds.map((inputId) => ({ inputId, admission: "accepted" })),
+      })),
+    });
+    await f.service.handleProviderCallback(
+      "feishu",
+      selectionCallback(
+        card,
+        selectionButtons(card)[0]!,
+        "ou_owner_pm",
+        "selected-before-host-loss",
+      ),
+    );
+    expect(f.sent.filter((item) => JSON.stringify(item.body).includes("ou_bot_app"))).toHaveLength(
+      0,
+    );
+    await f.service.disposeAllAndWait();
+    readable = true;
+    const restored = f.create();
+    await restored.handleInboundMessage({
+      ...f.human("pm", "om_resume_selected"),
+      text: "/status",
+    });
+    const work = f.sent.filter((item) => JSON.stringify(item.body).includes("ou_bot_app"));
+    expect(work).toHaveLength(1);
+    expect(JSON.stringify(work[0]!.body)).toContain("Original immutable APP work");
+    await restored.handleInboundMessage({
+      ...f.human("pm", "om_resume_selected_again"),
+      text: "/status",
+    });
+    expect(f.sent.filter((item) => JSON.stringify(item.body).includes("ou_bot_app"))).toHaveLength(
+      1,
+    );
+    await restored.handleProviderCallback(
+      "feishu",
+      f.native("app", "pm", work[0]!.id, "Original immutable APP work"),
+    );
+    await restored.handleProviderCallback(
+      "feishu",
+      f.native("app", "pm", work[0]!.id, "Original immutable APP work"),
+    );
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(2);
+  },
+);
+
+it("12 恢复继续原停止核对，确认后仍保留屏障，只有新真人需求才恢复队列", async () => {
+  const f = await setup();
+  let ended = false;
+  const control = vi.fn(async (params: { phase: string }) => ({
+    state: params.phase === "stop" && !ended ? "stopping" : "stopped",
+  }));
+  Object.assign(f.tasks, { controlBotCollaborationTask: control });
+  await f.service.handleInboundMessage(f.human());
+  const original = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  await f.service.handleInboundMessage({
+    ...f.human("pm", "om_stopping_before_restart"),
+    text: "/stop",
+  });
+  await f.service.disposeAllAndWait();
+  const restored = f.create();
+  const stopping = await restored.handleInboundMessage({
+    ...f.human("pm", "om_recover_stopping"),
+    text: "/status",
+  });
+  expect(JSON.stringify([stopping, f.sent.at(-1)?.body])).toContain("正在停止");
+  ended = true;
+  const stopped = await restored.handleInboundMessage({
+    ...f.human("pm", "om_recover_stopped"),
+    text: "/status",
+  });
+  expect(JSON.stringify([stopped, f.sent.at(-1)?.body])).toContain("本需求已停止");
+  expect(control.mock.calls.some(([params]) => params.phase === "resume")).toBe(false);
+  await expect(
+    restored.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: original.commandId,
+      toolCallId: "old-after-recovery",
+      parts: [{ type: "text", text: "Old work must stay stopped" }],
+      collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+    }),
+  ).rejects.toThrow("collaboration.stopped");
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+  await restored.handleInboundMessage(f.human("pm", "om_new_after_stop_recovery"));
+  expect(control).toHaveBeenLastCalledWith(expect.objectContaining({ phase: "resume" }));
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(2);
+});
+
+it("12 恢复崩溃子进程 fixture", async (context) => {
+  const artifact = process.env.ZCODE_TEST_ARTIFACT_DIR;
+  if (
+    !artifact ||
+    !(await access(join(artifact, "crash-fixture.request")).then(
+      () => true,
+      () => false,
+    ))
+  ) {
+    context.skip();
+    return;
+  }
+  const fixture = await setup();
+  const message = fixture.human();
+  fixture.tasks.submitBotGroupInput = vi.fn(async (params) => {
+    await writeFile(
+      join(artifact, "crash-proof.json"),
+      JSON.stringify({ home: fixture.home, message, inputId: params.commandId }),
+    );
+    // 仅结束本测试自有 worker，模拟原 runtime 已受理、Host 未获 ACK 的进程中断。
+    process.kill(process.pid, "SIGKILL");
+    throw new Error("Unreachable after owned crash fixture exit");
+  });
+  await fixture.service.handleInboundMessage(message);
+});
+
+it("12 原 Host 退出且原输入已核对后才释放入站协调令牌，不释放执行租约或重跑", async () => {
+  const artifact = await mkdtemp(join(tmpdir(), "collaboration-crash-artifact-"));
+  cleanups.push(() => rm(artifact, { recursive: true, force: true }));
+  await writeFile(join(artifact, "crash-fixture.request"), "synthetic");
+  const output = await new Promise<{ code: number | null; log: string }>((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      [
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "packages/services/test/botCollaborationHandoffs.test.ts",
+        "--pool",
+        "forks",
+        "--maxWorkers",
+        "1",
+        "--no-file-parallelism",
+        "-t",
+        "12 恢复崩溃子进程 fixture",
+      ],
+      {
+        cwd: process.cwd(),
+        env: { ...process.env, ZCODE_TEST_ARTIFACT_DIR: artifact },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let log = "";
+    child.stdout.on("data", (chunk) => {
+      log += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      log += String(chunk);
+    });
+    child.once("error", reject);
+    child.once("exit", (code) => resolve({ code, log }));
+  });
+  expect(output.code).not.toBe(0);
+  const proof = JSON.parse(await readFile(join(artifact, "crash-proof.json"), "utf8")) as {
+    home: string;
+    message: BotInboundMessage;
+    inputId: string;
+  };
+  expect(proof.home.startsWith(join(tmpdir(), "collaboration-handoffs-"))).toBe(true);
+  cleanups.push(() => rm(proof.home, { recursive: true, force: true }));
+  setDataBaseDir(proof.home);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => {
+      throw new Error("Unexpected external network in crash recovery");
+    }),
+  );
+  const tasks = f.createLegacyTaskService();
+  tasks.submitBotGroupInput = vi.fn(async () => {
+    throw new Error("Recovery must not submit another input");
+  });
+  tasks.listActiveTaskIds = vi.fn(async () => []);
+  tasks.getBotGroupTaskBlockReason = vi.fn(async () => null);
+  Object.assign(tasks, {
+    readBotCollaborationTask: vi.fn(async (params: { inputIds: string[] }) => ({
+      ownedWork: "idle",
+      inputs: params.inputIds.map((inputId) => ({
+        inputId,
+        admission: inputId === proof.inputId ? "accepted" : "unknown",
+      })),
+    })),
+  });
+  const restored = f.createBotsService({
+    repo: new BotsRepo(),
+    ...f.createBotProjectServices([{ workspacePath: "/project" }]),
+    credentialService: f.createCredentialService({ synthetic: "synthetic-value" }),
+    zcodeTaskService: tasks,
+    localCollaborationEnabled: true,
+    settingService: f.createSettingService({ locale: "zh-CN" }),
+    runStartupBackgroundTasks: false,
+  });
+  cleanups.push(() => restored.disposeAllAndWait());
+  await restored.handleInboundMessage({
+    ...proof.message,
+    text: "/status",
+    actor: { ...proof.message.actor, providerMessageId: "om_after_crash_recovery" },
+  });
+  expect(tasks.submitBotGroupInput).not.toHaveBeenCalled();
+  const settings = (await restored.getCollaborationSettings!())!.groups[0]!;
+  const saved = await restored.saveCollaborationSettings!({
+    provider: "feishu",
+    chatId: "oc_group",
+    expectedRevision: settings.config!.revision,
+    enabled: true,
+    pmBotId: "pm",
+    executors: [
+      { botId: "app", duty: "APP after confirmed recovery" },
+      { botId: "product", duty: "Product" },
+    ],
+    authorizedUserId: settings.users[0]!.id,
+    workspaceId: settings.workspaces[0]!.id,
+  });
+  expect(saved.groups[0]!.config!.revision).toBe(settings.config!.revision + 1);
+}, 30_000);
+
+it("12 owned-work 或租约不明时不允许改变关键协作配置", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  Object.assign(f.tasks, {
+    readBotCollaborationTask: vi.fn(async (params: { inputIds: string[] }) => ({
+      ownedWork: "unknown",
+      inputs: params.inputIds.map((inputId) => ({ inputId, admission: "accepted" })),
+    })),
+  });
+  const settings = (await f.service.getCollaborationSettings!())!.groups[0]!;
+  await expect(
+    f.service.saveCollaborationSettings!({
+      provider: "feishu",
+      chatId: "oc_group",
+      expectedRevision: settings.config!.revision,
+      enabled: true,
+      pmBotId: "pm",
+      executors: [
+        { botId: "app", duty: "Changed while unknown" },
+        { botId: "product", duty: "Product" },
+      ],
+      authorizedUserId: settings.users[0]!.id,
+      workspaceId: settings.workspaces[0]!.id,
+    }),
+  ).rejects.toThrow("collaboration.busy");
+  expect((await f.service.getCollaborationSettings!())!.groups[0]!.config!.revision).toBe(
+    settings.config!.revision,
+  );
+});
 
 it("PM 自然语言叫停绑定真人输入；重建重投不重复通知、不误停新需求", async () => {
   const f = await setup();

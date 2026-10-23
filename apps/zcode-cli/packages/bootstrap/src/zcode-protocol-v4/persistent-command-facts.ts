@@ -4,7 +4,7 @@ import type {
   SessionInputRecord,
   SessionStorePort,
 } from "@zcode/contracts";
-import type { CommandAck } from "@zcode/shared/zcode-protocol-v4";
+import { conversationInputIntentSchema, type CommandAck } from "@zcode/shared/zcode-protocol-v4";
 import type { PersistentCommandFactSource } from "./persistent-command-index.js";
 
 export const V4_COMMAND_FACT_SESSION_ENTRY = "v4/command_fact";
@@ -65,11 +65,28 @@ export async function loadPersistentCommandFacts(
       });
     }
     const sourceCommandId = message.info.anchor?.sourceCommandId;
-    if (!sourceCommandId || facts.transcript.has(sourceCommandId)) continue;
+    if (!sourceCommandId) continue;
+    const intent =
+      message.info.role === "user"
+        ? conversationInputIntentSchema.safeParse(message.info.metadata?.conversationInputIntent)
+        : undefined;
+    // 冷查询只能补回原输入的完整事实；assistant anchor 与无类型旧记录不能推定输入类型或 delivery。
+    const inputResult =
+      intent?.success &&
+      intent.data.sourceCommandId === sourceCommandId &&
+      intent.data.kind !== "compact"
+        ? {
+            type: "inputAccepted" as const,
+            inputId: sourceCommandId,
+            delivery: intent.data.delivery.admitted,
+          }
+        : undefined;
+    if (facts.transcript.has(sourceCommandId) && !inputResult) continue;
     facts.transcript.set(sourceCommandId, {
       commandId: sourceCommandId,
       status: "accepted",
       revisionAtDecision: 0,
+      ...(inputResult ? { result: inputResult } : {}),
     });
   }
 

@@ -49,6 +49,11 @@ export interface BotProviderAcknowledgeResult {
 }
 
 export interface BotProviderAdapter {
+  /** 只确认已知消息存在；未找到、删除或读取失败都不证明未发送。 */
+  confirmDelivery?(
+    bot: BotConfig,
+    target: { messageId: string; chatId: string; threadId?: string; senderId: string },
+  ): Promise<"sent" | "unknown">;
   readTopicResourceMessage?(
     bot: BotConfig,
     target: { messageId: string; chatId: string; threadId: string },

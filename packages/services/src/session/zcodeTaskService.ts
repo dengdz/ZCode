@@ -237,6 +237,14 @@ export interface IZCodeTaskService {
     remoteSessionId?: string;
   }): Promise<Array<{ checkpoint: string; text: string }>>;
 
+  /** 只读取原命令受理和 owned-work 证据，不提交、恢复或重放输入。 */
+  readBotCollaborationTask?(params: {
+    taskId: string;
+    workspacePath: string;
+    workspaceIdentity?: string;
+    inputIds: string[];
+  }): Promise<import("@zcode/shared").CollaborationTaskEvidence>;
+
   /** Local 原需求的真实停止；hold 不停止前台，stop 结果须独立核对 owned work。 */
   controlBotCollaborationTask?(params: {
     taskId: string;

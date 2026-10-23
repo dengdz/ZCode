@@ -578,5 +578,40 @@ export function createReplyRouting(deps: Dependencies) {
       await write(ledger);
       return { kind: "resume", request: p.request };
     });
-  return { prepareReply, recipientSelection, authorizeCard };
+  const recoverSelections = async (
+    ledger: Ledger,
+    scope: CollaborationScope & { threadId?: string },
+  ) => {
+    const cards: string[] = [];
+    const requests: ChannelReplyHostRequest[] = [];
+    const blockers: string[] = [];
+    for (const pending of ledger.selections.filter(
+      (item) => key(item) === key(scope) && item.threadId === scope.threadId,
+    )) {
+      if (["cancelled", "invalidated", "rejected"].includes(pending.status)) continue;
+      const current = await currentSelection(ledger, pending);
+      if (!current || pending.expiresAt <= Date.now()) {
+        pending.status = "invalidated";
+        continue;
+      }
+      const sent = current.state.group!.deliveries?.[pending.id];
+      if (pending.status === "selected") {
+        if (
+          !sent &&
+          !ledger.handoffs.some((item) => item.id === pending.id && key(item) === key(scope))
+        )
+          requests.push(pending.request);
+        else if (sent?.status !== "sent") blockers.push("selection_delivery_unknown");
+      } else if (pending.status === "claimed") {
+        if (sent?.status !== "sent" && sent?.status !== "invalidated")
+          blockers.push("selection_delivery_unknown");
+      } else if (!pending.cardClaimed) cards.push(pending.token);
+      else if (
+        current.state.group!.deliveries?.[SELECTION_CARD_PREFIX + pending.token]?.status !== "sent"
+      )
+        blockers.push("card_delivery_unknown");
+    }
+    return { cards, requests, blockers };
+  };
+  return { prepareReply, recipientSelection, authorizeCard, recoverSelections };
 }

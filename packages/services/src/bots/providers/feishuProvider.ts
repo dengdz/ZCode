@@ -2163,6 +2163,34 @@ export function createFeishuBotProvider(deps: FeishuProviderDeps): BotProviderAd
         ...(topicUrl ? { topicUrl } : {}),
       };
     },
+    async confirmDelivery(bot, target) {
+      const token = await readTenantAccessToken(bot, deps);
+      if (!token) return "unknown";
+      const response = await fetchBotProviderJson<{
+        code?: number;
+        data?: { items?: Array<Record<string, unknown>> };
+      }>(
+        `${getFeishuBaseUrl(bot)}/open-apis/im/v1/messages/${encodeURIComponent(target.messageId)}`,
+        { headers: { authorization: `Bearer ${token}` } },
+      );
+      const native = response.payload?.data?.items?.find(
+        (item) => item.message_id === target.messageId,
+      );
+      const sender = native && isRecord(native.sender) ? native.sender : undefined;
+      const ownSender =
+        sender?.sender_type === "app" &&
+        ((sender.id_type === "app_id" && sender.id === bot.feishuAppId) ||
+          (sender.id_type === "open_id" && sender.id === target.senderId));
+      return response.ok &&
+        response.payload?.code === 0 &&
+        native &&
+        native.deleted !== true &&
+        native.chat_id === target.chatId &&
+        (readString(native, "thread_id") || undefined) === target.threadId &&
+        ownSender
+        ? "sent"
+        : "unknown";
+    },
     async readTopicResourceMessage(bot, target, signal) {
       signal?.throwIfAborted();
       const token = await readTenantAccessToken(bot, deps, signal);

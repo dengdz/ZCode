@@ -9,7 +9,7 @@ export function exampleCollaborationStop(
   contract: BotCollaborationContract,
   message: import("@zcode/shared").BotInboundMessage,
 ) {
-  return contract.stop(message);
+  return contract.control({ kind: "stop", message });
 }
 
 /** 原生回调经过 Provider 验证后，沿同一选择能力处理。 */

@@ -33,6 +33,8 @@ const messages = {
     collaborationIdentityVerified: "身份核验及群接入完成，请回到设置刷新并保存协作配置。",
     collaborationViaPm: "请经 PM 派单；执行机器人只接收 PM 的任务。",
     collaborationUnauthorized: "当前消息没有本群协作权限，未受理任务。",
+    collaborationRecoveryUnknown:
+      "原需求的执行或发送状态尚未核对清楚，未重新派发。请先核对原任务与渠道记录；已有成果保留。",
     collaborationStopped: "本需求已停止，已有文件、改动和外部结果保留。",
     collaborationStopping:
       "正在停止本需求的执行，后续派发已阻止；仍可能有尚未结束的操作。已有文件和改动保留。",
@@ -160,6 +162,8 @@ const messages = {
     replyChanged: "第三方回复颗粒度已切换为 {mode}。",
   },
   "en-US": {
+    collaborationRecoveryUnknown:
+      "The original execution or delivery state is still unknown. No work was redispatched. Check the original task and channel records; existing results are preserved.",
     collaborationStopped:
       "This requirement has stopped. Existing files, changes and external results are preserved.",
     collaborationStopping:

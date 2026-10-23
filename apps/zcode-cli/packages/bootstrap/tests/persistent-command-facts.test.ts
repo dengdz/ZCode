@@ -1,3 +1,4 @@
+import { conversationInputIntentSchema } from "@zcode/shared/zcode-protocol-v4";
 import { describe, expect, it, vi } from "vitest";
 import type {
   MessageWithParts,
@@ -122,6 +123,85 @@ function storeFixture() {
 }
 
 describe("persistent command facts", () => {
+  it.each(["startNow", "queue", "guide"] as const)(
+    "restores typed user input only from original canonical intent: %s",
+    async (delivery) => {
+      const { store } = storeFixture();
+      const intent = conversationInputIntentSchema.parse({
+        sourceCommandId: "original",
+        queueItemId: "queue-original",
+        clientId: "bot",
+        kind: "sendText",
+        text: "original",
+        attachments: [],
+        delivery: { requested: delivery, admitted: delivery },
+        order: { admissionSeq: 1 },
+        steer: { state: "notRequested" },
+        dispatch: { state: "drained" },
+        admittedAt: 1,
+      });
+      vi.mocked(store.messages).mockResolvedValue([
+        {
+          info: {
+            id: "assistant-first",
+            role: "assistant",
+            anchor: { sourceCommandId: "original" },
+          },
+          parts: [],
+        },
+        {
+          info: {
+            id: "original-user",
+            role: "user",
+            anchor: { sourceCommandId: "original" },
+            metadata: { conversationInputIntent: intent },
+          },
+          parts: [],
+        },
+        {
+          info: {
+            id: "assistant-only",
+            role: "assistant",
+            anchor: { sourceCommandId: "assistant-command" },
+            metadata: {
+              conversationInputIntent: { ...intent, sourceCommandId: "assistant-command" },
+            },
+          },
+          parts: [],
+        },
+        {
+          info: {
+            id: "mismatch",
+            role: "user",
+            anchor: { sourceCommandId: "wrong-command" },
+            metadata: { conversationInputIntent: intent },
+          },
+          parts: [],
+        },
+        {
+          info: {
+            id: "invalid",
+            role: "user",
+            anchor: { sourceCommandId: "invalid-command" },
+            metadata: { conversationInputIntent: { sourceCommandId: "invalid-command" } },
+          },
+          parts: [],
+        },
+      ] as unknown as MessageWithParts[]);
+      const facts = await loadPersistentCommandFacts(store, sessionId);
+      expect(facts.transcript?.find((ack) => ack.commandId === "original")?.result).toEqual({
+        type: "inputAccepted",
+        inputId: "original",
+        delivery,
+      });
+      expect(
+        facts.transcript
+          ?.filter((ack) => ack.commandId !== "original")
+          .every((ack) => ack.result === undefined),
+      ).toBe(true);
+    },
+  );
+
   it("loads transcript/timeline/child/discarded by exact sourceCommandId", async () => {
     const { store } = storeFixture();
     const facts = await loadPersistentCommandFacts(store, sessionId, {

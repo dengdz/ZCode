@@ -33,3 +33,5 @@ replyRouting.ts 是同一 owner 的私有实现：沿原 ledger/read/write 与�
 11：stop 接受可信原生叫停或实际 PM 真人输入的工具意图，Local owner 先保存原需求屏障与调用关联。stopTasks 仅沿原 bot/group/thread/workspace/input 控制；运行时结果区分 stopped/stopping/unavailable。通知授权 key 保存在 Local，外部结果与重投去重仍归原 delivery owner。重复旧调用固定原需求，已停止后不再发停止命令。新需求受理前只对已确认结束、旧队列为空的原任务恢复 autoDrain；不恢复旧目标或旧输入。旧卡片与迟到交接不可越过屏障。
 
 11 补充：同一 Local 文件锁对最终输入 admission、停止控制核对与已确认后的新需求恢复互斥；停止屏障先落盘，控制前重读确认事实，锁不延伸到模型执行生命周期。不同停止调用不能携带旧计划越过新需求，配置读取统一为 readSettings 的 snapshot/binding 查询。
+
+12：原 stop 能力统一为 control 的 stop/recover 命令，同一 owner 与同一锁处理生命周期核对，公开 RPC 和工具入口不变。recover 经原任务 SDK 读取原 commandId/队列/执行来源及 owned-work，修正已证明受理的原 Bot 输入，不重放。readTask 端口的跨边界证据使用 shared 严格 schema；未知不授权继续派发。未知投递仅按原消息 ID、群/线程与核验应用发送者读取；原 delivery owner 的 confirm 是唯一状态写入路径，无 ID 或不匹配仍 unknown。有效且未领取发送的卡片/选择沿原 request 续接；claimed、旧授权、过期和停止屏障不复活。恢复仅继续原停止核对，不恢复旧队列；死进程的入站协调 token 必须同时有原输入受理或停止证据才可清理，不释放项目执行租约。recoveryNoticeIds 只领取通知 key，锁外经原 delivery owner 发送并保存真实结果；通知丢收据也不自动重发。

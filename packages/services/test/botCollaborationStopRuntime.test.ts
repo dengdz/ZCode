@@ -30,6 +30,9 @@ async function setup() {
   let rejectType: string | undefined;
   let ownedState: "idle" | "busy" | "unknown" = "busy";
   let subscription = 0;
+  let receiptsKnown = true;
+  let transformQuery: (value: unknown) => unknown = (value) => value;
+  const queries: unknown[] = [];
   const snapshot: ConversationSnapshot = {
     protocolVersion: 1,
     sessionId: "original-task",
@@ -133,6 +136,24 @@ async function setup() {
       return { ack: { subscriptionId, mode: "snapshot", logEpoch: snapshot.logEpoch } };
     },
     unsubscribeConversationV4: async () => undefined,
+    queryConversationCommandsV4: async (params: {
+      commands: Array<{ sessionId: string; commandId: string }>;
+    }) => {
+      queries.push(params);
+      return transformQuery({
+        results: params.commands.map((key) => ({
+          key,
+          result: receiptsKnown
+            ? {
+                commandId: key.commandId,
+                status: "accepted",
+                revisionAtDecision: 1,
+                result: { type: "inputAccepted", inputId: key.commandId, delivery: "queue" },
+              }
+            : "unknown",
+        })),
+      });
+    },
     sendConversationCommandV4: async ({ envelope, ...route }: { envelope: CommandEnvelope }) => {
       routes.push(route);
       commands.push(envelope);
@@ -192,6 +213,13 @@ async function setup() {
     commands,
     routes,
     target,
+    queries,
+    alterQuery: (transform: (value: unknown) => unknown) => {
+      transformQuery = transform;
+    },
+    forgetReceipts: () => {
+      receiptsKnown = false;
+    },
     reject: (type: string) => {
       rejectType = type;
     },
@@ -297,3 +325,81 @@ it("新需求恢复仅在原 owned work 与原队列都空后开启 autoDrain，
     ]),
   );
 });
+
+it("12 只读核对原 commandId 的受理与 owned-work，不能因 UI 空闲或收据缺失重放", async () => {
+  const f = await setup();
+  expect(await f.service.readBotCollaborationTask!(f.target)).toEqual({
+    ownedWork: "busy",
+    inputs: [
+      { inputId: "original-input", admission: "accepted" },
+      { inputId: "queued-input", admission: "accepted" },
+    ],
+  });
+  expect(f.queries).toEqual([
+    expect.objectContaining({
+      workspacePath: "/original-workspace",
+      commands: [
+        { sessionId: "original-task", commandId: "original-input" },
+        { sessionId: "original-task", commandId: "queued-input" },
+      ],
+    }),
+  ]);
+  expect(f.commands.map((command) => command.type)).toEqual(["inspectOwnedWork"]);
+  f.forgetReceipts();
+  f.finishOwnedWork();
+  f.snapshot.control = {
+    ...f.snapshot.control,
+    phase: "completedInterrupted",
+    stopState: "idle",
+    activeWorks: [],
+  };
+  f.snapshot.queue.items = [];
+  expect(await f.service.readBotCollaborationTask!(f.target)).toEqual({
+    ownedWork: "idle",
+    inputs: [
+      { inputId: "original-input", admission: "unknown" },
+      { inputId: "queued-input", admission: "unknown" },
+    ],
+  });
+  expect(f.commands.every((command) => command.type === "inspectOwnedWork")).toBe(true);
+});
+
+it.each(["session", "command", "missing", "duplicate", "bare", "input-id", "disconnected"])(
+  "12 外部查询证据不匹配或缺失不提升原输入：%s",
+  async (boundary) => {
+    const f = await setup();
+    f.finishOwnedWork();
+    f.snapshot.control = {
+      ...f.snapshot.control,
+      phase: "completed",
+      stopState: "idle",
+      activeWorks: [],
+    };
+    f.snapshot.queue.items = [];
+    f.alterQuery((value) => {
+      if (boundary === "disconnected") throw Error("Synthetic wire disconnected");
+      const response = value as {
+        results: Array<{
+          key: { sessionId: string; commandId: string };
+          result: {
+            commandId: string;
+            status: string;
+            revisionAtDecision: number;
+            result?: { type: string; inputId: string; delivery: string };
+          };
+        }>;
+      };
+      if (boundary === "session") response.results[0]!.key.sessionId = "another-session";
+      if (boundary === "command") response.results[0]!.key.commandId = "another-command";
+      if (boundary === "missing") response.results.pop();
+      if (boundary === "duplicate") response.results[1] = response.results[0]!;
+      if (boundary === "bare") for (const item of response.results) delete item.result.result;
+      if (boundary === "input-id")
+        for (const item of response.results) item.result.result!.inputId = "another-input";
+      return response;
+    });
+    const evidence = await f.service.readBotCollaborationTask!(f.target);
+    expect(evidence.inputs.every((item) => item.admission === "unknown")).toBe(true);
+    expect(f.commands.every((command) => command.type === "inspectOwnedWork")).toBe(true);
+  },
+);

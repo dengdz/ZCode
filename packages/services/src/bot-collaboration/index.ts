@@ -14,6 +14,7 @@ import {
 } from "@zcode/shared";
 import type { BotCollaborationContract, BotCollaborationPort } from "./contract.js";
 import { createReplyRouting, SELECTION_CARD_PREFIX } from "./replyRouting.js";
+import { createRecoveryControl, RECOVERY_STATUS_PREFIX } from "./recoveryControl.js";
 import { createStopControl, STOP_STATUS_PREFIX } from "./stopControl.js";
 import { ledgerSchema, inputSchema, proofSchema, type Ledger } from "./ledger.js";
 
@@ -272,8 +273,20 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
     return current.member.botId === config.pm.botId ? ("allow" as const) : ("redirect" as const);
   };
   const routing = createReplyRouting({ port, read, write, validMember, connectedTarget });
+  const stop = createStopControl({ port, read, write, authorize: decision, validMember });
+  const recover = createRecoveryControl({
+    port,
+    read,
+    write,
+    validMember,
+    recoverSelections: routing.recoverSelections,
+  });
   const service: BotCollaborationContract = {
-    stop: createStopControl({ port, read, write, authorize: decision, validMember }),
+    async control(command) {
+      if (command.kind === "recover") return recover(command.scope, command.notify);
+      const state = await stop(command.message);
+      return state ? { kind: "stop", state } : undefined;
+    },
     async authorize(message) {
       if (
         message.actor.chatType !== "group" ||
@@ -390,6 +403,16 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
         );
         if (previous && JSON.stringify(previous) !== JSON.stringify(input)) fail("stale");
         if (!previous) ledger.inputs.push(input);
+        for (const admission of ledger.admissions) {
+          if (
+            key(admission) === key(scope) &&
+            admission.ownerPid === process.pid &&
+            admission.botId === message.botId &&
+            admission.messageId === message.actor.providerMessageId &&
+            admission.revision === config.revision
+          )
+            admission.inputId = execution.inputId;
+        }
         await write(ledger);
         port.diagnose?.({
           ...scope,
@@ -428,6 +451,13 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
             item.tenantKey === config.authorizedUser.tenantKey,
         );
         if (!current || !original) return false;
+        if (delivery.id.startsWith(RECOVERY_STATUS_PREFIX))
+          return (
+            scope.botId === config.pm.botId &&
+            Boolean(input.recoveryNoticeIds?.includes(delivery.id)) &&
+            delivery.mentionedUserIds?.length === 1 &&
+            delivery.mentionedUserIds[0] === current.member.ownerOpenId
+          );
         if (delivery.id.startsWith(STOP_STATUS_PREFIX))
           return (
             scope.botId === config.pm.botId &&
@@ -731,9 +761,18 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
       )
         return receive();
       const scope = { provider: message.actor.provider, chatId: message.actor.chatId };
-      const admission = { ...scope, id: randomUUID(), ownerPid: process.pid };
+      const admission = {
+        ...scope,
+        id: randomUUID(),
+        ownerPid: process.pid,
+        botId: message.botId,
+        messageId: message.actor.providerMessageId,
+        threadId: message.actor.threadId,
+        revision: undefined as number | undefined,
+      };
       await withFileLock(port.file, async () => {
         const ledger = await read();
+        admission.revision = enabledConfig(ledger, scope)?.revision;
         ledger.admissions.push(admission);
         await write(ledger);
       });

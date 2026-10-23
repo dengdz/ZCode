@@ -19,6 +19,8 @@ import {
 } from "@zcode/rpc";
 import {
   coalesceConsecutiveZCodeAssistants,
+  collaborationTaskEvidenceSchema,
+  type CollaborationTaskEvidence,
   createSessionTraceId,
   decodeCustomModelValue,
   deriveZCodeTaskStatusFromSessionSnapshot,
@@ -155,6 +157,7 @@ import type {
 import { readModelTrajectory } from "./modelTrajectory.js";
 import {
   errorAttributionSchema,
+  commandsQueryResultSchema,
   type CommandType,
   type CommandPayloadMap,
 } from "@zcode/shared/zcode-protocol-v4";
@@ -1855,6 +1858,21 @@ export function createZCodeTaskServiceAdapter(
       };
     },
 
+    async readBotCollaborationTask(params) {
+      const target = taskTargets.get(params.taskId);
+      if (target && taskKey(target) !== taskKey(params))
+        throw new Error("Collaboration task workspace mismatch");
+      const workspace = {
+        workspacePath: params.workspacePath,
+        ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
+        ...(target?.remoteSessionId ? { remoteSessionId: target.remoteSessionId } : {}),
+      };
+      return readCollaborationTaskEvidence(botAgent(workspace), {
+        ...workspace,
+        sessionId: params.taskId,
+        inputIds: params.inputIds,
+      });
+    },
     async controlBotCollaborationTask(params) {
       const target = taskTargets.get(params.taskId);
       if (target && taskKey(target) !== taskKey(params))
@@ -6000,5 +6018,75 @@ async function controlCollaborationTask(
     });
     // 这是用户控制的结果边界：断线、旧 CLI 或拒绝不能降级成已停止，也不盲目重试。
     return { state: "unavailable", reason: "runtime_unavailable" };
+  }
+}
+
+/** 核对原命令，不以 unknown 证明未执行；执行与投递恢复仍归各自原 owner。 */
+async function readCollaborationTaskEvidence(
+  agent: IZCodeAgentService,
+  input: ZCodeAgentSessionTarget & { inputIds: string[] },
+): Promise<CollaborationTaskEvidence> {
+  const { sessionId, inputIds, ...workspace } = input;
+  const unknown: CollaborationTaskEvidence = {
+    ownedWork: "unknown",
+    inputs: inputIds.map((inputId) => ({ inputId, admission: "unknown" })),
+  };
+  if (new Set(inputIds).size !== inputIds.length) return unknown;
+  try {
+    const accepted = new Set<string>();
+    const QUERY_BATCH_SIZE = 64;
+    for (let offset = 0; offset < inputIds.length; offset += QUERY_BATCH_SIZE) {
+      const batch = inputIds.slice(offset, offset + QUERY_BATCH_SIZE);
+      const query = commandsQueryResultSchema.parse(
+        await agent.queryConversationCommandsV4({
+          ...workspace,
+          commands: batch.map((commandId) => ({ sessionId, commandId })),
+        }),
+      );
+      if (
+        query.results.length !== batch.length ||
+        new Set(query.results.map((item) => item.key.commandId)).size !== batch.length
+      )
+        return unknown;
+      for (const item of query.results) {
+        if (item.key.sessionId !== sessionId || !batch.includes(item.key.commandId)) return unknown;
+        const ack = item.result;
+        if (
+          ack !== "unknown" &&
+          ack.commandId === item.key.commandId &&
+          ["accepted", "duplicate"].includes(ack.status) &&
+          ack.result?.type === "inputAccepted" &&
+          ack.result.inputId === item.key.commandId
+        )
+          accepted.add(item.key.commandId);
+      }
+    }
+    const snapshot = await readBotGroupRuntimeSnapshot(agent, { ...workspace, sessionId });
+    for (const item of snapshot.queue.items)
+      if (inputIds.includes(item.sourceCommandId)) accepted.add(item.sourceCommandId);
+    for (const item of snapshot.control.activeWorks)
+      if (item.sourceCommandId && inputIds.includes(item.sourceCommandId))
+        accepted.add(item.sourceCommandId);
+    const proof = assertV4CommandAckOk(
+      "inspectOwnedWork",
+      await agent.sendConversationCommandV4({
+        ...workspace,
+        envelope: createHostCommandEnvelope({ type: "inspectOwnedWork", sessionId, payload: {} }),
+      }),
+      `session=${sessionId}`,
+    );
+    return collaborationTaskEvidenceSchema.parse({
+      ownedWork: proof.result?.type === "ownedWorkState" ? proof.result.state : "unknown",
+      inputs: inputIds.map((inputId) => ({
+        inputId,
+        admission: accepted.has(inputId) ? "accepted" : "unknown",
+      })),
+    });
+  } catch (error) {
+    logger.warn(sessionId, "Local collaboration recovery evidence unavailable", {
+      reason: "runtime_unknown",
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    return unknown;
   }
 }
