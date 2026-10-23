@@ -68,3 +68,9 @@ Status: ready-for-human
 
 - `artifacts/ZCode Local-3.16.2-local.1-mac-arm64.dmg`：204582229 bytes，SHA-256 `691259fdf917fc35860d9fcbe3824d5a3906e2dd7aafcbc121dd802d1154e934`。
 - `artifacts/ZCode Local-3.16.2-local.1-mac-arm64.zip`：195279719 bytes，SHA-256 `c0b4eea98fce3bfb3094dd63be89544db00085e15ab118569139c1b8d3e81e46`。
+
+## 复审与归档
+
+固定比较 `f2dfa97f...6b424008`，Standards / Spec 两个独立代理分别审查公开差异和合成证据，均无可操作发现。复审确认真实群与用户验收属于明确披露的未完成门禁，ready-for-human 不代表整体通过。
+
+干净提交上的 pre-push：schema 8 项、架构工具 36 项、Lint 和架构检查通过；本次仅文档/证据修改，affected 官方选择 0/2063，没有执行所选外测试。变更范围格式、36-ID 索引完整性、53 条文档链接、真实目标名称不入公开材料及冻结父规格核对通过。候选构建过程中基于官方源的 affected 全选/跳过与本次文档 pre-push 的 0 项选择分别记录，不混为一次运行。
