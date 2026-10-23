@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-live-local-ready-native-identity-and-real-group-acceptance-pending",
+  "overall": "in-progress-native-configuration-saved-real-business-demand-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -265,14 +265,28 @@
       "idleTaskReferences": 11,
       "businessMessagesSent": 0,
       "nativeIdentityVerified": false
+    },
+    "live-native-configuration": {
+      "exitCode": 0,
+      "evidence": "live-identity-settings-summary.json",
+      "scope": "real-provider-native-proof-ui-save-and-service-reread",
+      "nativeIdentitiesVerified": 2,
+      "authorizedUsers": 1,
+      "revision": 1,
+      "enabled": true,
+      "executors": 1,
+      "originalWorkspacePreserved": true,
+      "businessRequestSent": false
     }
   },
   "scenarios": {
     "T01": {
       "issues": ["../issues/zcode-local/04-group-collaboration-settings.md"],
-      "currentEvidence": ["root-related"],
-      "status": "mechanism-pass",
-      "limits": []
+      "currentEvidence": ["root-related", "live-native-configuration"],
+      "status": "native-configuration-pass-business-behavior-pending",
+      "limits": [
+        "Current native identity and real UI configuration verified; actual business dispatch and model compliance remain pending."
+      ]
     },
     "T02": {
       "issues": [
@@ -305,9 +319,11 @@
     },
     "T06": {
       "issues": ["../issues/zcode-local/04-group-collaboration-settings.md"],
-      "currentEvidence": ["root-related", "settings-ui"],
-      "status": "mechanism-pass",
-      "limits": []
+      "currentEvidence": ["root-related", "settings-ui", "live-native-configuration"],
+      "status": "native-configuration-pass-business-behavior-pending",
+      "limits": [
+        "Current native identity and real UI configuration verified; actual business dispatch and model compliance remain pending."
+      ]
     },
     "T07": {
       "issues": ["../issues/zcode-local/06-dispatch-role-validation.md"],
@@ -478,11 +494,12 @@
         "maintenance",
         "plugin-maintenance-all",
         "live-runtime",
-        "live-group-preflight"
+        "live-group-preflight",
+        "live-native-configuration"
       ],
       "status": "limited-current-credentials-pending",
       "limits": [
-        "Selected executor UI reports connected through existing credentials mechanism; secrets not extracted. Native collaboration identity and actual model behavior are still pending."
+        "Both selected robots accepted native verification through existing credentials mechanism; secrets not extracted. Model business round trip remains pending."
       ]
     },
     "T28": {
@@ -568,10 +585,10 @@
     },
     "T36": {
       "issues": ["../issues/zcode-local/18-end-to-end-acceptance.md"],
-      "currentEvidence": ["live-runtime", "live-group-preflight"],
-      "status": "native-verification-pending-before-business-scenarios",
+      "currentEvidence": ["live-runtime", "live-group-preflight", "live-native-configuration"],
+      "status": "native-configuration-pass-real-business-demand-pending",
       "limits": [
-        "Controlled Local ready and 11 task references idle. Two native identity challenges prepared; human group confirmation, saved collaboration settings, real business scenarios and final user acceptance remain pending."
+        "Two native identities verified and one real configuration revision saved/reread while idle. Human initial read-only demand, real handoffs/anomalies and final acceptance still pending."
       ]
     }
   },
