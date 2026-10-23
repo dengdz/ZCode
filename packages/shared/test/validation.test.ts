@@ -109,6 +109,20 @@ describe("hostResponseMessageSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("accepts only the strict local Host maintenance-ready payload", () => {
+    expect(
+      hostResponseMessageSchema.safeParse({
+        type: HostResponseTypes.HostReady,
+      }).success,
+    ).toBe(true);
+    expect(
+      hostResponseMessageSchema.safeParse({
+        type: HostResponseTypes.HostReady,
+        runningTaskCount: 0,
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts agent process lifecycle payload", () => {
     const spawned = hostResponseMessageSchema.safeParse({
       type: HostResponseTypes.AgentProcessSpawned,

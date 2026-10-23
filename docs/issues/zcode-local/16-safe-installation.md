@@ -1,6 +1,6 @@
 # 16: 从维护入口安全切换到候选版本
 
-Status: ready-for-agent
+Status: in-progress
 
 Issue-Tracker: local-markdown
 
@@ -35,3 +35,49 @@ Issue-Tracker: local-markdown
 
 一次只处理本 issue。实现遵循已确认测试边界和 TDD，保留无关改动；验证记录区分实际执行、合成场景与待真实验收。完成后记录改动、验证结果和既有逻辑影响，再置 done。
 
+## Implementation contract（2026-10-23）
+
+- 公开入口扩展为 `local:maintain install --candidate FILE --current-manifest FILE --home HOME --data-root ROOT --local-app APP --official-app APP --backup-root DIR`。`candidate` 是待安装的新候选，`current-manifest` 描述当前正在使用、将被备份的 Local；二者都必须是 ready 清单，入口重新核对完整应用树、版本/源码锚点、平台身份和签名，不能只信文本。全部路径显式绝对指定；只支持当前已验证的 macOS。沿用父规格已确认的维护命令/进程 seam，不另设内部函数测试边界。
+- 维护入口继续独占候选、备份和切换结果；不建立候选数据库、第二份任务队列或独立备份链。`local-launch` 独占进程观察、launch owner 和接管协议；运行时任务事实仍由 Main/Host 现有计数所有者回答。安装入口不直接写 `launch-owner.json`，也不根据进程存在、超时或备份清单文字猜测任务已结束。
+- 当前应用由 16 构建时，包内 build-meta 带 `localMaintenanceProtocol: 1`。入口先验证当前清单与包内该能力。旧应用正在运行时若不具备协议，返回需要先完全退出，不发送可能被默认处理的信号；旧应用未运行时可直接进入维护临界区。新候选也须带该能力，确保后续升级仍可安全切换。
+- 当前 Local 运行时，入口在实际数据根 `.zcode/local/maintenance/` 原子写带随机 token 的切换请求；该瞬时控制目录不属于 Local v1 业务记录，不进入 15 备份载荷。入口提供跨根 launch 排他标记，再向已验明的当前应用 PID 发送由应用处理的 `SIGUSR2`（避开 Node 的 inspector `SIGUSR1` 语义）。Main 只在所有仍存活的窗口 Host 已就绪时，以 Host 的真实运行任务计数回答；任一 Host 未就绪、计数读取失败或结果无法确认都回答 unknown。非零回答 busy。busy/unknown 均不退出、不替换，并清除失效请求与排他标记；不使用 SIGKILL/SIGTERM、不关闭系统保护。
+- Main 接受切换后置应用进入维护退出态，绕过常规交互确认但复用既有 Host/Agent 有界清理并正常 `app.quit()`。维护入口必须观察到请求 token 匹配、旧 launcher 已按原 token 释放且 Local 进程实际结束，才写 `switching` launch owner；退出失败或状态不明停止并保留原应用 owner，不把观察超时当成功。官网版本占用、任何异常 owner、多个进程或多个 root token 均拒绝。
+- `switching` owner 由 `local-launch` 后续接管，不接受普通 `run`，也不按超时回收。维护回调在同一跨根 owner 临界区内复用 15 的备份创建/verify 实现，备份参数必须使用当前应用和 `current-manifest`，不能使用待安装候选；必须在切换关键区再独立 verify 所得 backup-id。空间、复制、完整性、数据库检查、部分清理或签名失败都停在替换前。
+- 新候选先在同文件系统、目标应用父目录内复制到唯一 staging 目录并重新验签/逐项 hash；官网应用、目标 Local、home/data、备份根和 staging 按真实路径互斥。当前应用备份及候选复核均通过后，先把目标 Local 原子改名为同目录回滚目录，再把 staging 原子改名为目标。第二次改名失败必须恢复原目标；成功后仅在启动核对通过时清理回滚目录，备份仍是长期恢复依据。
+- 成功后由带一次性 takeover token 的 `local:launch` 接管 `switching` owner，启动新目标并等待新 Main 在实际 Host 就绪后写出的 runtime-ready；ready 必须匹配新 owner token、应用 PID 和候选版本。超时、进程提前退出或状态不符如实失败，不强杀可能已启动的新应用，也不删除备份；若尚未启动新进程则恢复原目标并释放 switching owner。维护入口原子写独立切换结果（候选、前后版本/源码、backup-id、时间和结果），不冒充 17 的程序回退或数据恢复。
+- “连接核对”在本票自动化中只表示新应用与本地 Host 已就绪；合成演练不连接真实模型或机器人，不读取真实凭据。真实日常切换须另由用户主动发起并在隔离验证、任务/进程/数据门禁满足后进行；无当前运行应用的首装、已有 Local 升级、busy/unknown、退出失败、备份失败、候选不兼容、替换失败、启动失败均需从命令入口观测最终磁盘、owner、备份和退出码。
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant M as 维护入口
+    participant L as 启动所有者
+    participant A as 当前应用
+    participant B as 15 备份根
+    U->>M: install（候选、当前清单、显式根）
+    M->>M: 复核候选/当前应用/版本/签名/路径
+    alt 当前 Local 正在运行
+        M->>L: 写切换请求并建立排他标记
+        M->>A: 应用内处理的 SIGUSR2
+        A->>A: 查全部 Host 与真实任务计数
+        alt busy 或 unknown
+            A-->>M: 明确拒绝退出
+            M-->>U: 停止；原应用与目标不变
+        else idle
+            A->>A: 进入维护退出并正常清理
+            A->>L: 原 token 正常退出后释放
+            M->>M: 核对旧进程消失
+        end
+    else 未运行
+        M->>M: 确认没有其他 owner/进程
+    end
+    M->>L: 写 switching owner，持有跨根锁
+    M->>B: 备份当前应用和当前清单对应数据
+    M->>B: 独立 verify backup-id
+    M->>M: staging 候选并原子替换 Local
+    M->>L: takeover token 移交给新 launcher
+    L->>A: 启动新应用
+    A-->>M: 本地 Host ready（token/pid/version）
+    M->>B: 写独立切换结果
+    M-->>U: 成功；保留 backup-id 与真实结果
+```

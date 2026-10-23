@@ -92,7 +92,15 @@ export async function checkedFixture(t, options) {
   return { ...f, base, review, bin };
 }
 
-export async function buildTools(f, { arch = process.arch } = {}) {
+export async function buildTools(
+  f,
+  {
+    arch = process.arch,
+    appEntry = "synthetic",
+    maintenanceProtocol = 1,
+    executableFixture = false,
+  } = {},
+) {
   const directory = arch === "arm64" ? "mac-arm64" : "mac";
   const asarModule = (
     await exec(
@@ -104,40 +112,51 @@ export async function buildTools(f, { arch = process.arch } = {}) {
   await mkdir(join(f.repo, "node_modules/electron"), { recursive: true });
   await writeFile(join(f.repo, "node_modules/electron/install.js"), "// synthetic installer\n");
   await writeFile(join(f.repo, ".gitignore"), "node_modules/\n");
-  await f.git("add", ".gitignore");
-  await f.git("commit", "-m", "fixture ignore");
-  const metadata = {
-    appVersion: "3.16.2-local.1",
-    buildCommitId: (await f.git("rev-parse", "HEAD")).slice(0, 8),
-    buildTime: "2026-10-23T00:00:00.000Z",
-  };
+  if (await f.git("status", "--porcelain=v1", "--", ".gitignore")) {
+    await f.git("add", ".gitignore");
+    await f.git("commit", "-m", "fixture ignore");
+  }
   await writeFile(
     join(f.bin, "pnpm"),
     `#!${process.execPath}
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,writeFile,chmod} from 'node:fs/promises';
 import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {createRequire} from 'node:module';
+import {readFileSync} from 'node:fs';
 const args=process.argv.slice(2);
 if(args.includes('--version')) { console.log('10.33.2'); process.exit(0); }
 if(args[0]==='store') { console.log(${JSON.stringify(join(f.root, "store"))});process.exit(0); }
 if(args[0]!=='bundle:desktop') process.exit(0);
+const version=JSON.parse(readFileSync('package.json','utf8')).version;
+const metadata={
+  appVersion:version,
+  buildCommitId:spawnSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).stdout.trim().slice(0,8),
+  buildTime:'2026-10-23T00:00:00.000Z',
+  ${maintenanceProtocol == null ? "" : `localMaintenanceProtocol:${maintenanceProtocol},`}
+};
 const root=process.env.ZCODE_DESKTOP_DIST_DIR;
 const app=join(root,'${directory}','ZCode Local.app');
 const source=join(root,'asar-source');
 await mkdir(join(source,'out/metadata'),{recursive:true});
-await writeFile(join(source,'package.json'),JSON.stringify({version:'3.16.2-local.1',zcodeProductFlavor:'local'}));
-await writeFile(join(source,'out/metadata/build-meta.json'),${JSON.stringify(JSON.stringify(metadata))});
+await writeFile(join(source,'package.json'),JSON.stringify({version,zcodeProductFlavor:'local'}));
+await writeFile(join(source,'out/metadata/build-meta.json'),JSON.stringify(metadata));
 await mkdir(join(app,'Contents/Resources'),{recursive:true});
 await mkdir(join(app,'Contents/MacOS'),{recursive:true});
-await writeFile(join(app,'Contents/MacOS/ZCode Local'),'synthetic');
-await writeFile(join(app,'Contents/Info.plist'),'synthetic');
+await writeFile(join(app,'Contents/MacOS/ZCode Local'),${JSON.stringify(appEntry)});
+await chmod(join(app,'Contents/MacOS/ZCode Local'),0o755);
+await writeFile(join(app,'Contents/Resources/fixture-version'),version);
+await writeFile(join(app,'Contents/Info.plist'),${JSON.stringify(
+      executableFixture
+        ? `<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>dev.zcode.app.local</string><key>CFBundleExecutable</key><string>ZCode Local</string></dict></plist>`
+        : "synthetic",
+    )});
 await mkdir(join(app,'Contents/Frameworks/Required.framework'),{recursive:true});
 await writeFile(join(app,'Contents/Frameworks/Required.framework/binary'),'required framework fixture');
 const {createPackage}=createRequire(import.meta.url)(${JSON.stringify(asarModule)});
 await createPackage(source,join(app,'Contents/Resources/app.asar'));
-await writeFile(join(root,'ZCode Local-3.16.2-local.1-mac-${arch}.dmg'),'synthetic dmg');
-const zip=join(root,'ZCode Local-3.16.2-local.1-mac-${arch}.zip');
+await writeFile(join(root,\`ZCode Local-\${version}-mac-${arch}.dmg\`),'synthetic dmg');
+const zip=join(root,\`ZCode Local-\${version}-mac-${arch}.zip\`);
 const r=spawnSync('zip',['-qr',zip,'ZCode Local.app'],{cwd:join(root,'${directory}')});process.exit(r.status??1);
 `,
     { mode: 0o755 },
@@ -171,7 +190,15 @@ if(args[0]==='attach') {
   );
   await writeFile(
     join(f.bin, "plutil"),
-    `#!${process.execPath}\nconsole.log(JSON.stringify({CFBundleIdentifier:'dev.zcode.app.local',CFBundleName:'ZCode Local',CFBundleShortVersionString:'3.16.2',CFBundleVersion:'3.16.2001'}));\n`,
+    `#!${process.execPath}
+import {readFileSync} from 'node:fs';
+import {dirname,join} from 'node:path';
+const plist=process.argv.at(-1);
+const version=readFileSync(join(dirname(plist),'Resources/fixture-version'),'utf8');
+const [short,revision]=version.split('-local.');
+const [major,minor,patch]=short.split('.').map(Number);
+console.log(JSON.stringify({CFBundleIdentifier:'dev.zcode.app.local',CFBundleName:'ZCode Local',CFBundleShortVersionString:short,CFBundleVersion:\`\${major}.\${minor}.\${patch*1000+Number(revision)}\`}));
+`,
     { mode: 0o755 },
   );
 }

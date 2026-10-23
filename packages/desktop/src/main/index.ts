@@ -92,6 +92,7 @@ import {
   InternalChannels,
 } from "@zcode/shared";
 import { logger, webRemoteControlRelayLogger } from "./logger.js";
+import { installLocalMaintenanceRuntime } from "./local-launch/index.js";
 import { markMainLaunchAppReady } from "./desktopLaunchMarks.js";
 import { createCuaPipFocusRouter, resolveCuaPipWindowKey } from "./cuaPipFocusRouter.js";
 import { createDesktopTelemetryFetch } from "./desktopTelemetryFetch.js";
@@ -668,6 +669,8 @@ const cuaPipFocusRouter = createCuaPipFocusRouter({
   },
 });
 const hostRunningTaskCountMap = new Map<ElectronUtilityProcess, number>();
+const hostReadyProcesses = new WeakSet<ElectronUtilityProcess>();
+let localMaintenanceRuntime: ReturnType<typeof installLocalMaintenanceRuntime> | undefined;
 const windowsCuaOperationIndicator = createWindowsCuaOperationIndicator({
   platform: process.platform,
   getLocale: () => currentApplicationLocale,
@@ -1297,6 +1300,26 @@ function getRunningAgentSessionCount() {
   return [...hostRunningTaskCountMap.values()].reduce((total, count) => total + count, 0);
 }
 
+function getLocalMaintenanceTaskState():
+  | { kind: "ready"; runningTaskCount: number }
+  | { kind: "unknown" } {
+  const hosts = [...windowHostProcessMap.values()];
+  if (hosts.length === 0 || hosts.some((host) => !hostReadyProcesses.has(host)))
+    return { kind: "unknown" };
+  return {
+    kind: "ready",
+    runningTaskCount: getRunningAgentSessionCount(),
+  };
+}
+
+function markLocalMaintenanceHostReady(host: ElectronUtilityProcess): void {
+  hostReadyProcesses.add(host);
+  if (localMaintenanceRuntime && getLocalMaintenanceTaskState().kind === "ready")
+    void localMaintenanceRuntime.markHostReady().catch((error: unknown) => {
+      logger.warn("[local-maintenance] failed to publish runtime ready", error);
+    });
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     const timer = setTimeout(resolve, Math.max(ms, 0));
@@ -1897,6 +1920,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
           taskRealtimeBus,
           windowHostProcessMap,
           hostRunningTaskCountMap,
+          onHostReady: markLocalMaintenanceHostReady,
           onCuaOperationStateChanged: (source, event) =>
             windowsCuaOperationIndicator.handleState(source, event),
           onCuaOperationStateSourceExited: (source) =>
@@ -2122,6 +2146,26 @@ app.whenReady().then(async () => {
     reconcileKeepAwakeBlocker();
   } catch {
     // 读取失败不影响启动，使用默认 homedir
+  }
+
+  const localLaunchToken = process.env.ZCODE_LOCAL_LAUNCH_TOKEN?.trim();
+  if (process.platform === "darwin" && ZCODE_PRODUCT_FLAVOR === "local" && localLaunchToken) {
+    localMaintenanceRuntime = installLocalMaintenanceRuntime({
+      dataRoot: getDataBaseDir(),
+      token: localLaunchToken,
+      version: ZCODE_VERSION || app.getVersion(),
+      getTaskState: getLocalMaintenanceTaskState,
+      onAccepted: () => {
+        // 维护入口已通过 Host 就绪与真实任务计数门禁；这里只跳过交互确认，仍走正常退出清理。
+        forceQuitRef.current = true;
+        explicitQuitRef.current = true;
+        app.quit();
+      },
+    });
+    if (getLocalMaintenanceTaskState().kind === "ready")
+      void localMaintenanceRuntime.markHostReady().catch((error: unknown) => {
+        logger.warn("[local-maintenance] failed to publish initial runtime ready", error);
+      });
   }
 
   // scheduler 也会打开 tasks-index；等 Host 完成统一准备，避免在启动页出现前抢先迁移。

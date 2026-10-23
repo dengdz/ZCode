@@ -4088,6 +4088,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           });
         logWindowHostTopology("base-attachment-ready");
         logger.info("local services ready, all channels registered");
+        parentPort?.postMessage({ type: HostResponseTypes.HostReady });
         // URL Host 复用相同启动开关与 Registry；项目发现不创建 logical workspace/Agent。
         void runStartupReconnectBatch({
           getSettings: () => services.get(ISettingService).get(),

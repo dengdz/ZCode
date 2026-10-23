@@ -15,12 +15,19 @@ async function main() {
     }
     if (arg === "--help") {
       console.log(
-        "local:launch --edition official|local [--home PATH] [--data-root PATH] [--official-app PATH] [--local-app PATH] -- [application arguments]",
+        "local:launch --edition official|local [--home PATH] [--data-root PATH] [--official-app PATH] [--local-app PATH] [--takeover-token TOKEN] -- [application arguments]",
       );
       return;
     }
     if (
-      !["--edition", "--home", "--data-root", "--official-app", "--local-app"].includes(arg) ||
+      ![
+        "--edition",
+        "--home",
+        "--data-root",
+        "--official-app",
+        "--local-app",
+        "--takeover-token",
+      ].includes(arg) ||
       !args[i + 1] ||
       args[i + 1]!.startsWith("--")
     )
@@ -31,16 +38,22 @@ async function main() {
   const edition = values["--edition"];
   if (edition !== "official" && edition !== "local")
     throw new Error("Select --edition official or local");
-  const result = await localLaunch.run({
-    edition: edition as LocalLaunchEdition,
-    home: values["--home"] ?? homedir(),
-    dataRoot: values["--data-root"],
-    applications: {
-      official: values["--official-app"] ?? "/Applications/ZCode.app",
-      local: values["--local-app"] ?? "/Applications/ZCode Local.app",
+  const takeoverToken = values["--takeover-token"];
+  if (takeoverToken && edition !== "local")
+    throw new Error("A takeover token can only install the Local edition");
+  const result = await localLaunch.run(
+    {
+      edition: edition as LocalLaunchEdition,
+      home: values["--home"] ?? homedir(),
+      dataRoot: values["--data-root"],
+      applications: {
+        official: values["--official-app"] ?? "/Applications/ZCode.app",
+        local: values["--local-app"] ?? "/Applications/ZCode Local.app",
+      },
+      applicationArguments,
     },
-    applicationArguments,
-  });
+    takeoverToken ? { takeoverToken } : undefined,
+  );
   console.log(JSON.stringify(result));
   if (result.kind === "blocked")
     console.error(

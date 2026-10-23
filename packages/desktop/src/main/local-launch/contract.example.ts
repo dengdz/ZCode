@@ -9,3 +9,8 @@ export async function exampleLocalLaunch(port: LocalLaunchContract, input: Local
 export async function exampleLocalMaintenance(port: LocalLaunchContract, input: LocalLaunchInput) {
   return port.withMaintenance(input, async ({ dataRoot }) => dataRoot);
 }
+
+/** 回调只能在旧应用正常退出、switching owner 已持久化后运行。 */
+export async function exampleLocalSwitch(port: LocalLaunchContract, input: LocalLaunchInput) {
+  return port.switchToCandidate(input, async ({ dataRoot }) => dataRoot);
+}

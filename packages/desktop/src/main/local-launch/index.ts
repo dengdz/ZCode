@@ -4,9 +4,30 @@ import { randomUUID } from "node:crypto";
 import { atomicWritePrivateTextFile, withFileLock } from "@zcode/shared/node";
 import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
-import type { LocalLaunchContract, LocalLaunchEdition, LocalMaintenanceInput } from "./contract.js";
+import type {
+  LocalLaunchContract,
+  LocalLaunchEdition,
+  LocalMaintenanceInput,
+  LocalSwitchInput,
+} from "./contract.js";
+import {
+  clearLocalMaintenanceFiles,
+  readLocalMaintenanceResponse,
+  readLocalMaintenanceRuntime,
+  writeLocalMaintenanceRequest,
+} from "./maintenance.js";
 import { desktopProductIdentities } from "../../../scripts/desktop-product-identity.mjs";
-export type { LocalLaunchInput, LocalLaunchResult } from "./contract.js";
+export type {
+  LocalLaunchInput,
+  LocalLaunchResult,
+  LocalSwitchInput,
+  LocalSwitchResult,
+} from "./contract.js";
+export {
+  LOCAL_MAINTENANCE_PROTOCOL,
+  installLocalMaintenanceRuntime,
+  writeLocalMaintenanceRuntime,
+} from "./maintenance.js";
 
 const execute = promisify(execFile);
 const identities = {
@@ -66,7 +87,7 @@ interface Owner {
   edition: LocalLaunchEdition;
   launcherPid: number;
   childPid?: number;
-  phase: "preparing" | "running" | "unconfirmed";
+  phase: "preparing" | "running" | "switching" | "unconfirmed";
 }
 
 function isProcessAlive(pid: number | undefined): boolean {
@@ -95,7 +116,7 @@ async function readOwner(file: string): Promise<Owner | null> {
     typeof value.token !== "string" ||
     !value.token ||
     !["official", "local"].includes(value.edition) ||
-    !["preparing", "running", "unconfirmed"].includes(value.phase) ||
+    !["preparing", "running", "switching", "unconfirmed"].includes(value.phase) ||
     !Number.isSafeInteger(value.launcherPid) ||
     value.launcherPid <= 0 ||
     (value.childPid !== undefined &&
@@ -177,7 +198,16 @@ async function maintenanceRoots(input: LocalMaintenanceInput) {
 async function admission(
   files: readonly string[],
   applications: LocalMaintenanceInput["applications"],
+  dataRoot: string,
 ) {
+  try {
+    await readFile(join(dataRoot, ".zcode/local/maintenance/switch-request.json"));
+    return { kind: "blocked", reason: "unconfirmed" } as const;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      return { kind: "blocked", reason: "unconfirmed" } as const;
+    }
+  }
   for (const file of files) {
     let current: Owner | null;
     try {
@@ -206,6 +236,142 @@ async function admission(
   return null;
 }
 
+async function consistentOwner(files: readonly string[]): Promise<Owner | null> {
+  const owners = await Promise.all(files.map((file) => readOwner(file)));
+  const present = owners.filter((owner): owner is Owner => owner !== null);
+  if (present.length === 0) return null;
+  if (present.length !== owners.length) throw new Error("Partial launch ownership");
+  const first = present[0]!;
+  if (
+    present.some(
+      (owner) =>
+        owner.token !== first.token ||
+        owner.phase !== first.phase ||
+        owner.edition !== first.edition ||
+        owner.launcherPid !== first.launcherPid ||
+        owner.childPid !== first.childPid,
+    )
+  )
+    throw new Error("Launch ownership mismatch");
+  return first;
+}
+
+async function writeOwnerFiles(files: readonly string[], owner: Owner): Promise<void> {
+  for (const file of files) await atomicWritePrivateTextFile(file, JSON.stringify(owner));
+}
+
+async function removeOwnerFiles(files: readonly string[]): Promise<void> {
+  for (const file of files) await rm(file, { force: true });
+}
+
+async function waitForCleanExit(
+  files: readonly string[],
+  applications: LocalMaintenanceInput["applications"],
+  timeoutMs: number,
+): Promise<boolean> {
+  const deadline = Date.now() + Math.max(timeoutMs, 0);
+  do {
+    const owner = await consistentOwner(files).catch(() => undefined);
+    let running: LocalLaunchEdition | null;
+    try {
+      running = await runningApplication(applications);
+    } catch {
+      return false;
+    }
+    if (owner === null && running === null) return true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  } while (Date.now() < deadline);
+  return false;
+}
+
+async function requestApplicationExit(
+  roots: { home: string; dataRoot: string; files: readonly string[] },
+  applications: LocalMaintenanceInput["applications"],
+  timeoutMs: number,
+): Promise<
+  | { kind: "idle" }
+  | { kind: "busy"; runningTaskCount: number }
+  | { kind: "unknown" }
+  | { kind: "exit-unconfirmed" }
+> {
+  const owner = await consistentOwner(roots.files).catch(() => undefined);
+  if (owner === undefined) return { kind: "unknown" };
+  if (!owner) {
+    try {
+      return (await runningApplication(applications)) === null
+        ? { kind: "idle" }
+        : { kind: "unknown" };
+    } catch {
+      return { kind: "unknown" };
+    }
+  }
+  if (
+    owner.edition !== "local" ||
+    owner.phase !== "running" ||
+    !owner.childPid ||
+    !isProcessAlive(owner.childPid) ||
+    !isProcessAlive(owner.launcherPid)
+  )
+    return { kind: "unknown" };
+  const readyDeadline = Date.now() + Math.max(timeoutMs, 0);
+  let runtimeReady = false;
+  while (Date.now() < readyDeadline) {
+    try {
+      const runtime = await readLocalMaintenanceRuntime(
+        roots.dataRoot,
+        owner.token,
+        owner.childPid,
+      );
+      if (runtime?.state === "ready") {
+        runtimeReady = true;
+        break;
+      }
+    } catch {
+      return { kind: "unknown" };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  if (!runtimeReady) return { kind: "unknown" };
+  const request = await writeLocalMaintenanceRequest({
+    dataRoot: roots.dataRoot,
+    token: owner.token,
+    appPid: owner.childPid,
+  });
+  try {
+    process.kill(owner.childPid, "SIGUSR2");
+  } catch {
+    await clearLocalMaintenanceFiles(roots.dataRoot);
+    return { kind: "unknown" };
+  }
+  const deadline = Date.now() + Math.max(timeoutMs, 0);
+  while (Date.now() < deadline) {
+    let response;
+    try {
+      response = await readLocalMaintenanceResponse(roots.dataRoot, request);
+    } catch {
+      return { kind: "unknown" };
+    }
+    if (response?.status === "busy") {
+      await clearLocalMaintenanceFiles(roots.dataRoot);
+      return { kind: "busy", runningTaskCount: response.runningTaskCount };
+    }
+    if (response?.status === "unknown") {
+      await clearLocalMaintenanceFiles(roots.dataRoot);
+      return { kind: "unknown" };
+    }
+    if (response?.status === "accepted") {
+      const clean = await waitForCleanExit(roots.files, applications, Math.max(10_000, timeoutMs));
+      if (!clean) return { kind: "exit-unconfirmed" };
+      return { kind: "idle" };
+    }
+    if (!isProcessAlive(owner.childPid)) {
+      return { kind: "exit-unconfirmed" };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return { kind: "unknown" };
+}
+
 export const localLaunch: LocalLaunchContract = {
   async withMaintenance(input, operation) {
     if (process.platform !== "darwin")
@@ -213,12 +379,101 @@ export const localLaunch: LocalLaunchContract = {
     const roots = await maintenanceRoots(input);
     if (!roots) return { kind: "blocked", reason: "data-root-mismatch" };
     return withOwnerLocks(roots.files, async () => {
-      const blocked = await admission(roots.files, input.applications);
+      const blocked = await admission(roots.files, input.applications, roots.dataRoot);
       if (blocked) return blocked;
       return { kind: "completed", value: await operation(roots) };
     });
   },
-  async run(input) {
+  async switchToCandidate(input, operation) {
+    if (process.platform !== "darwin")
+      throw new Error("Controlled Local switching currently supports macOS only");
+    const roots = await maintenanceRoots(input);
+    if (!roots) return { kind: "blocked", reason: "data-root-mismatch" };
+    const admitted = await withOwnerLocks(roots.files, async () => {
+      const owner = await consistentOwner(roots.files).catch(() => undefined);
+      if (owner === undefined) return { kind: "blocked", reason: "unknown" } as const;
+      if (owner) {
+        if (
+          owner.edition === "local" &&
+          owner.phase === "running" &&
+          owner.childPid &&
+          isProcessAlive(owner.childPid) &&
+          isProcessAlive(owner.launcherPid)
+        )
+          return null;
+        const dead = !isProcessAlive(owner.launcherPid) && !isProcessAlive(owner.childPid);
+        return {
+          kind: "blocked",
+          reason: dead || owner.phase === "unconfirmed" ? "unknown" : "occupied",
+          edition: owner.edition,
+        } as const;
+      }
+      let running: LocalLaunchEdition | null;
+      try {
+        running = await runningApplication(input.applications);
+      } catch {
+        return { kind: "blocked", reason: "unknown" } as const;
+      }
+      if (running === "official")
+        return { kind: "blocked", reason: "occupied", edition: "official" } as const;
+      if (running) return { kind: "blocked", reason: "unknown", edition: running } as const;
+      return null;
+    });
+    if (admitted) return admitted;
+
+    const exited = await requestApplicationExit(
+      roots,
+      input.applications,
+      input.requestTimeoutMs ?? 5_000,
+    );
+    if (exited.kind === "busy")
+      return {
+        kind: "blocked",
+        reason: "busy",
+        runningTaskCount: exited.runningTaskCount,
+      };
+    if (exited.kind !== "idle") return { kind: "blocked", reason: exited.kind };
+
+    const takeoverToken = randomUUID();
+    return withOwnerLocks(roots.files, async () => {
+      const current = await consistentOwner(roots.files).catch(() => undefined);
+      if (current !== null) {
+        await clearLocalMaintenanceFiles(roots.dataRoot);
+        return { kind: "blocked", reason: "unknown" } as const;
+      }
+      let running: LocalLaunchEdition | null;
+      try {
+        running = await runningApplication(input.applications);
+      } catch {
+        await clearLocalMaintenanceFiles(roots.dataRoot);
+        return { kind: "blocked", reason: "unknown" } as const;
+      }
+      if (running) {
+        await clearLocalMaintenanceFiles(roots.dataRoot);
+        return { kind: "blocked", reason: "occupied", edition: running };
+      }
+      const switching: Owner = {
+        version: 1,
+        token: takeoverToken,
+        edition: "local",
+        launcherPid: process.pid,
+        phase: "switching",
+      };
+      await writeOwnerFiles(roots.files, switching);
+      await clearLocalMaintenanceFiles(roots.dataRoot).catch(() => {});
+      try {
+        const value = await operation({ home: roots.home, dataRoot: roots.dataRoot });
+        return { kind: "completed", takeoverToken, value } as const;
+      } catch (error) {
+        const owner = await consistentOwner(roots.files).catch(() => null);
+        if (owner?.token === takeoverToken && owner.phase === "switching")
+          await removeOwnerFiles(roots.files);
+        await clearLocalMaintenanceFiles(roots.dataRoot);
+        throw error;
+      }
+    });
+  },
+  async run(input, options) {
     if (process.platform !== "darwin")
       throw new Error("Controlled Local launch currently supports macOS only");
     const executable = await resolveApplication(input.applications[input.edition], input.edition);
@@ -233,10 +488,29 @@ export const localLaunch: LocalLaunchContract = {
       phase: "preparing",
     };
     const admitted = await withOwnerLocks(files, async () => {
-      const blocked = await admission(files, input.applications);
+      if (options?.takeoverToken) {
+        const current = await consistentOwner(files).catch(() => undefined);
+        if (
+          current === undefined ||
+          current?.phase !== "switching" ||
+          current.token !== options.takeoverToken
+        )
+          return { kind: "blocked", reason: "unconfirmed" } as const;
+        let running: LocalLaunchEdition | null;
+        try {
+          running = await runningApplication(input.applications);
+        } catch {
+          return { kind: "blocked", reason: "unconfirmed" } as const;
+        }
+        if (running) return { kind: "blocked", reason: "occupied", edition: running } as const;
+        await writeOwnerFiles(files, owner);
+        await clearLocalMaintenanceFiles(dataRoot).catch(() => {});
+        return null;
+      }
+      const blocked = await admission(files, input.applications, dataRoot);
       if (blocked) return blocked;
       // native singleton 在无响应时可能强杀持有者；占用必须先持久化，之后才允许子进程访问业务数据。
-      for (const file of files) await atomicWritePrivateTextFile(file, JSON.stringify(owner));
+      await writeOwnerFiles(files, owner);
       return null;
     });
     if (admitted) return admitted;
@@ -262,6 +536,7 @@ export const localLaunch: LocalLaunchContract = {
         ZCODE_DESKTOP_HOME_DIR: home,
         ZCODE_DESKTOP_USER_DATA_DIR: profile,
         ZCODE_DESKTOP_SESSION_DATA_DIR: join(profile, "session"),
+        ZCODE_LOCAL_LAUNCH_TOKEN: owner.token,
       };
       delete env.ZCODE_DESKTOP_APPLICATION_NAME;
       delete env.ZCODE_DESKTOP_USE_ELECTRON_DEFAULT_USER_DATA;

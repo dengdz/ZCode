@@ -709,6 +709,8 @@ export const HostResponseTypes = {
   NetworkCaptureBatch: "network-capture-batch",
   /** host 内当前正在执行 prompt 的 agent session 数量变化 */
   AgentRunningTaskCountChanged: "agent-running-task-count-changed",
+  /** 本地 Host 已完成服务与 base attachment 初始化；仅用于维护切换的任务门禁。 */
+  HostReady: "host-ready",
   /** host 内指定 workspace 当前仍未 terminal 的 task 数量变化 */
   WorkspaceRunningTaskCountChanged: "workspace-running-task-count-changed",
   /** host → main：Windows desktop-local CUA turn 的操作提示状态 */

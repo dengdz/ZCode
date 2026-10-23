@@ -1295,6 +1295,12 @@ export const hostAgentRunningTaskCountChangedResponseSchema = z.object({
   runningTaskCount: z.number().int().nonnegative(),
 });
 
+export const hostReadyResponseSchema = z
+  .object({
+    type: z.literal("host-ready"),
+  })
+  .strict();
+
 export const hostWorkspaceRunningTaskCountChangedResponseSchema = z.object({
   type: z.literal("workspace-running-task-count-changed"),
   workspacePath: nonEmptyStringSchema,
@@ -1588,6 +1594,7 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostSessionCreateTelemetryResponseSchema,
   hostPluginTelemetryResponseSchema,
   hostAgentRunningTaskCountChangedResponseSchema,
+  hostReadyResponseSchema,
   hostWorkspaceRunningTaskCountChangedResponseSchema,
   hostCuaOperationStateResponseSchema,
   hostBroadcastEnvelopeSchema,

@@ -39,3 +39,21 @@ it.skipIf(process.platform !== "darwin")("维护接口不解除异常占用或�
   await expect(stat(resultFile)).rejects.toMatchObject({ code: "ENOENT" });
   expect(await readFile(owner, "utf8")).toBe("unconfirmed owner");
 });
+
+it.skipIf(process.platform !== "darwin")("切换接口不接管损坏的owner或调用替换回调", async () => {
+  const home = await mkdtemp(join(tmpdir(), "local-switch-contract-"));
+  const owner = join(home, ".zcode/local/launch-owner.json");
+  const resultFile = join(home, "must-not-switch");
+  await mkdir(join(home, ".zcode/local"), { recursive: true });
+  await writeFile(owner, "unconfirmed owner");
+  const result = await port.switchToCandidate(
+    {
+      home,
+      applications: { local: join(home, "local.app"), official: join(home, "official.app") },
+    },
+    async () => writeFile(resultFile, "unsafe switch"),
+  );
+  expect(result).toEqual({ kind: "blocked", reason: "unknown" });
+  await expect(stat(resultFile)).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await readFile(owner, "utf8")).toBe("unconfirmed owner");
+});

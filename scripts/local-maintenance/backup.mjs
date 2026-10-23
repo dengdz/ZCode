@@ -302,18 +302,49 @@ export async function backupCommand(command, options) {
   const result = await localLaunch.withMaintenance(
     { home, dataRoot, applications },
     async (roots) => {
-      const destination = absoluteOption(options["--backup-root"]);
-      const target = join(await realpath(dirname(destination)), destination.split("/").at(-1));
-      disjointBackup(target, [
-        join(roots.home, ".zcode"),
-        join(roots.dataRoot, ".zcode"),
-        await realpath(applications.local),
-        // 官网包也可能通过别名选择；复用真实路径解析，防止在未备份的原官网包内创建目录。
-        await canonicalPath(applications.official),
-      ]);
-      return withBackupRoot(destination, true, (context) => createBackup(context, options, roots));
+      return createVerifiedBackup({
+        roots,
+        localApp: applications.local,
+        officialApp: applications.official,
+        appManifest: options["--app-manifest"],
+        backupRoot: options["--backup-root"],
+      });
     },
   );
   if (result.kind !== "completed") fail(`backup-${result.reason}`);
   return result.value;
+}
+
+export async function createVerifiedBackup(input) {
+  const destination = absoluteOption(input.backupRoot);
+  const target = join(await realpath(dirname(destination)), destination.split("/").at(-1));
+  disjointBackup(target, [
+    join(input.roots.home, ".zcode"),
+    join(input.roots.dataRoot, ".zcode"),
+    await realpath(input.localApp),
+    // 官网包也可能通过别名选择；复用真实路径解析，防止在未备份的原官网包内创建目录。
+    await canonicalPath(input.officialApp),
+  ]);
+  return withBackupRoot(destination, true, (context) =>
+    createBackup(
+      context,
+      {
+        "--local-app": input.localApp,
+        "--app-manifest": input.appManifest,
+      },
+      input.roots,
+    ),
+  );
+}
+
+export async function verifyReadyBackup(backupRoot, id) {
+  return withBackupRoot(backupRoot, false, async (context) => {
+    const manifest = await verify(context, id, true);
+    return {
+      status: "usable",
+      id: manifest.id,
+      source: manifest.source,
+      components: manifest.components,
+    };
+  });
 }

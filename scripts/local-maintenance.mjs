@@ -4,13 +4,14 @@ import { join } from "node:path";
 import { backupCommand } from "./local-maintenance/backup.mjs";
 import { build } from "./local-maintenance/build.mjs";
 import { check, safeOutput } from "./local-maintenance/checks.mjs";
+import { installCommand } from "./local-maintenance/install.mjs";
 import { git, fail } from "./local-maintenance/process.mjs";
 
 async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (command === "--help") {
     console.log(
-      "local:maintain check|build --fork owner/repo --review FILE --output DIR\nlocal:maintain backup --home HOME --data-root ROOT --local-app APP --official-app APP --app-manifest FILE --backup-root DIR\nlocal:maintain backup-list --backup-root DIR\nlocal:maintain backup-verify --backup-root DIR --id ID",
+      "local:maintain check|build --fork owner/repo --review FILE --output DIR\nlocal:maintain backup --home HOME --data-root ROOT --local-app APP --official-app APP --app-manifest FILE --backup-root DIR\nlocal:maintain backup-list --backup-root DIR\nlocal:maintain backup-verify --backup-root DIR --id ID\nlocal:maintain install --candidate FILE --current-manifest FILE --home HOME --data-root ROOT --local-app APP --official-app APP --backup-root DIR",
     );
     return;
   }
@@ -25,6 +26,15 @@ async function main() {
     ],
     "backup-list": ["--backup-root"],
     "backup-verify": ["--backup-root", "--id"],
+    install: [
+      "--candidate",
+      "--current-manifest",
+      "--home",
+      "--data-root",
+      "--local-app",
+      "--official-app",
+      "--backup-root",
+    ],
   };
   const allowed = backupOptions[command] ?? ["--fork", "--review", "--output"];
   if (!["check", "build", ...Object.keys(backupOptions)].includes(command)) fail("arguments");
@@ -37,6 +47,10 @@ async function main() {
   }
   if (backupOptions[command]) {
     if (allowed.some((key) => !options[key])) fail("arguments");
+    if (command === "install") {
+      console.log(JSON.stringify(await installCommand(options)));
+      return;
+    }
     console.log(JSON.stringify(await backupCommand(command, options)));
     return;
   }

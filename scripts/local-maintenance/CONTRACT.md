@@ -3,7 +3,7 @@
 维护脚本的 check/build 产品契约以 [14 工单](../../docs/issues/zcode-local/14-versioned-candidates.md) 为准，备份以 [15 工单](../../docs/issues/zcode-local/15-backup-retention.md) 为准，父规格保持冻结。
 这是仓库脚本层，不是 Desktop Main/Host 或 CLI/runtime 的业务模块；`architecture-policy.yaml` 目前不托管 scripts，不能把架构检查通过当作此脚本运行行为已获验证。
 
-公开进程入口：根目录 `pnpm local:maintain check|build --fork owner/repo --review FILE --output DIR`。
+公开进程入口：根目录 `pnpm local:maintain check|build --fork owner/repo --review FILE --output DIR`；备份与安装的显式参数见下文。
 无隐式命令，无常驻任务。`--output` 必须为全新、仓库外、非日常应用/数据的绝对路径；父目录需已存在。
 退出码：0 表示本次 check 允许构建或本次 build 产物已验证，1 表示拒绝/失败。stdout 为阶段和结果 JSON 行，stderr 为错误码，不回显原始子进程输出。原始构建输出保存在 output/logs，仅供本机审阅。
 
@@ -22,3 +22,9 @@ API 实时核对上游 commit 和公开 fork；本机已有相同 Git 对象可�
 ## 备份（15）
 
 备份契约见 [15 Implementation contract](../../docs/issues/zcode-local/15-backup-retention.md#implementation-contract2026-10-23)。同一入口提供 backup、backup-list、backup-verify；备份根与来源全部显式选择，不隐式访问日常数据。backup 使用当前 Local 的 candidate.json 对应完整应用，持有 local-launch 公开维护临界区；ready backup.json 是唯一成功事实。清单内容每次重验，保留策略按数据身份保护最近三组有效恢复基线。失败不执行安装，也不清理旧基线。恢复演练只写本次备份根的独立临时副本，不覆盖源；业务恢复仍归 17。
+
+## 安装（16）
+
+安装契约见 [16 Implementation contract](../../docs/issues/zcode-local/16-safe-installation.md#implementation-contract2026-10-23)。`local:maintain install` 接收新 `candidate.json`、描述当前 Local 的 `candidate.json`、显式 home/data/应用/备份根；两个清单和完整应用树每次都重新核对，新候选 build-meta 必须声明 `localMaintenanceProtocol: 1`。当前应用正在运行但旧构建没有该协议时要求先完全退出，不发送可能被默认处理的信号。
+
+入口通过 `local-launch.switchToCandidate` 等待旧应用按 Host readiness/真实任务计数门禁正常退出，再持有 switching owner 完成当前应用 15 备份、独立 verify、同文件系统 staging、候选再验签和原子替换。备份失败不替换；第二次 rename 失败恢复旧目标；启动失败保留 ready 备份与同目录 previous 应用，不强杀不确定进程。成功由 takeover launcher 启动新应用，等待新 token/PID/version 对应的本地 Host ready 后写独立 `switch-<UUID>/switch.json`。本入口不连接真实模型/机器人，不提供 17 的数据恢复。

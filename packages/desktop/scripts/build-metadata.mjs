@@ -90,6 +90,7 @@ export function collectBuildMetadata() {
     ),
     buildCommitId: resolveCommitId(),
     buildTime: new Date().toISOString(),
+    localMaintenanceProtocol: 1,
     electronBuilderVersion: resolveInstalledPackageVersion(
       "electron-builder",
       desktopPackageJson.devDependencies?.["electron-builder"],
@@ -107,7 +108,8 @@ export function readBuildMetadata() {
     return {
       ...metadata,
       minCompatibleVersion:
-        typeof metadata.minCompatibleVersion === "string" && metadata.minCompatibleVersion.length > 0
+        typeof metadata.minCompatibleVersion === "string" &&
+        metadata.minCompatibleVersion.length > 0
           ? normalizeVersion(metadata.minCompatibleVersion)
           : normalizeVersion(metadata.appVersion),
     };

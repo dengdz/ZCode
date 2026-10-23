@@ -36,6 +36,7 @@ async function fixture() {
     appArgs: string[] = [],
     requestedHome = home,
     dataRoot?: string,
+    takeoverToken?: string,
   ) => {
     const child = spawn(
       process.execPath,
@@ -50,6 +51,7 @@ async function fixture() {
         join(root, "official.app"),
         "--local-app",
         join(root, "local.app"),
+        ...(takeoverToken ? ["--takeover-token", takeoverToken] : []),
         ...(dataRoot ? ["--data-root", dataRoot] : []),
         "--",
         ...appArgs,
@@ -428,3 +430,37 @@ it.skipIf(process.platform !== "darwin")("不同home指向同一业务根时并�
   await writeFile(join(winnerHome, `release-${winner}`), "exit");
   expect((await (winner === "official" ? a : b).done).code).toBe(0);
 });
+
+it.skipIf(process.platform !== "darwin")(
+  "switching owner只允许匹配的takeover启动并转为running",
+  async () => {
+    const { home, launch } = await fixture();
+    const owner = join(home, ".zcode/local/launch-owner.json");
+    await mkdir(join(home, ".zcode/local"), { recursive: true });
+    await writeFile(
+      owner,
+      JSON.stringify({
+        version: 1,
+        token: "switch-token",
+        edition: "local",
+        launcherPid: process.pid,
+        phase: "switching",
+      }),
+    );
+    const rejected = await launch("local").done;
+    expect(rejected.code).toBe(2);
+    expect(rejected.output).toContain('"reason":"occupied"');
+    await expect(readFile(join(home, "observed-local.json"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+
+    const takeover = launch("local", ["--hold"], home, undefined, "switch-token");
+    await observed(home, "local");
+    expect(JSON.parse(await readFile(owner, "utf8"))).toMatchObject({
+      edition: "local",
+      phase: "running",
+    });
+    await writeFile(join(home, "release-local"), "exit");
+    expect((await takeover.done).code).toBe(0);
+  },
+);

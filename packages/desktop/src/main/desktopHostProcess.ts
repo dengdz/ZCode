@@ -173,6 +173,7 @@ export function spawnHostProcess(
     taskRealtimeBus?: TaskRealtimeBus;
     windowHostProcessMap: Map<number, ElectronUtilityProcess>;
     hostRunningTaskCountMap: Map<ElectronUtilityProcess, number>;
+    onHostReady?: (child: ElectronUtilityProcess) => void;
     onWorkspaceRunningTaskCountChanged?: (
       child: ElectronUtilityProcess,
       event: {
@@ -583,6 +584,11 @@ export function spawnHostProcess(
       dependencies.logger.info(
         `[app-quit] host running agent sessions updated (${label}) count=${result.data.runningTaskCount}`,
       );
+      return;
+    }
+
+    if (result.data.type === HostResponseTypes.HostReady) {
+      dependencies.onHostReady?.(child);
       return;
     }
 
