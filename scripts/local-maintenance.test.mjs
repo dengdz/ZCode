@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 const exec = promisify(execFile);
@@ -148,7 +149,8 @@ test("dependency preparation failure stops the existing build chain and never ma
   assert.match(r.stderr, /command-failed:pnpm/);
   await assert.rejects(readFile(join(f.output, "candidate.json")));
 });
-async function buildTools(f) {
+async function buildTools(f, { arch = process.arch } = {}) {
+  const directory = arch === "arm64" ? "mac-arm64" : "mac";
   const asarModule = (
     await exec(
       process.execPath,
@@ -175,9 +177,10 @@ import {spawnSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 const args=process.argv.slice(2);
 if(args.includes('--version')) { console.log('10.33.2'); process.exit(0); }
+if(args[0]==='store') { console.log(${JSON.stringify(join(f.root, "store"))});process.exit(0); }
 if(args[0]!=='bundle:desktop') process.exit(0);
 const root=process.env.ZCODE_DESKTOP_DIST_DIR;
-const app=join(root,'mac-${process.arch}','ZCode Local.app');
+const app=join(root,'${directory}','ZCode Local.app');
 const source=join(root,'asar-source');
 await mkdir(join(source,'out/metadata'),{recursive:true});
 await writeFile(join(source,'package.json'),JSON.stringify({version:'3.16.2-local.1',zcodeProductFlavor:'local'}));
@@ -186,11 +189,13 @@ await mkdir(join(app,'Contents/Resources'),{recursive:true});
 await mkdir(join(app,'Contents/MacOS'),{recursive:true});
 await writeFile(join(app,'Contents/MacOS/ZCode Local'),'synthetic');
 await writeFile(join(app,'Contents/Info.plist'),'synthetic');
+await mkdir(join(app,'Contents/Frameworks/Required.framework'),{recursive:true});
+await writeFile(join(app,'Contents/Frameworks/Required.framework/binary'),'required framework fixture');
 const {createPackage}=createRequire(import.meta.url)(${JSON.stringify(asarModule)});
 await createPackage(source,join(app,'Contents/Resources/app.asar'));
-await writeFile(join(root,'ZCode Local-3.16.2-local.1-mac-${process.arch}.dmg'),'synthetic dmg');
-const zip=join(root,'ZCode Local-3.16.2-local.1-mac-${process.arch}.zip');
-const r=spawnSync('zip',['-qr',zip,'ZCode Local.app'],{cwd:join(root,'mac-${process.arch}')});process.exit(r.status??1);
+await writeFile(join(root,'ZCode Local-3.16.2-local.1-mac-${arch}.dmg'),'synthetic dmg');
+const zip=join(root,'ZCode Local-3.16.2-local.1-mac-${arch}.zip');
+const r=spawnSync('zip',['-qr',zip,'ZCode Local.app'],{cwd:join(root,'${directory}')});process.exit(r.status??1);
 `,
     { mode: 0o755 },
   );
@@ -208,15 +213,19 @@ import {join} from 'node:path';
 const args=process.argv.slice(2);
 if(args[0]==='attach') {
  const mount=args[args.indexOf('-mountpoint')+1];
- await cp(join(process.env.ZCODE_DESKTOP_DIST_DIR,'mac-${process.arch}','ZCode Local.app'),join(mount,'ZCode Local.app'),{recursive:true});
+ await cp(join(process.env.ZCODE_DESKTOP_DIST_DIR,'${directory}','ZCode Local.app'),join(mount,'ZCode Local.app'),{recursive:true});
  if(process.env.FIXTURE_DMG_STALE) await writeFile(join(mount,'ZCode Local.app/Contents/Resources/app.asar'),'stale');
 }
 `,
     { mode: 0o755 },
   );
-  await writeFile(join(f.bin, "lipo"), `#!${process.execPath}\nconsole.log('${process.arch}');\n`, {
-    mode: 0o755,
-  });
+  await writeFile(
+    join(f.bin, "lipo"),
+    `#!${process.execPath}\nconsole.log('${arch === "x64" ? "x86_64" : arch}');\n`,
+    {
+      mode: 0o755,
+    },
+  );
   await writeFile(
     join(f.bin, "plutil"),
     `#!${process.execPath}\nconsole.log(JSON.stringify({CFBundleIdentifier:'dev.zcode.app.local',CFBundleName:'ZCode Local',CFBundleShortVersionString:'3.16.2',CFBundleVersion:'3.16.2001'}));\n`,
@@ -479,4 +488,93 @@ test("byte-identical public upstream objects do not block a generic local source
     f.output,
   );
   assert.equal(r.code, 0, r.stderr);
+});
+test("isolated HOME keeps the established dependency store without purging modules", async (t) => {
+  const f = await checkedFixture(t);
+  await buildTools(f);
+  const tool = join(f.bin, "pnpm");
+  await writeFile(
+    tool,
+    (await readFile(tool, "utf8")).replace(
+      "if(args[0]!=='bundle:desktop')",
+      `if(args[0]==='store') { console.log(${JSON.stringify(join(f.root, "store"))});process.exit(0); }\nif(args[0]==='install'&&!args.includes('--store-dir')) process.exit(25);\nif(args[0]!=='bundle:desktop')`,
+    ),
+  );
+  const r = await f.run(
+    "build",
+    "--fork",
+    "fixture/ZCode",
+    "--review",
+    f.review,
+    "--output",
+    f.output,
+  );
+  assert.equal(r.code, 0, r.stderr);
+});
+
+test("a symlinked daily data root is still forbidden as candidate output", async (t) => {
+  const f = await checkedFixture(t);
+  const actual = join(f.root, "daily-data"),
+    alias = join(f.root, "daily-link");
+  await mkdir(actual);
+  await symlink(actual, alias);
+  f.env.ZCODE_DATA_BASE_DIR = alias;
+  const r = await f.run(
+    "check",
+    "--fork",
+    "fixture/ZCode",
+    "--review",
+    f.review,
+    "--output",
+    join(alias, "candidate"),
+  );
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /unsafe-output/);
+  await assert.rejects(readFile(join(actual, "candidate/check.json")));
+});
+
+test("Intel macOS follows electron-builder mac directory and Mach-O x86_64 naming", async (t) => {
+  const f = await checkedFixture(t);
+  await buildTools(f, { arch: "x64" });
+  const preload = join(f.root, "intel-host.mjs");
+  await writeFile(preload, "Object.defineProperty(process,'arch',{value:'x64'});\n");
+  f.env.NODE_OPTIONS = "--import=" + pathToFileURL(preload).href;
+  const r = await f.run(
+    "build",
+    "--fork",
+    "fixture/ZCode",
+    "--review",
+    f.review,
+    "--output",
+    f.output,
+  );
+  assert.equal(r.code, 0, r.stderr);
+  const c = JSON.parse(await readFile(join(f.output, "candidate.json"), "utf8"));
+  assert.equal(c.arch, "x64");
+  assert.equal(c.app, "artifacts/mac/ZCode Local.app");
+});
+
+test("a ZIP missing framework members cannot become a ready candidate", async (t) => {
+  const f = await checkedFixture(t);
+  await buildTools(f);
+  const tool = join(f.bin, "pnpm");
+  await writeFile(
+    tool,
+    (await readFile(tool, "utf8")).replace(
+      "['-qr',zip,'ZCode Local.app']",
+      "['-q',zip,'ZCode Local.app/Contents/Resources/app.asar','ZCode Local.app/Contents/Info.plist','ZCode Local.app/Contents/MacOS/ZCode Local']",
+    ),
+  );
+  const r = await f.run(
+    "build",
+    "--fork",
+    "fixture/ZCode",
+    "--review",
+    f.review,
+    "--output",
+    f.output,
+  );
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /archive-package-mismatch/);
+  await assert.rejects(readFile(join(f.output, "candidate.json")));
 });

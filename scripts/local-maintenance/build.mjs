@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
-import { join } from "node:path";
+import { join, isAbsolute } from "node:path";
 import { verifyArtifacts } from "./artifacts.mjs";
 import { digest, cleanSource, json } from "./checks.mjs";
 import { run, git, fail } from "./process.mjs";
@@ -18,6 +18,9 @@ export async function build(report, output) {
     (await run("pnpm", ["--version"])) !== pnpm
   )
     fail("toolchain-mismatch");
+  // 隔离 HOME 会改变 pnpm 默认 store，导致非交互安装尝试清空已有 node_modules；固定复用声明工具链当前使用的依赖缓存，不改全局配置。
+  const store = await run("pnpm", ["store", "path", "--silent"]);
+  if (!isAbsolute(store)) fail("dependency-store-invalid");
   const home = join(output, "home");
   const data = join(output, "data");
   const artifacts = join(output, "artifacts");
@@ -34,10 +37,11 @@ export async function build(report, output) {
     ZCODE_LOCAL_IDENTITY: "1",
     ZCODE_PREVIEW_IDENTITY: "0",
     ZCODE_DESKTOP_DIST_DIR: artifacts,
+    npm_config_store_dir: store,
     ARCHITECTURE_BASE: "upstream/main",
   };
   const stages = [
-    ["install", "pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"]],
+    ["install", "pnpm", ["install", "--frozen-lockfile", "--ignore-scripts", "--store-dir", store]],
     ["electron", process.execPath, ["node_modules/electron/install.js"]],
     ["native", "pnpm", ["--filter", "@zcode/desktop", "postinstall"]],
     ["typecheck", "pnpm", ["typecheck"]],

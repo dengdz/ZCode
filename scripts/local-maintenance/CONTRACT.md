@@ -15,4 +15,6 @@ build 用当前 Git 工作树的 `.git/local-maintenance.lock`（worktree 使用
 
 API 实时核对上游 commit 和公开 fork；本机已有相同 Git 对象可复用，缺失则实际 fetch。任何网络失败均停止，不回退本地旧 ref。`git cherry` 只发现精确补丁等价；精确等价项需显式 retired 且能在当前源码重新应用（说明本地效果已移除），否则停止。语义修复与能力缺口由带证据的 review 负责。
 
-当前 build 只在 macOS arm64/x64 执行既有工具链，并核对 ASAR 元数据、平台版本、ad-hoc/runtime 签名、架构、ZIP 和只读挂载 DMG 内的应用。不会启动应用、安装、创建标签或推送；其他平台明确拒绝，不能视作已验证。
+当前 build 只在 macOS arm64/x64 执行既有工具链，并核对 ASAR 元数据、平台版本、ad-hoc/runtime 签名、架构、ZIP 全部应用文件/链接的类型/权限/内容（与已验签应用逐项相同）和只读挂载 DMG 内的完整应用。不会启动应用、安装、创建标签或推送；其他平台明确拒绝，不能视作已验证。
+
+构建在隔离 HOME 下运行，但显式复用调用者已使用的 pnpm store 依赖缓存，避免 HOME 改变触发 node_modules purge；不修改全局 pnpm 配置，不访问日常业务数据。

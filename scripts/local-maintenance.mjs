@@ -55,7 +55,7 @@ async function main() {
     if (lock) await rm(lock, { recursive: true });
   }
 }
-main().catch((e) => {
+await main().catch((e) => {
   console.error(
     JSON.stringify({ status: "blocked", reason: e.maintenanceCode ?? "maintenance-failed" }),
   );

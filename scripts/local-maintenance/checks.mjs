@@ -1,5 +1,5 @@
 import { readFile, access, realpath, lstat } from "node:fs/promises";
-import { resolve, join, relative, isAbsolute, parse } from "node:path";
+import { resolve, join, relative, isAbsolute, parse, dirname, basename } from "node:path";
 import { homedir } from "node:os";
 import { git, run, fail } from "./process.mjs";
 import { createHash } from "node:crypto";
@@ -29,13 +29,22 @@ export async function cleanSource() {
     fail("git-operation-in-progress");
   }
 }
+async function canonicalPath(path) {
+  const absolute = resolve(path);
+  try {
+    return await realpath(absolute);
+  } catch (e) {
+    if (e.code !== "ENOENT") throw e;
+    return join(await canonicalPath(dirname(absolute)), basename(absolute));
+  }
+}
 export async function safeOutput(value) {
   if (!value || !isAbsolute(value)) fail("explicit-output-required");
   const requested = resolve(value);
   const parent = await realpath(resolve(requested, ".."));
   const output = join(parent, parse(requested).base);
   const repo = await realpath(await git("rev-parse", "--show-toplevel"));
-  for (const forbidden of [
+  for (const forbiddenPath of [
     repo,
     join(homedir(), ".zcode"),
     join(homedir(), ".zcode-dev-home"),
@@ -43,11 +52,12 @@ export async function safeOutput(value) {
     "/Applications",
     "/System",
     "/Library",
+    ...(process.env.ZCODE_DATA_BASE_DIR ? [process.env.ZCODE_DATA_BASE_DIR] : []),
   ]) {
+    // 日常根和候选根必须使用同一真实路径语义，避免符号链接别名绕过数据隔离。
+    const forbidden = await canonicalPath(forbiddenPath);
     if (within(forbidden, output) || within(output, forbidden)) fail("unsafe-output");
   }
-  if (process.env.ZCODE_DATA_BASE_DIR && within(resolve(process.env.ZCODE_DATA_BASE_DIR), output))
-    fail("unsafe-output");
   try {
     await lstat(output);
   } catch (e) {

@@ -1,17 +1,14 @@
-import { createReadStream } from "node:fs";
 import { mkdir, stat } from "node:fs/promises";
-import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { run, fail } from "./process.mjs";
-export async function fileHash(path) {
-  const hash = createHash("sha256");
-  for await (const chunk of createReadStream(path)) hash.update(chunk);
-  return hash.digest("hex");
-}
+import { fileHash, applicationTree, treeDigest, verifyZipApplication } from "./package-tree.mjs";
 export async function verifyArtifacts(report, artifacts, logs, env) {
-  const app = join(artifacts, `mac-${process.arch}`, "ZCode Local.app");
+  // electron-builder 的 Intel 目录是 mac，lipo 采用 Mach-O 名称 x86_64；两者都不能直接套用 Node 的 x64。
+  const appDirectory = process.arch === "arm64" ? "mac-arm64" : "mac";
+  const machArchitecture = process.arch === "x64" ? "x86_64" : process.arch;
+  const app = join(artifacts, appDirectory, "ZCode Local.app");
   const asar = join(app, "Contents/Resources/app.asar");
   const require = createRequire(
     fileURLToPath(new URL("../../packages/desktop/package.json", import.meta.url)),
@@ -59,7 +56,7 @@ export async function verifyArtifacts(report, artifacts, logs, env) {
     fail("signature-policy");
   if (
     (await run("lipo", ["-archs", join(app, "Contents/MacOS/ZCode Local")], { env })) !==
-    process.arch
+    machArchitecture
   )
     fail("package-architecture");
   const stem = `ZCode Local-${report.source.version}-mac-${process.arch}`;
@@ -68,18 +65,8 @@ export async function verifyArtifacts(report, artifacts, logs, env) {
   await run("hdiutil", ["verify", dmg], { env, log: join(logs, "dmg.log") });
   await run("unzip", ["-tq", zip], { env, log: join(logs, "zip.log") });
   const asarHash = await fileHash(asar);
-  const members = [
-    "Contents/Resources/app.asar",
-    "Contents/Info.plist",
-    "Contents/MacOS/ZCode Local",
-  ];
-  for (const member of members) {
-    if (
-      (await run("unzip", ["-p", zip, `ZCode Local.app/${member}`], { env, hashStdout: true })) !==
-      (await fileHash(join(app, member)))
-    )
-      fail("archive-package-mismatch");
-  }
+  const members = await applicationTree(app);
+  await verifyZipApplication(zip, members, require("yauzl"));
   const mount = join(artifacts, "verify-dmg");
   await mkdir(mount);
   await run(
@@ -88,13 +75,8 @@ export async function verifyArtifacts(report, artifacts, logs, env) {
     { env, log: join(logs, "dmg-mount.log") },
   );
   try {
-    for (const member of members) {
-      if (
-        (await fileHash(join(mount, "ZCode Local.app", member))) !==
-        (await fileHash(join(app, member)))
-      )
-        fail("dmg-package-mismatch");
-    }
+    if (treeDigest(await applicationTree(join(mount, "ZCode Local.app"))) !== treeDigest(members))
+      fail("dmg-package-mismatch");
     await run("codesign", ["--verify", "--deep", "--strict", join(mount, "ZCode Local.app")], {
       env,
       log: signatureLog,
@@ -110,13 +92,14 @@ export async function verifyArtifacts(report, artifacts, logs, env) {
       sha256: await fileHash(path),
     });
   return {
-    app: `artifacts/mac-${process.arch}/ZCode Local.app`,
+    app: `artifacts/${appDirectory}/ZCode Local.app`,
     package: {
       version: packaged.package.version,
       flavor: packaged.package.zcodeProductFlavor,
       metadata: packaged.metadata,
       plist,
       asarSha256: asarHash,
+      appTreeSha256: treeDigest(members),
       signing: "adhoc+runtime",
     },
     artifacts: files,
