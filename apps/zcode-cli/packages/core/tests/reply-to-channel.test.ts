@@ -222,6 +222,42 @@ it("Local silent is an input-bound control result, not a delivery or completion 
   expect(properties.collaboration!.properties.kind!.enum).toContain("silent");
 });
 
+it("Local acceptance is an input-bound PM control result with no delivery receipt", async () => {
+  const f = fixture();
+  f.reply.mockResolvedValue({ status: "acceptance_recorded" } as never);
+  const result = await replyToChannelHandler(
+    { parts: [{ type: "text", text: "" }], collaboration: { kind: "accept" } },
+    f.context,
+  );
+  expect(result).toEqual({ status: "acceptance_recorded" });
+  expect(f.reply.mock.calls[0]?.[0]).toMatchObject({
+    taskId: "task",
+    inputId: "input",
+    toolCallId: "call",
+    collaboration: { kind: "accept" },
+  });
+  expect(replyToChannelToolEntry.runtimeOutputSchema!.parse(result)).toEqual({
+    status: "acceptance_recorded",
+  });
+  expect(() =>
+    replyToChannelToolEntry.runtimeOutputSchema!.parse({
+      status: "acceptance_recorded",
+      deliveryId: "forged",
+    }),
+  ).toThrow();
+  expect(() =>
+    replyToChannelToolEntry.runtimeInputSchema!.parse({
+      parts: [{ type: "text", text: "" }],
+      collaboration: { kind: "accept", targetBotId: "app" },
+    }),
+  ).toThrow();
+  const properties = replyToChannelToolEntry.inputSchema!.properties as Record<
+    string,
+    { properties: Record<string, { enum: string[] }> }
+  >;
+  expect(properties.collaboration!.properties.kind!.enum).toContain("accept");
+});
+
 it("candidate selection retains original task and duty and never claims delivery", async () => {
   const f = fixture();
   const waiting = { status: "awaiting_selection", selectionId: "opaque-card", state: "awaiting" };

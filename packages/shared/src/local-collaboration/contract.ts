@@ -18,6 +18,7 @@ export const collaborationReplyIntentSchema = z.discriminatedUnion("kind", [
     })
     .strict(),
   z.object({ kind: z.literal("final") }).strict(),
+  z.object({ kind: z.literal("accept") }).strict(),
   z.object({ kind: z.literal("silent") }).strict(),
   z.object({ kind: z.literal("stop") }).strict(),
 ]);
@@ -109,6 +110,9 @@ export const collaborationBlockedResultSchema = z
       "recipient_mismatch",
       "reference_unavailable",
       "recovery_unknown",
+      "acceptance_not_ready",
+      "acceptance_same_turn",
+      "acceptance_requires_user",
     ]),
     message: z.string().min(1).max(1000),
     targetBotId: id.optional(),

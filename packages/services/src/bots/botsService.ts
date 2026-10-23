@@ -9153,6 +9153,9 @@ export function createBotsService(
         },
         deliver: (bot, chatId, threadId, result) =>
           getGroupDeliverySender(bot, chatId, threadId)(result),
+        settle: async (scope, delivery) => {
+          await collaboration?.recordReplySent(scope, delivery);
+        },
       });
       if (result.status === "awaiting_selection" && result.state === "awaiting") {
         const card = await collaboration?.recipientSelection({
@@ -9234,7 +9237,19 @@ export function createBotsService(
           },
         });
         const saved = (await repo.readState()).bots[key]?.group?.deliveries?.[params.deliveryId];
-        if (params.received && saved?.status === "sent") return saved;
+        if (params.received && saved?.status === "sent") {
+          // 人工核对补齐丢失回执后，仍需沿原 Local 阶段意图推进待验收，不能只改投递状态。
+          await collaboration!.recordReplySent(
+            {
+              provider: binding.binding.provider,
+              chatId: params.chatId,
+              botId: params.botId,
+              threadId: params.threadId,
+            },
+            saved,
+          );
+          return saved;
+        }
         throw new Error(
           "Local delivery remains unknown or already confirmed; do not turn missing receipts into resend permission",
         );

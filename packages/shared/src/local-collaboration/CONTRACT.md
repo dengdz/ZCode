@@ -7,3 +7,5 @@ Local 群协作配置的共享运行时协议，独立于官网 Bots v3。设置
 05 增加严格的 ReplyToChannel 协作意图 union（dispatch/report/question/final），只接收本机机器人选项，不接受平台 ID、原需求用户或任意扩展字段。未传意图仍兼容原渠道协议；是否必须使用意图由 Host 按群配置决定。
 
 06：requiredDuty 是 PM 对派单或执行者追问的职责声明，按当前配置精确比较；协议保留缺省以便 Host 返回 required_duty_missing。严格 blocked 结果表示尚未发送，携带 reason/message 及必要的职责比较信息，不是投递回执。
+
+13：accept 是 PM-only 的验收控制意图，不接受 target、平台身份或扩展字段；Host 只在已送达 final 后的可信真人输入上返回严格 `{status: acceptance_recorded}`，否则复用 blocked 说明需求仍开放。它是 Local 需求阶段结果，不是渠道投递回执，也不由模型提交原需求用户或阶段事实。

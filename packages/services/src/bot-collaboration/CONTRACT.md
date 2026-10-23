@@ -35,3 +35,5 @@ replyRouting.ts 是同一 owner 的私有实现：沿原 ledger/read/write 与�
 11 补充：同一 Local 文件锁对最终输入 admission、停止控制核对与已确认后的新需求恢复互斥；停止屏障先落盘，控制前重读确认事实，锁不延伸到模型执行生命周期。不同停止调用不能携带旧计划越过新需求，配置读取统一为 readSettings 的 snapshot/binding 查询。
 
 12：原 stop 能力统一为 control 的 stop/recover 命令，同一 owner 与同一锁处理生命周期核对，公开 RPC 和工具入口不变。recover 经原任务 SDK 读取原 commandId/队列/执行来源及 owned-work，修正已证明受理的原 Bot 输入，不重放。readTask 端口的跨边界证据使用 shared 严格 schema；未知不授权继续派发。未知投递仅按原消息 ID、群/线程与核验应用发送者读取；原 delivery owner 的 confirm 是唯一状态写入路径，无 ID 或不匹配仍 unknown。有效且未领取发送的卡片/选择沿原 request 续接；claimed、旧授权、过期和停止屏障不复活。恢复仅继续原停止核对，不恢复旧队列；死进程的入站协调 token 必须同时有原输入受理或停止证据才可清理，不释放项目执行租约。recoveryNoticeIds 只领取通知 key，锁外经原 delivery owner 发送并保存真实结果；通知丢收据也不自动重发。
+
+13：语义章程由 roleContext.ts 注入，PM 负责依赖、证据、整改和三轮无进展判断，执行者只回报 PM；代码不解析正文或按交接次数推断。既有 requirements 增加 active/awaiting_acceptance/closed 阶段。prepare 只登记 final/dispatch/question 的最小 stageDeliveries 意图；只有原投递 owner 确认 sent 后才结算，final 进入待验收，dispatch/question 在反馈后回到 active，旧投递重放不覆盖后续阶段。accept 是 PM-only 控制结果，要求单个空 text，当前输入必须晚于已送达 final 且来自可信真人；关闭后同一输入不能再发送或派单，后续真人消息创建新需求。真实模型是否遵守语义章程不由此契约保证，留真实群验收。

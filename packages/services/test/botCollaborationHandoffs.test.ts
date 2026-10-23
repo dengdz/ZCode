@@ -2783,3 +2783,758 @@ it("超出原渠道总字数限制的待发内容不生成卡片", async () => {
   ).rejects.toThrow("1–2000");
   expect(f.sent).toHaveLength(0);
 });
+
+it("13 最终汇报送达后进入待验收，同一轮不能由 PM 自行验收关闭", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const inputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+
+  expect(
+    (
+      await fixture.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId,
+        toolCallId: "final-before-acceptance",
+        parts: [{ type: "text", text: "Reviewed result; please accept" }],
+        collaboration: { kind: "final" },
+      })
+    ).status,
+  ).toBe("sent");
+
+  const ledger = JSON.parse(
+    await readFile(join(fixture.home, ".zcode/local/v1/collaboration.json"), "utf8"),
+  ) as {
+    inputs: Array<{ inputId: string; requirementId: string }>;
+    requirements: Array<{
+      id: string;
+      status?: string;
+      acceptancePendingInputId?: string;
+    }>;
+  };
+  const linked = ledger.inputs.find((item) => item.inputId === inputId);
+  expect(linked).toBeDefined();
+  expect(ledger.requirements.find((item) => item.id === linked!.requirementId)).toMatchObject({
+    status: "awaiting_acceptance",
+    acceptancePendingInputId: inputId,
+  });
+
+  const sent = fixture.sent.length;
+  expect(
+    await fixture.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId,
+      toolCallId: "same-turn-accept",
+      parts: [{ type: "text", text: "" }],
+      collaboration: { kind: "accept" as never },
+    }),
+  ).toMatchObject({ status: "blocked", reason: "acceptance_same_turn" });
+  expect(fixture.sent).toHaveLength(sent);
+});
+
+it("13 final 未送达时 accept 保持需求开放，且验收控制不能携带正文", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const inputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  expect(
+    await fixture.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId,
+      toolCallId: "accept-before-final",
+      parts: [{ type: "text", text: "" }],
+      collaboration: { kind: "accept" },
+    }),
+  ).toMatchObject({
+    status: "blocked",
+    reason: "acceptance_not_ready",
+  });
+  await expect(
+    fixture.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId,
+      toolCallId: "accept-with-body",
+      parts: [{ type: "text", text: "Accepted" }],
+      collaboration: { kind: "accept" },
+    }),
+  ).rejects.toThrow("collaboration.acceptContent");
+  expect(fixture.sent).toHaveLength(0);
+});
+
+it("13 已送达最终汇报后的后续真人输入可明确验收并关闭原需求", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const finalInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  expect(
+    (
+      await fixture.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId: finalInputId,
+        toolCallId: "final-before-explicit-acceptance",
+        parts: [{ type: "text", text: "Reviewed result; please accept" }],
+        collaboration: { kind: "final" },
+      })
+    ).status,
+  ).toBe("sent");
+
+  await fixture.service.handleInboundMessage({
+    ...fixture.human("pm", "om_explicit_acceptance"),
+    text: "验收通过，可以结束",
+  });
+  const approvalInputId = vi
+    .mocked(fixture.tasks.submitBotGroupInput!)
+    .mock.calls.at(-1)![0].commandId;
+  const sent = fixture.sent.length;
+  expect(
+    await fixture.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: approvalInputId,
+      toolCallId: "explicit-acceptance",
+      parts: [{ type: "text", text: "" }],
+      collaboration: { kind: "accept" },
+    }),
+  ).toEqual({ status: "acceptance_recorded" });
+  expect(fixture.sent).toHaveLength(sent);
+
+  const ledger = JSON.parse(
+    await readFile(join(fixture.home, ".zcode/local/v1/collaboration.json"), "utf8"),
+  ) as {
+    inputs: Array<{ inputId: string; requirementId: string }>;
+    requirements: Array<{ id: string; status: string; acceptedByInputId?: string }>;
+  };
+  const requirementId = ledger.inputs.find((item) => item.inputId === finalInputId)!.requirementId;
+  expect(ledger.inputs.find((item) => item.inputId === approvalInputId)?.requirementId).toBe(
+    requirementId,
+  );
+  expect(ledger.requirements.find((item) => item.id === requirementId)).toMatchObject({
+    status: "closed",
+    acceptedByInputId: approvalInputId,
+  });
+
+  await fixture.emit({
+    type: "task_run_started",
+    taskId: "task-pm",
+    inputId: approvalInputId,
+  } as ZCodeStreamEvent);
+  await fixture.emit({
+    type: "task_complete",
+    taskId: "task-pm",
+    inputId: approvalInputId,
+    stopReason: "end_turn",
+  } as ZCodeStreamEvent);
+  expect(fixture.sent).toHaveLength(sent);
+});
+
+it("13 同一验收工具调用重试返回原接受事实，不重复关闭或发送", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const finalInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  await fixture.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: finalInputId,
+    toolCallId: "accepted-final-source",
+    parts: [{ type: "text", text: "Final report" }],
+    collaboration: { kind: "final" },
+  });
+  await fixture.service.handleInboundMessage({
+    ...fixture.human("pm", "om_accept_retry"),
+    text: "Accepted",
+  });
+  const approvalInputId = vi
+    .mocked(fixture.tasks.submitBotGroupInput!)
+    .mock.calls.at(-1)![0].commandId;
+  const request = {
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: approvalInputId,
+    toolCallId: "accept-control",
+    parts: [{ type: "text" as const, text: "" }],
+    collaboration: { kind: "accept" as const },
+  };
+  const sent = fixture.sent.length;
+  expect(await fixture.service.replyToChannel!(request)).toEqual({
+    status: "acceptance_recorded",
+  });
+  expect(await fixture.service.replyToChannel!(request)).toEqual({
+    status: "acceptance_recorded",
+  });
+  expect(fixture.sent).toHaveLength(sent);
+  expect(
+    await fixture.service.replyToChannel!({
+      ...request,
+      toolCallId: "different-accept-control",
+    }),
+  ).toMatchObject({ status: "blocked", reason: "acceptance_not_ready" });
+});
+
+it("13 已关闭需求不能在同一输入中再发送 final 或重新派单", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const finalInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  await fixture.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: finalInputId,
+    toolCallId: "close-source-final",
+    parts: [{ type: "text", text: "Final report" }],
+    collaboration: { kind: "final" },
+  });
+  await fixture.service.handleInboundMessage({
+    ...fixture.human("pm", "om_close_then_reopen"),
+    text: "Accepted",
+  });
+  const approvalInputId = vi
+    .mocked(fixture.tasks.submitBotGroupInput!)
+    .mock.calls.at(-1)![0].commandId;
+  const accept = {
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: approvalInputId,
+    toolCallId: "close-only",
+    parts: [{ type: "text" as const, text: "" }],
+    collaboration: { kind: "accept" as const },
+  };
+  expect(await fixture.service.replyToChannel!(accept)).toEqual({
+    status: "acceptance_recorded",
+  });
+  const sent = fixture.sent.length;
+  await expect(
+    fixture.service.replyToChannel!({
+      ...accept,
+      toolCallId: "send-after-close",
+      parts: [{ type: "text", text: "Duplicate close summary" }],
+      collaboration: { kind: "final" },
+    }),
+  ).rejects.toThrow("collaboration.accepted");
+  await expect(
+    fixture.service.replyToChannel!({
+      ...accept,
+      toolCallId: "dispatch-after-close",
+      parts: [{ type: "text", text: "Later work" }],
+      collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+    }),
+  ).rejects.toThrow("collaboration.accepted");
+  expect(fixture.sent).toHaveLength(sent);
+});
+
+it("13 待验收阶段来自机器人回报或追问的后续输入不能冒充用户验收", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const initialInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  const dispatch = async (botId: "app" | "product", duty: string, toolCallId: string) =>
+    fixture.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: initialInputId,
+      toolCallId,
+      parts: [{ type: "text", text: `${duty} work` }],
+      collaboration: { kind: "dispatch", targetBotId: botId, requiredDuty: duty },
+    });
+  const appDispatch = await dispatch("app", "APP", "dispatch-app-before-final");
+  const productDispatch = await dispatch("product", "Product", "dispatch-product-before-final");
+  if (appDispatch.status !== "sent" || productDispatch.status !== "sent")
+    throw Error("dispatch failed");
+
+  await fixture.service.handleProviderCallbackResponse!(
+    "feishu",
+    fixture.native("app", "pm", appDispatch.providerMessageId!, "APP work"),
+  );
+  const appInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls.at(-1)![0].commandId;
+  const report = await fixture.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-app",
+    inputId: appInputId,
+    toolCallId: "report-before-final",
+    parts: [{ type: "text", text: "APP evidence" }],
+    collaboration: { kind: "report" },
+  });
+  if (report.status !== "sent") throw Error("report failed");
+  await fixture.service.handleProviderCallbackResponse!(
+    "feishu",
+    fixture.native("pm", "app", report.providerMessageId!, "APP evidence"),
+  );
+  const reviewInputId = vi
+    .mocked(fixture.tasks.submitBotGroupInput!)
+    .mock.calls.at(-1)![0].commandId;
+  expect(
+    (
+      await fixture.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId: reviewInputId,
+        toolCallId: "final-from-bot-report",
+        parts: [{ type: "text", text: "Final report awaiting acceptance" }],
+        collaboration: { kind: "final" },
+      })
+    ).status,
+  ).toBe("sent");
+
+  await fixture.service.handleProviderCallbackResponse!(
+    "feishu",
+    fixture.native("product", "pm", productDispatch.providerMessageId!, "Product work"),
+  );
+  const productInputId = vi
+    .mocked(fixture.tasks.submitBotGroupInput!)
+    .mock.calls.at(-1)![0].commandId;
+  const productQuestion = await fixture.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-product",
+    inputId: productInputId,
+    toolCallId: "late-product-question",
+    parts: [{ type: "text", text: "Late product question" }],
+    collaboration: { kind: "question" },
+  });
+  if (productQuestion.status !== "sent") throw Error("product question failed");
+  await fixture.service.handleProviderCallbackResponse!(
+    "feishu",
+    fixture.native("pm", "product", productQuestion.providerMessageId!, "Late product question"),
+  );
+  const lateBotInputId = vi
+    .mocked(fixture.tasks.submitBotGroupInput!)
+    .mock.calls.at(-1)![0].commandId;
+  expect(
+    await fixture.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: lateBotInputId,
+      toolCallId: "bot-cannot-accept",
+      parts: [{ type: "text", text: "" }],
+      collaboration: { kind: "accept" },
+    }),
+  ).toMatchObject({
+    status: "blocked",
+    reason: "acceptance_requires_user",
+  });
+});
+
+it("13 外部发送结果未知时不能把需求记为待验收", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const inputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  fixture.loseNextReceipt();
+  expect(
+    (
+      await fixture.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId,
+        toolCallId: "final-unknown-receipt",
+        parts: [{ type: "text", text: "Final with unknown delivery" }],
+        collaboration: { kind: "final" },
+      })
+    ).status,
+  ).toBe("unknown");
+  const ledger = JSON.parse(
+    await readFile(join(fixture.home, ".zcode/local/v1/collaboration.json"), "utf8"),
+  ) as {
+    inputs: Array<{ inputId: string; requirementId: string }>;
+    requirements: Array<{
+      id: string;
+      status: string;
+      acceptancePendingDeliveryId?: string;
+    }>;
+  };
+  const requirementId = ledger.inputs.find((item) => item.inputId === inputId)!.requirementId;
+  expect(ledger.requirements.find((item) => item.id === requirementId)).toMatchObject({
+    status: "active",
+  });
+  expect(
+    ledger.requirements.find((item) => item.id === requirementId)?.acceptancePendingDeliveryId,
+  ).toBeUndefined();
+});
+
+it("13 丢收据的最终汇报经原投递核对为 sent 后再进入待验收", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const inputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  fixture.loseNextReceipt();
+  const unknown = await fixture.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId,
+    toolCallId: "final-lost-then-confirmed",
+    parts: [{ type: "text", text: "Final with recoverable receipt" }],
+    collaboration: { kind: "final" },
+  });
+  if (!("deliveryId" in unknown) || unknown.status !== "unknown")
+    throw Error("Expected unknown final delivery");
+  const state = await fixture.repo.readState();
+  const pm = Object.values(state.bots).find((item) => item.botId === "pm")!;
+  pm.group!.deliveries![unknown.deliveryId]!.providerMessageId = fixture.sent.at(-1)!.id;
+  await fixture.repo.writeState(state);
+
+  await expect(
+    fixture.service.reconcileGroupResult!({
+      botId: "pm",
+      chatId: "oc_group",
+      deliveryId: unknown.deliveryId,
+      received: true,
+    }),
+  ).resolves.toMatchObject({ status: "sent" });
+  const ledger = JSON.parse(
+    await readFile(join(fixture.home, ".zcode/local/v1/collaboration.json"), "utf8"),
+  ) as {
+    inputs: Array<{ inputId: string; requirementId: string }>;
+    requirements: Array<{
+      id: string;
+      status: string;
+      acceptancePendingDeliveryId?: string;
+    }>;
+  };
+  const requirementId = ledger.inputs.find((item) => item.inputId === inputId)!.requirementId;
+  expect(ledger.requirements.find((item) => item.id === requirementId)).toMatchObject({
+    status: "awaiting_acceptance",
+    acceptancePendingDeliveryId: unknown.deliveryId,
+  });
+});
+
+it("13 较旧 final 的迟到收据不能覆盖其后已送达的反馈处理", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const firstInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  fixture.loseNextReceipt();
+  const oldFinal = await fixture.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: firstInputId,
+    toolCallId: "old-final-late-proof",
+    parts: [{ type: "text", text: "Older final report" }],
+    collaboration: { kind: "final" },
+  });
+  if (!("deliveryId" in oldFinal) || oldFinal.status !== "unknown")
+    throw Error("Expected unknown older final");
+  const oldState = await fixture.repo.readState();
+  Object.values(oldState.bots).find((item) => item.botId === "pm")!.group!.deliveries![
+    oldFinal.deliveryId
+  ]!.providerMessageId = fixture.sent.at(-1)!.id;
+  await fixture.repo.writeState(oldState);
+
+  await fixture.service.handleInboundMessage({
+    ...fixture.human("pm", "om_feedback_before_old_proof"),
+    text: "Feedback starts the next review",
+  });
+  const feedbackInputId = vi
+    .mocked(fixture.tasks.submitBotGroupInput!)
+    .mock.calls.at(-1)![0].commandId;
+  expect(
+    (
+      await fixture.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId: feedbackInputId,
+        toolCallId: "newer-feedback-dispatch",
+        parts: [{ type: "text", text: "Continue after feedback" }],
+        collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+      })
+    ).status,
+  ).toBe("sent");
+
+  await expect(
+    fixture.service.reconcileGroupResult!({
+      botId: "pm",
+      chatId: "oc_group",
+      deliveryId: oldFinal.deliveryId,
+      received: true,
+    }),
+  ).resolves.toMatchObject({ status: "sent" });
+  const ledger = JSON.parse(
+    await readFile(join(fixture.home, ".zcode/local/v1/collaboration.json"), "utf8"),
+  ) as {
+    inputs: Array<{ inputId: string; requirementId: string }>;
+    requirements: Array<{ id: string; status: string }>;
+  };
+  const requirementId = ledger.inputs.find((item) => item.inputId === firstInputId)!.requirementId;
+  expect(ledger.requirements.find((item) => item.id === requirementId)?.status).toBe("active");
+});
+
+it("13 服务重建后保留待验收阶段，并允许随后一次真人明确验收", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const finalInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  expect(
+    (
+      await fixture.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId: finalInputId,
+        toolCallId: "final-before-restart",
+        parts: [{ type: "text", text: "Final before restart" }],
+        collaboration: { kind: "final" },
+      })
+    ).status,
+  ).toBe("sent");
+  await fixture.service.disposeAllAndWait();
+  const restored = fixture.create();
+
+  await restored.handleInboundMessage({
+    ...fixture.human("pm", "om_accept_after_restart"),
+    text: "验收通过",
+  });
+  const approvalInputId = vi
+    .mocked(fixture.tasks.submitBotGroupInput!)
+    .mock.calls.at(-1)![0].commandId;
+  const injected = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls.at(-1)![0].content;
+  const context = JSON.parse(
+    /<local_collaboration>\n([\s\S]*?)\n<\/local_collaboration>/.exec(injected)![1]!,
+  ) as { requirement: { status: string } };
+  expect(context.requirement.status).toBe("awaiting_acceptance");
+  expect(
+    await restored.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: approvalInputId,
+      toolCallId: "accept-after-restart",
+      parts: [{ type: "text", text: "" }],
+      collaboration: { kind: "accept" },
+    }),
+  ).toEqual({ status: "acceptance_recorded" });
+});
+
+it("13 待验收后的用户反馈继续原需求，PM 再次派单使需求回到 active", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const firstInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  expect(
+    (
+      await fixture.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId: firstInputId,
+        toolCallId: "final-before-feedback",
+        parts: [{ type: "text", text: "First final report" }],
+        collaboration: { kind: "final" },
+      })
+    ).status,
+  ).toBe("sent");
+
+  await fixture.service.handleInboundMessage({
+    ...fixture.human("pm", "om_review_feedback"),
+    text: "验收不通过，请继续修复",
+  });
+  const feedbackInputId = vi
+    .mocked(fixture.tasks.submitBotGroupInput!)
+    .mock.calls.at(-1)![0].commandId;
+  expect(
+    (
+      await fixture.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId: feedbackInputId,
+        toolCallId: "dispatch-after-feedback",
+        parts: [{ type: "text", text: "Fix the reported issue" }],
+        collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+      })
+    ).status,
+  ).toBe("sent");
+
+  const ledger = JSON.parse(
+    await readFile(join(fixture.home, ".zcode/local/v1/collaboration.json"), "utf8"),
+  ) as {
+    inputs: Array<{ inputId: string; requirementId: string }>;
+    requirements: Array<{
+      id: string;
+      status: string;
+      acceptancePendingInputId?: string;
+      acceptancePendingDeliveryId?: string;
+    }>;
+  };
+  const requirementId = ledger.inputs.find((item) => item.inputId === firstInputId)!.requirementId;
+  expect(ledger.inputs.find((item) => item.inputId === feedbackInputId)?.requirementId).toBe(
+    requirementId,
+  );
+  expect(ledger.requirements.find((item) => item.id === requirementId)).toMatchObject({
+    status: "active",
+  });
+  expect(
+    ledger.requirements.find((item) => item.id === requirementId)?.acceptancePendingInputId,
+  ).toBeUndefined();
+  expect(
+    ledger.requirements.find((item) => item.id === requirementId)?.acceptancePendingDeliveryId,
+  ).toBeUndefined();
+});
+
+it("13 旧最终汇报重放不能覆盖后续反馈派单推进出的 active 阶段", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const initialInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  const finalRequest = {
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: initialInputId,
+    toolCallId: "replayed-final",
+    parts: [{ type: "text" as const, text: "First final report" }],
+    collaboration: { kind: "final" as const },
+  };
+  expect((await fixture.service.replyToChannel!(finalRequest)).status).toBe("sent");
+
+  await fixture.service.handleInboundMessage({
+    ...fixture.human("pm", "om_feedback_before_replay"),
+    text: "Please keep working on the same requirement",
+  });
+  const feedbackInputId = vi
+    .mocked(fixture.tasks.submitBotGroupInput!)
+    .mock.calls.at(-1)![0].commandId;
+  expect(
+    (
+      await fixture.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId: feedbackInputId,
+        toolCallId: "feedback-dispatch",
+        parts: [{ type: "text", text: "Continue fixing" }],
+        collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+      })
+    ).status,
+  ).toBe("sent");
+
+  expect((await fixture.service.replyToChannel!(finalRequest)).status).toBe("sent");
+  const ledger = JSON.parse(
+    await readFile(join(fixture.home, ".zcode/local/v1/collaboration.json"), "utf8"),
+  ) as {
+    inputs: Array<{ inputId: string; requirementId: string }>;
+    requirements: Array<{
+      id: string;
+      status: string;
+      acceptancePendingDeliveryId?: string;
+    }>;
+  };
+  const requirementId = ledger.inputs.find(
+    (item) => item.inputId === initialInputId,
+  )!.requirementId;
+  expect(ledger.requirements.find((item) => item.id === requirementId)).toMatchObject({
+    status: "active",
+  });
+  expect(
+    ledger.requirements.find((item) => item.id === requirementId)?.acceptancePendingDeliveryId,
+  ).toBeUndefined();
+});
+
+it("13 已关闭需求后的新真人消息创建新需求，不复活已验收结果", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const firstInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+  await fixture.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: firstInputId,
+    toolCallId: "final-before-close",
+    parts: [{ type: "text", text: "First final report" }],
+    collaboration: { kind: "final" },
+  });
+  await fixture.service.handleInboundMessage({
+    ...fixture.human("pm", "om_accept_first"),
+    text: "验收通过",
+  });
+  const acceptanceInputId = vi
+    .mocked(fixture.tasks.submitBotGroupInput!)
+    .mock.calls.at(-1)![0].commandId;
+  expect(
+    await fixture.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-pm",
+      inputId: acceptanceInputId,
+      toolCallId: "close-first",
+      parts: [{ type: "text", text: "" }],
+      collaboration: { kind: "accept" },
+    }),
+  ).toEqual({ status: "acceptance_recorded" });
+
+  await fixture.service.handleInboundMessage({
+    ...fixture.human("pm", "om_second_requirement"),
+    text: "Start a separate requirement",
+  });
+  const secondInputId = vi
+    .mocked(fixture.tasks.submitBotGroupInput!)
+    .mock.calls.at(-1)![0].commandId;
+  const ledger = JSON.parse(
+    await readFile(join(fixture.home, ".zcode/local/v1/collaboration.json"), "utf8"),
+  ) as {
+    inputs: Array<{ inputId: string; requirementId: string }>;
+    requirements: Array<{ id: string; status: string }>;
+  };
+  const firstRequirementId = ledger.inputs.find(
+    (item) => item.inputId === firstInputId,
+  )!.requirementId;
+  const secondRequirementId = ledger.inputs.find(
+    (item) => item.inputId === secondInputId,
+  )!.requirementId;
+  expect(secondRequirementId).not.toBe(firstRequirementId);
+  expect(ledger.requirements.find((item) => item.id === firstRequirementId)?.status).toBe("closed");
+  expect(ledger.requirements.find((item) => item.id === secondRequirementId)?.status).toBe(
+    "active",
+  );
+});
+
+it("13 PM 每轮获得持续推进、依赖、证据、三轮与验收章程，执行者不承担用户验收", async () => {
+  const fixture = await setup();
+  await fixture.service.handleInboundMessage(fixture.human());
+  const initial = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  const initialContext = JSON.parse(
+    /<local_collaboration>\n([\s\S]*?)\n<\/local_collaboration>/.exec(initial.content)![1]!,
+  ) as { role: string; rules: string[] };
+  expect(initialContext.role).toBe("PM");
+  expect(initialContext.rules).toEqual(
+    expect.arrayContaining([
+      expect.stringContaining("without asking for approval at every handoff"),
+      expect.stringContaining("only work whose dependencies do not require that answer"),
+      expect.stringContaining("actual artifacts and verification evidence"),
+      expect.stringContaining("Normal dispatch, report, question and final handoffs do not count"),
+      expect.stringContaining("After three rounds without progress"),
+      expect.stringContaining("awaiting_acceptance"),
+      expect.stringContaining("Silence is not approval"),
+      expect.stringContaining("Never use Jev"),
+    ]),
+  );
+
+  const inputId = initial.commandId;
+  const final = await fixture.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId,
+    toolCallId: "context-final",
+    parts: [{ type: "text", text: "Evidence-backed final report" }],
+    collaboration: { kind: "final" },
+  });
+  if (final.status !== "sent") throw Error("final failed");
+  await fixture.service.handleInboundMessage({
+    ...fixture.human("pm", "om_feedback_context"),
+    text: "Please continue with the reported issue",
+  });
+  const feedback = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  const feedbackContext = JSON.parse(
+    /<local_collaboration>\n([\s\S]*?)\n<\/local_collaboration>/.exec(feedback.content)![1]!,
+  ) as { requirement: { status: string } };
+  expect(feedbackContext.requirement.status).toBe("awaiting_acceptance");
+
+  const dispatch = await fixture.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: feedback.commandId,
+    toolCallId: "context-dispatch",
+    parts: [{ type: "text", text: "Continue APP work" }],
+    collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+  });
+  if (dispatch.status !== "sent") throw Error("dispatch failed");
+  await fixture.service.handleProviderCallbackResponse!(
+    "feishu",
+    fixture.native("app", "pm", dispatch.providerMessageId!, "Continue APP work"),
+  );
+  const executor = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  const executorContext = JSON.parse(
+    /<local_collaboration>\n([\s\S]*?)\n<\/local_collaboration>/.exec(executor.content)![1]!,
+  ) as { role: string; rules: string[] };
+  expect(executorContext.role).toBe("executor");
+  expect(executorContext.rules).toEqual(
+    expect.arrayContaining([
+      expect.stringContaining("only to PM"),
+      expect.stringContaining("Do not dispatch to peers"),
+      expect.stringContaining("request user acceptance"),
+    ]),
+  );
+  expect(executorContext.rules.join("\n")).not.toContain("After three rounds without progress");
+});

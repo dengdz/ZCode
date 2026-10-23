@@ -13,6 +13,7 @@ import {
   type ChannelContentPart,
   type CollaborationBlockedResult,
   type ChannelSilentResult,
+  type ChannelAcceptanceResult,
   type ChannelSelectionResult,
 } from "@zcode/shared";
 
@@ -26,9 +27,14 @@ interface ChannelReplyDependencies {
     | ChannelContentPart[]
     | CollaborationBlockedResult
     | ChannelSilentResult
+    | ChannelAcceptanceResult
     | ChannelSelectionResult
     | undefined
   >;
+  settle?(
+    scope: { provider: "feishu" | "lark"; chatId: string; botId: string; threadId?: string },
+    delivery: BotGroupDelivery,
+  ): Promise<void>;
   readState(): Promise<BotsStateFile>;
   readConfig(): Promise<BotsConfigFile>;
   listMembers?(bot: BotConfig, chatId: string): Promise<Record<string, string>>;
@@ -159,6 +165,20 @@ export async function replyToBotChannel(
       ]),
     )
     .digest("hex");
+  const settledReceipt = async (saved: BotGroupDelivery | undefined) => {
+    const result = receipt(saved, id);
+    if (result.status === "sent" && saved && request.collaboration)
+      await deps.settle?.(
+        {
+          provider: bot.provider as "feishu" | "lark",
+          chatId: binding.group.chatId,
+          botId: bot.id,
+          threadId: binding.group.threadId,
+        },
+        saved,
+      );
+    return result;
+  };
   const requestHash = createHash("sha256")
     .update(
       JSON.stringify(
@@ -188,7 +208,7 @@ export async function replyToBotChannel(
       await deps.deliver(bot, binding.group.chatId, binding.group.threadId, saved);
       saved = (await deps.readState()).bots[binding.key]?.group?.deliveries?.[id];
     }
-    return receipt(saved, id);
+    return settledReceipt(saved);
   };
   // 同参重放读取原投递事实；新发送校验不能把已有 sent/unknown 改说成“未发送”。
   const previous = await replay(binding.group.deliveries?.[id]);
@@ -263,5 +283,5 @@ export async function replyToBotChannel(
   const saved = (await deps.readState()).bots[key]?.group?.deliveries?.[id];
   if (saved && JSON.stringify(saved.contentParts) !== JSON.stringify(parts))
     throw new Error("Channel reply idempotency conflict");
-  return receipt(saved, id);
+  return settledReceipt(saved);
 }

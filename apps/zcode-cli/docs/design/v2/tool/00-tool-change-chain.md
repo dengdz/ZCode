@@ -1848,3 +1848,21 @@ ReplyToChannel 增加 collaboration {kind: stop}，parts 仅一个空 text，不
 ReplyToChannel 保留同一个工具与输入 schema。原 sent/unknown 收据重读先于新发送校验；新发送准备在 Host 核对原输入、runtime 事实、停止屏障及卡片原领取记录。恢复事实不明返回严格 blocked/recovery_unknown，明确没有创建新的发送或执行，不要求模型重述或重派原工作。原已选请求只有在尚未领取发送且无投递事实时才沿相同 toolCallId 续发；claimed/unknown 不盲目补发。新增只读 SDK/Provider 查询不改变 tool 权限、trace、取消或网络副作用边界。
 
 Local 12 冷启动核对补充：既有 commands/query 的 transcript fallback 只在 canonical user message 的完整 conversationInputIntent 严格通过且 sourceCommandId 对齐时补 inputAccepted，delivery 取原 admitted 值；assistant、timeline、缺失或无效 intent 不升级。无新协议类型、无输入重放。
+
+## Local PM 审核与用户验收（13，2026-10-23）
+
+ReplyToChannel collaboration 增加 PM-only `{kind: accept}`，parts 仅一个空 text，不接收目标或平台身份。
+工具所属 assistant 的 canonical input → 既有 Host 任务/群/输入/workspace/revision 核对 →
+Local 需求记录确认此前 final 已由原投递 owner 结算为 `sent`，且当前输入晚于该 final、来自可信真人 →
+strict `{status: acceptance_recorded}`；否则返回严格 blocked，需求保持开放。验收结果不产生消息或 deliveryId，
+本轮终答沿既有 silent 边界抑制，不新增工具、权限、审批或网络副作用。
+
+Local 每次输入的角色上下文由可信记录生成并注入 PM/执行者章程；PM 的依赖、证据审核和三轮无进展判断
+仍是模型职责，代码不解析正文或按交接次数推断。需求记录只保存 final/dispatch/question 的 deliveryId、
+inputId、kind 与 prepared/settled 事实：prepare 先登记，外部 owner 返回 sent 后才结算；丢收据经原投递
+核对为 sent 时沿同一 stage 推进。final settled 后进入 `awaiting_acceptance`，反馈派单/追问回到 active，
+旧 delivery 重放不覆盖后续阶段；关闭后的后续真人消息创建新需求。桌面 continuous 与手机 replayable
+的发送/恢复边界不变。
+
+回归覆盖模型上下文注入、待验收持久化、同轮/机器人回报/未发送拒绝、丢收据核对、反馈继续、重启、
+旧投递重放、显式验收关闭及普通会话兼容；真实模型是否遵守章程留真实群验收。

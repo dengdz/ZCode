@@ -39,6 +39,7 @@ interface Dependencies {
     threadId?: string,
   ): Promise<Member | undefined>;
 }
+type RecordReplySent = (scope: Scope, delivery: BotGroupDelivery) => Promise<void>;
 const key = (scope: CollaborationScope) => JSON.stringify([scope.provider, scope.chatId]);
 function fail(reason: string): never {
   throw new Error(`collaboration.${reason}`);
@@ -224,6 +225,54 @@ export function createReplyRouting(deps: Dependencies) {
       );
       if (!current || !input || !original) fail("stale");
       if (original.stopRequested) fail("stopped");
+      if (intent.kind === "accept") {
+        if (scope.botId !== config.pm.botId) fail("direction");
+        if (
+          request.parts.length !== 1 ||
+          request.parts[0]?.type !== "text" ||
+          request.parts[0].text !== ""
+        )
+          fail("acceptContent");
+        if (
+          original.status === "closed" &&
+          original.acceptedByInputId === request.inputId &&
+          original.acceptedByToolCallId === request.toolCallId
+        )
+          return { status: "acceptance_recorded" as const };
+        if (
+          original.status !== "awaiting_acceptance" ||
+          !original.acceptancePendingInputId ||
+          !original.acceptancePendingDeliveryId
+        )
+          return {
+            status: "blocked",
+            reason: "acceptance_not_ready",
+            message:
+              "Requirement remains open. A sent final report is required before user acceptance.",
+          };
+        if (original.acceptancePendingInputId === request.inputId)
+          return {
+            status: "blocked",
+            reason: "acceptance_same_turn",
+            message:
+              "Requirement remains open. The user must reply after the final report before acceptance.",
+          };
+        if (input.senderType !== "user")
+          return {
+            status: "blocked",
+            reason: "acceptance_requires_user",
+            message:
+              "Requirement remains open. Acceptance requires a later input from the authorized user.",
+          };
+        original.status = "closed";
+        original.acceptedByInputId = request.inputId;
+        original.acceptedByToolCallId = request.toolCallId;
+        input.replyIntent = "silent";
+        input.silentCalls = [...(input.silentCalls ?? []), `accept:${request.toolCallId}`];
+        await write(ledger);
+        return { status: "acceptance_recorded" as const };
+      }
+      if (original.status === "closed") fail("accepted");
       const pending = ledger.selections.find(
         (item) => item.id === deliveryId && item.botId === scope.botId && key(item) === key(scope),
       );
@@ -335,6 +384,20 @@ export function createReplyRouting(deps: Dependencies) {
         pending.status = "claimed";
         await write(ledger);
       }
+      if (intent.kind === "dispatch" || intent.kind === "question" || intent.kind === "final") {
+        // 发送前先登记最小意图；外部结果 unknown 后仍可由原投递核对事实结算到正确需求阶段。
+        const previous = original.stageDeliveries.find((item) => item.deliveryId === deliveryId);
+        if (previous && (previous.inputId !== request.inputId || previous.kind !== intent.kind))
+          fail("stale");
+        if (!previous)
+          original.stageDeliveries.push({
+            deliveryId,
+            inputId: request.inputId,
+            kind: intent.kind,
+            status: "prepared",
+          });
+        await write(ledger);
+      }
       if (targetBotId) {
         const handoff = handoffSchema.parse({
           provider: scope.provider,
@@ -383,6 +446,55 @@ export function createReplyRouting(deps: Dependencies) {
       ];
     });
   };
+  const recordReplySent: RecordReplySent = async (scope, delivery) =>
+    withFileLock(port.file, async () => {
+      if (delivery.status !== "sent") return;
+      const ledger = await read();
+      const config = enabledConfig(ledger, scope);
+      if (!config?.enabled) return;
+      const input = ledger.inputs.find(
+        (item) =>
+          key(item) === key(scope) &&
+          item.botId === scope.botId &&
+          item.inputId === delivery.sourceCommandId &&
+          item.taskId === delivery.taskId &&
+          item.revision === config.revision,
+      );
+      const original = ledger.requirements.find(
+        (item) => item.id === input?.requirementId && item.revision === config.revision,
+      );
+      if (!input || !original) fail("stale");
+      const stageIndex = original.stageDeliveries.findIndex(
+        (item) => item.deliveryId === delivery.id,
+      );
+      const stage = original.stageDeliveries[stageIndex];
+      if (!stage || stage.status === "settled") return;
+      const latestSettledIndex = original.stageDeliveries.findLastIndex(
+        (item) => item.status === "settled",
+      );
+      // 旧投递可在新阶段之后才补齐收据；只按登记顺序接受最新已结算意图，不能回滚当前阶段。
+      if (latestSettledIndex > stageIndex) return;
+      stage.status = "settled";
+      if (stage.kind === "final") {
+        original.status = "awaiting_acceptance";
+        original.acceptancePendingInputId = stage.inputId;
+        original.acceptancePendingDeliveryId = delivery.id;
+        delete original.acceptedByInputId;
+        await write(ledger);
+        return;
+      }
+      if (
+        (stage.kind === "dispatch" || stage.kind === "question") &&
+        scope.botId === config.pm.botId &&
+        original.status === "awaiting_acceptance"
+      ) {
+        original.status = "active";
+        delete original.acceptancePendingInputId;
+        delete original.acceptancePendingDeliveryId;
+      }
+      // 无阶段跳转的 dispatch/question 也必须持久化 settled，供迟到 final 收据判断先后。
+      await write(ledger);
+    });
   const authorizeCard = async (ledger: Ledger, scope: Scope, delivery: BotGroupDelivery) => {
     const p = ledger.selections.find(
       (item) =>
@@ -613,5 +725,11 @@ export function createReplyRouting(deps: Dependencies) {
     }
     return { cards, requests, blockers };
   };
-  return { prepareReply, recipientSelection, authorizeCard, recoverSelections };
+  return {
+    prepareReply,
+    recipientSelection,
+    authorizeCard,
+    recoverSelections,
+    recordReplySent,
+  };
 }

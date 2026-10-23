@@ -14,6 +14,7 @@ import type {
   ChannelSelectionResult,
   BotOutboundMessage,
   Locale,
+  ChannelAcceptanceResult,
 } from "@zcode/shared";
 import type { CollaborationStopState } from "./port.js";
 export type {
@@ -76,7 +77,7 @@ export interface BotCollaborationContract {
       workspaceIdentity?: string;
     },
   ): Promise<string | undefined>;
-  /** Host 已核对实际执行输入，协作所有者再校验方向并生成唯一原生目标。 */
+  /** Host 已核对实际执行输入，协作所有者再校验方向并生成唯一原生目标或验收结果。 */
   prepareReply(
     request: ChannelReplyHostRequest,
     scope: CollaborationScope & { botId: string; threadId?: string },
@@ -86,6 +87,7 @@ export interface BotCollaborationContract {
     | ChannelContentPart[]
     | CollaborationBlockedResult
     | ChannelSilentResult
+    | ChannelAcceptanceResult
     | ChannelSelectionResult
     | undefined
   >;

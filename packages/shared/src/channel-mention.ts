@@ -98,6 +98,7 @@ export const channelSelectionResultSchema = z
 export type ChannelSelectionResult = z.infer<typeof channelSelectionResultSchema>;
 
 export const channelReplyResultSchema = z.union([
+  z.object({ status: z.literal("acceptance_recorded") }).strict(),
   z
     .object({
       status: z.literal("stop_requested"),
@@ -113,6 +114,10 @@ export const channelReplyResultSchema = z.union([
 export type ChannelSilentResult = Extract<
   z.infer<typeof channelReplyResultSchema>,
   { status: "silent" }
+>;
+export type ChannelAcceptanceResult = Extract<
+  z.infer<typeof channelReplyResultSchema>,
+  { status: "acceptance_recorded" }
 >;
 export type ChannelReplyRequest = z.infer<typeof channelReplyRequestSchema>;
 export type ChannelReplyResult = z.infer<typeof channelReplyResultSchema>;

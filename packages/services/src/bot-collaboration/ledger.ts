@@ -43,6 +43,7 @@ export const inputSchema = collaborationScopeSchema
     workspaceIdentity: z.string().optional(),
     requirementId: z.string(),
     revision: z.number(),
+    senderType: z.enum(["user", "app"]).optional(),
     replyIntent: z.enum(["silent", "visible", "selection"]).optional(),
     selectionId: z.string().optional(),
     silentCalls: z.array(z.string()).optional(),
@@ -106,6 +107,23 @@ export const ledgerSchema = z
             unionId: z.string(),
             tenantKey: z.string(),
             name: z.string(),
+            status: z.enum(["active", "awaiting_acceptance", "closed"]).default("active"),
+            acceptancePendingInputId: z.string().optional(),
+            acceptancePendingDeliveryId: z.string().optional(),
+            acceptedByInputId: z.string().optional(),
+            acceptedByToolCallId: z.string().optional(),
+            stageDeliveries: z
+              .array(
+                z
+                  .object({
+                    deliveryId: z.string(),
+                    inputId: z.string(),
+                    kind: z.enum(["dispatch", "question", "final"]),
+                    status: z.enum(["prepared", "settled"]),
+                  })
+                  .strict(),
+              )
+              .default([]),
             stopRequested: z.boolean().optional(),
             stopConfirmed: z.boolean().optional(),
           })
