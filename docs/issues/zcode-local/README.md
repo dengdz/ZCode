@@ -4,9 +4,9 @@
 
 父规格：[ZCode Local spec](../../local-edition/spec.md)。[已确认拆分](../../local-edition/ticket-plan.md)。父 Issue 保持不变，执行状态以各子工单为准。
 
-当前集成分支：`3.16.2-local.1`。01–12 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)，09 见[同项目串行报告](../../local-edition/project-serial-execution.md)，10 见[合法长链报告](../../local-edition/collaboration-chain-admission.md)，11 见[实际停止报告](../../local-edition/stop-execution.md)，12 见[状态核对报告](../../local-edition/state-reconciliation.md)；日常安装与数据切换继续受后续工单门禁约束。
+当前集成分支：`3.16.2-local.1`。01–13 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)，09 见[同项目串行报告](../../local-edition/project-serial-execution.md)，10 见[合法长链报告](../../local-edition/collaboration-chain-admission.md)，11 见[实际停止报告](../../local-edition/stop-execution.md)，12 见[状态核对报告](../../local-edition/state-reconciliation.md)，13 见[PM 审核与验收报告](../../local-edition/pm-review-acceptance.md)；日常安装与数据切换继续受后续工单门禁约束。
 
-执行策略：按编号一次一票。用户已要求「11 没问题的话就开始 12 单子吧」；本轮完成 [12 断线和重启后的状态核对](12-state-reconciliation.md)，03a 测试弹窗修复继续有效。01–12 已完成，13 尚未开始。普通本地提交沿用既有授权；不向官方 origin 推送、不更新安装候选，真实切换和用户验收遵守 spec 条件。
+执行策略：按编号一次一票。本轮完成 [13 PM 审核、依赖推进与用户验收闭环](13-pm-review-acceptance.md)，03a 测试弹窗修复继续有效。01–13 已完成，14 尚未开始。普通本地提交沿用既有授权；不向官方 origin 推送、不更新安装候选，真实切换和用户验收遵守 spec 条件。
 
 | 编号 | Issue                                                                            | 直接前置   |
 | ---- | -------------------------------------------------------------------------------- | ---------- |
@@ -30,6 +30,8 @@
 | 18   | [完成整体回归与真实群只读验收](18-end-to-end-acceptance.md)                      | 13、17     |
 
 ## Progress
+
+- 2026-10-23：13 完成。PM/执行者角色章程按轮注入；既有 Local 需求增加 active/awaiting_acceptance/closed，final/dispatch/question 的 stage delivery 仅在原渠道 sent 或人工核对后结算。PM-only accept 要求已送达 final 后的可信真人输入，同轮、机器人、未送达和过旧收据均不能关闭。131 项协作主回归、50 项停止/设置/契约、112 项 Bot 群回归、22 项 CLI 工具、CLI/V4 169 项、根/CLI 类型、Lint、架构和变更格式通过。完整全量 20145 通过、15 因临时数据根冲突失败、11 跳过，恢复后相关 25 项通过，未记全绿。真实模型/群验收留 18；实现 `4f3cbff2`，仅本地源码交付，14 未开始。
 
 - 2026-10-23：12 完成。原输入/owned-work/投递只读核对、原卡片安全续接、停止保持、崩溃协调 token 清理与恢复通知去重落地；`/new` 历史任务和未知状态撤权回归已补正。276 项根相关、169 项 CLI、类型/Lint/架构/格式、固定官网 Reader 与双路复审通过；一次全量 20141 通过、3 个实际核实的其他项目 5173 占用失败、11 跳过，退出码 1，未记全绿。fixture 新诊断 0，签名有效。仅本地源码交付，实现 `d565c608`，13 未开始。
 
