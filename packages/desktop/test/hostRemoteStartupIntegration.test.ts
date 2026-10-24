@@ -204,12 +204,14 @@ describe("Window Host 的 Source 重连与数据库启动整合", () => {
         disposeHostResourcesInFlight: null,
         msg: { type: "init-local", remoteAssets: {} },
         HostMessageTypes: { InitLocal: "init-local" },
-        HostResponseTypes: { DatabaseStartupState: "db-state" },
+        HostResponseTypes: { DatabaseStartupState: "db-state", HostReady: "host-ready" },
         port: { once() {}, close() {} },
         logger: { info() {}, warn() {}, error() {} },
         pendingStartupAttachments: new Map(),
         parentPort: {
-          postMessage: (message: { state: { phase: string } }) => events.push(message.state.phase),
+          postMessage: (
+            message: { type: "host-ready" } | { type: "db-state"; state: { phase: string } },
+          ) => events.push(message.type === "host-ready" ? "host-ready" : message.state.phase),
         },
         process,
         createHostDatabaseStartup: (options: {
@@ -239,6 +241,11 @@ describe("Window Host 的 Source 重连与数据库启动整合", () => {
         authorizeLocalMediaPreviewPath() {},
         runtimeProcessLifecycleReporter: {},
         runtimeTaskReporter: {},
+        // 真实 InitLocal 已先上报初始任务计数再发 HostReady；沙箱必须注入该端口，
+        // 并观察发布顺序，避免缺失依赖的 ReferenceError 掩盖启动整合回归。
+        reportHostRunningTaskCount() {
+          events.push("running-task-count");
+        },
         repoWikiTaskReporter: {},
         createFullFeedbackLogArchiveViaMain() {},
         dispatchManualAutomationRun() {},
@@ -296,6 +303,8 @@ describe("Window Host 的 Source 重连与数据库启动整合", () => {
       "source-manager",
       "local-telemetry",
       "base-attachment",
+      "running-task-count",
+      "host-ready",
       "source-background",
       "ready",
     ]);

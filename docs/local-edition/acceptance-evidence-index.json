@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-real-round-failed-approved-readonly-routing-fix-isolated-validation-review-candidate-pending",
+  "overall": "in-progress-real-round-failed-readonly-routing-reviewed-candidate-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -524,7 +524,7 @@
     },
     "readonly-routing-fix": {
       "sourceBase": "d7b0f8ee0b062e05837732688bb92cf069e7399b",
-      "status": "implemented-initial-spec-finding-fixed-final-review-and-candidate-pending",
+      "status": "reviewed-zero-unclosed-findings-prepush-fixture-correction-candidate-pending",
       "evidence": [
         "readonly-prompt-red.json",
         "readonly-write-red-2.json",
@@ -543,7 +543,11 @@
         "readonly-active-topic-native-green.json",
         "readonly-root-reviewed.json",
         "readonly-typecheck-reviewed.json",
-        "readonly-lint-reviewed.json"
+        "readonly-lint-reviewed.json",
+        "readonly-review-final.json",
+        "readonly-source-push.log",
+        "readonly-host-startup-red.json",
+        "readonly-host-startup-typed.json"
       ],
       "rootFiles": 17,
       "rootPassed": 503,
@@ -563,7 +567,7 @@
       "realApplicationContainsFix": false,
       "limits": [
         "Original failures retained. CLI line-count warnings explicitly registered for two existing oversized files; threshold remains 800. Architecture module ownership added without baseline relaxation.",
-        "Fixed source review, next candidate and real native validation remain pending. Dependency-refreshed verification passed. No old message replay or real data restoration."
+        "Reviewed behavior source passed both axes. Push selected 1373/2064 root files: 15692 passed, 1 failed, 4 skipped; Host InitLocal VM fixture lacked existing reportHostRunningTaskCount/HostReady ports. Fixture-only correction and push rerun required. Candidate and real native validation remain pending; no replay or data restoration."
       ],
       "initialReview": {
         "head": "0b309623de84af7b3a2fd6a21d96d50a2be8c40c",
@@ -571,7 +575,12 @@
         "specFindings": 1,
         "priority": "P2",
         "problem": "Active topic unmentioned human follow-up could enable an explicit new requirement",
-        "status": "fixed-with-red-green-final-review-pending"
+        "status": "fixed-with-red-green-final-review-confirmed"
+      },
+      "finalReview": {
+        "head": "d5471c3d70d887f9a8f37843fedc15491f4378de",
+        "standardsFindings": 0,
+        "specFindings": 0
       }
     }
   },

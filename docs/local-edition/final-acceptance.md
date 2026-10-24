@@ -256,3 +256,11 @@ sequenceDiagram
 固定 `d7b0f8ee...0b309623de84af7b3a2fd6a21d96d50a2be8c40c` 两轴独立复审：Standards 0；Spec 1 项 P2，新增只读命令在已激活话题可沿允许无 @ 后续消息的旧路径启用。主群原有过滤使最初无 @ 测试通过，但不能代表话题。新增实际服务回归明确复现 SDK 从预期 1 次变为 2 次；Local owner 现对显式命令且 `mentionedBot !== true` 明确拒绝，不降级为普通任务。
 
 修正后定向原生主群/话题、未知协调 token 和该反例 4 项通过，17 文件完整复验 503 通过/1 跳过；根类型与 Lint 0 errors/97 warnings 再次通过。CLI 代码未因该修正变化，之前类型/Lint及相关回归结果不重复累加。新端点仍须两轴复核后准备候选，18 的真实闭环和用户验收仍未完成。原发现及红绿证据保存在 `readonly-review-initial.json`、`readonly-active-topic-native-red.json`、`readonly-active-topic-native-green.json`、`readonly-root-reviewed.json`、`readonly-typecheck-reviewed.json`、`readonly-lint-reviewed.json`。
+
+### 源码复审完成，推送整合夹具补正
+
+最终行为源码 `d5471c3d70d887f9a8f37843fedc15491f4378de` 的独立 Standards/Spec 两轴均为 0 项未关闭发现，初审 P2 已用实际活跃话题红绿回归关闭。普通推送的官方 affected 选择 1373/2064 个根测试文件，实际 15692 通过、1 失败、4 跳过，推送被阻止，不是全量且不记全绿。
+
+失败是 `hostRemoteStartupIntegration.test.ts` 的 InitLocal 沙箱未注入已有 `reportHostRunningTaskCount`，抛出 ReferenceError；独立单文件复现。`b9817f9e` 已加入该真实调用，而测试仍来自 `0a1fc56d`；本次只读源码没有修改该启动函数。按既有启动/维护合同补齐计数和 HostReady 端口，并断言 base attachment→初始计数→HostReady→后台迁移→数据库 ready 的顺序；只修测试夹具，不改应用逻辑或门禁。单文件修正后 4/4 通过，原失败保留；完整推送检查与下一候选仍须完成。
+
+私有证据：`readonly-review-final.json`、`readonly-source-push.log`、`readonly-host-startup-red.json`、`readonly-host-startup-green.json`、`readonly-host-startup-typed.json`。当前仍运行旧 local.3，未重放旧派单、未恢复真实台账，18 未完成。
