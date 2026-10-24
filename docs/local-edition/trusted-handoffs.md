@@ -27,15 +27,15 @@ Status: done
 
 Node 24.14.0、pnpm 10.33.2；全部使用临时存储及虚构身份。Provider 解析及 HTTP 请求组装、Bot Repo、协作所有者和运行时接线使用生产实现；外部任务 SDK 与 HTTP 端口可控，不连接真实平台或模型。
 
-| 检查 | 记录 |
-|---|---|
-| 可信交接 | 补正后 25 项通过；覆盖默认群/话题短链、原生发送目标、服务重建后 final、普通终答、重放、越权与迟到拒绝、首次话题及停用，以及等价工作区身份、发送前并发撤销 |
-| 相关回归 | 补正后 14 文件 / 339 项通过。首轮有 1 项 04 用户提示回归，目标停用校验已收窄到发送目标，原断言不变 |
-| CLI | ReplyToChannel 与权限两文件 15 项通过；实际执行 inputId 仍取 assistant 父消息，严格拒绝模型原用户字段 |
-| 固定官网 Reader | 对默认群及话题真实短链产生的隔离 Bot v3 文件，以官方 3c5b2276 独立 worktree Repo 读取并写回；Local 读回及索引逐字保留均通过。只验证 Bot 文件，SQLite 沿用 03/04 证据 |
-| 类型/Lint/架构 | 补正后根类型检查、CLI core 类型通过；根 Lint 0 errors、96 条既有警告，CLI Lint 0 errors、69 条警告（另 13 项原样上游行数存量）；架构 0 新违规，代码格式通过 |
-| 全量 | 实现检查点启动的一次全量：2059 文件通过、1 文件失败、2 文件跳过；20023 项通过、3 项失败、10 项跳过，347.49 秒。3 项均为既有 webRemoteControlAuthGateFixture 固定 5173 被其他项目开发进程占用；未改测试、未停止其他项目，未记全绿。随后审查补正以 339 项相关回归验证，未重复全量 |
-| 两路审查 | 首轮 Standards 2 项 P2、Spec 1 项 P1，补正后独立复审全部关闭，最终 0 项遗留；Spec 原竞态探针不改断言独立重跑 1 项通过 |
+| 检查            | 记录                                                                                                                                                                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 可信交接        | 补正后 25 项通过；覆盖默认群/话题短链、原生发送目标、服务重建后 final、普通终答、重放、越权与迟到拒绝、首次话题及停用，以及等价工作区身份、发送前并发撤销                                                                                                                       |
+| 相关回归        | 补正后 14 文件 / 339 项通过。首轮有 1 项 04 用户提示回归，目标停用校验已收窄到发送目标，原断言不变                                                                                                                                                                              |
+| CLI             | ReplyToChannel 与权限两文件 15 项通过；实际执行 inputId 仍取 assistant 父消息，严格拒绝模型原用户字段                                                                                                                                                                           |
+| 固定官网 Reader | 对默认群及话题真实短链产生的隔离 Bot v3 文件，以官方 3c5b2276 独立 worktree Repo 读取并写回；Local 读回及索引逐字保留均通过。只验证 Bot 文件，SQLite 沿用 03/04 证据                                                                                                            |
+| 类型/Lint/架构  | 补正后根类型检查、CLI core 类型通过；根 Lint 0 errors、96 条既有警告，CLI Lint 0 errors、69 条警告（另 13 项原样上游行数存量）；架构 0 新违规，代码格式通过                                                                                                                     |
+| 全量            | 实现检查点启动的一次全量：2059 文件通过、1 文件失败、2 文件跳过；20023 项通过、3 项失败、10 项跳过，347.49 秒。3 项均为既有 webRemoteControlAuthGateFixture 固定 5173 被其他项目开发进程占用；未改测试、未停止其他项目，未记全绿。随后审查补正以 339 项相关回归验证，未重复全量 |
+| 两路审查        | 首轮 Standards 2 项 P2、Spec 1 项 P1，补正后独立复审全部关闭，最终 0 项遗留；Spec 原竞态探针不改断言独立重跑 1 项通过                                                                                                                                                           |
 
 本机原日志位于 `~/.local/share/zcode-local/research/issue-05/`。红证据包含 `authorization-red.log`、`pm-admission-red.log`、`dispatch-red.log`、`chain-red.log`、`thread-replay-red.log`、`stopped-red.log`、`target-red.log`；夹具准备失败不当作产品红证据，最终结果以对应 green/最终日志为准。补正回归 `related-review.log`，身份红证据 `identity-red.log`，发送竞态 `send-race-red.log` 与 `review-second-green.log`；独立竞态复审 `spec-race-probe/retest.log`。固定 Reader 为 `frozen-group.log`、`frozen-topic.log`、`local-group-reader.log`、`local-topic-reader.log`；全量和端口归属分别为 `full-unit.log`、`full-failure-port-owner.log`。类型、Lint、架构、格式见 `typecheck-final-head.log`、`lint-review.log`、`cli-lint.log`、`architecture-review-second.log`、`format-review.log`、`cli-format.log`。
 
@@ -65,3 +65,9 @@ pnpm --dir apps/zcode-cli --filter @zcode/core exec vitest run tests/reply-to-ch
 ```
 
 首条补正后为 95 项，CLI 为 15 项。完整 339 项相关范围见私有日志；全量未通过的原因与结果保持上述披露，不以定向通过替代全量通过。
+
+## 18 真实验收中的回执绑定补正（2026-10-24）
+
+真实事件与原 sent 平台消息相同，但接收事件 sender open_id 与配置中发出机器人 openId 不同，旧直接相等判断拒绝。用户已批准按原投递 owner 回执绑定来源，完整边界及事件图见 [05 局部合同](../issues/zcode-local/05-trusted-handoffs.md#18-真实验收补正原生机器人交接按已确认回执绑定2026-10-24)，实测及失败保留见 [18 验收记录](final-acceptance.md#授权断点已确认修正待真实验证2026-10-24)。这不是用昵称、正文或任意机器人身份授权；原消息 ID、sent/授权/任务输入、范围/版本/方向职责和停止边界继续核对，原始 sender 保留。
+
+补正源码 `aca671101531717575635a6dc1a46e88e5952525`，相关 17 文件 494 通过/1 跳过，必需检查及独立两轴复审通过。当前候选运行仍为修正前 local.2，准备 local.3；未重放原派单，真实闭环及最终用户验收仍待完成。早期 05 的合成完成记录不扩大为当前真实链路通过。

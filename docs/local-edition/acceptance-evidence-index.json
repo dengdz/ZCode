@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-pm-dispatch-visible-executor-receive-event-unproven",
+  "overall": "in-progress-executor-native-parsed-authorization-denied-receipt-binding-fix-pending-real-validation",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -392,6 +392,52 @@
       "limits": [
         "Connection/ready is observer and WebSocket readiness, not a model or business round trip. New real native demand and executor receive/reply remain pending."
       ]
+    },
+    "receive-authorization-diagnosis": {
+      "evidence": [
+        "receive-authorization-findings.json",
+        "receive-authorize-check.private.json",
+        "repro-sender-boundary.log",
+        "repro-sender-boundary-green.log"
+      ],
+      "newNativeDemandObserved": true,
+      "transportReceived": true,
+      "nativeMentionMatched": true,
+      "parsedMessages": 1,
+      "authorization": "deny",
+      "sentProviderMessageIdCorrelated": true,
+      "nativeSenderEqualsConfiguredPmOpenId": false,
+      "legacyGuardReached": false,
+      "receiverAdmissionReached": false,
+      "reasonProviderIdsDiffer": "unconfirmed",
+      "immediateRejectingPredicateConfirmed": true
+    },
+    "receipt-binding-fix": {
+      "source": "aca671101531717575635a6dc1a46e88e5952525",
+      "evidence": [
+        "receipt-fix-red.json",
+        "receipt-fix-green-2.json",
+        "receipt-fix-handoffs.json",
+        "receipt-fix-boundaries.json",
+        "receipt-fix-related.json",
+        "receipt-fix-typecheck-final.json",
+        "receipt-fix-lint.json",
+        "receipt-fix-architecture.json",
+        "receipt-fix-review.json",
+        "receipt-fix-source-push.log"
+      ],
+      "relatedFiles": 17,
+      "passed": 494,
+      "skipped": 1,
+      "sourcePushAffected": "109/2064",
+      "sourcePushPassed": 1821,
+      "sourcePushSkipped": 2,
+      "standardsFindings": 0,
+      "specFindings": 0,
+      "realApplicationContainsFix": false,
+      "limits": [
+        "Initial test assertion failures retained. Prior unchanged Main starting/ready failure remains disclosed. New candidate and real fixed business round trip pending; no full suite run."
+      ]
     }
   },
   "scenarios": {
@@ -408,7 +454,7 @@
         "../issues/zcode-local/05-trusted-handoffs.md",
         "../issues/zcode-local/11-stop-execution.md"
       ],
-      "currentEvidence": ["root-related"],
+      "currentEvidence": ["root-related", "receive-authorization-diagnosis", "receipt-binding-fix"],
       "status": "mechanism-pass",
       "limits": []
     },
@@ -419,7 +465,9 @@
         "cli-core",
         "live-demand-chain",
         "live-loop-guard-diagnosis",
-        "live-receive-evidence-correction"
+        "live-receive-evidence-correction",
+        "receive-authorization-diagnosis",
+        "receipt-binding-fix"
       ],
       "status": "mechanism-pass-real-pm-dispatch-partial",
       "limits": [
@@ -428,13 +476,18 @@
     },
     "T04": {
       "issues": ["../issues/zcode-local/05-trusted-handoffs.md"],
-      "currentEvidence": ["root-related", "cli-core"],
+      "currentEvidence": [
+        "root-related",
+        "cli-core",
+        "receive-authorization-diagnosis",
+        "receipt-binding-fix"
+      ],
       "status": "mechanism-pass",
       "limits": []
     },
     "T05": {
       "issues": ["../issues/zcode-local/05-trusted-handoffs.md"],
-      "currentEvidence": ["root-related"],
+      "currentEvidence": ["root-related", "receive-authorization-diagnosis", "receipt-binding-fix"],
       "status": "mechanism-pass",
       "limits": []
     },
@@ -528,7 +581,7 @@
         "../issues/zcode-local/05-trusted-handoffs.md",
         "../issues/zcode-local/09-project-serial-execution.md"
       ],
-      "currentEvidence": ["root-related"],
+      "currentEvidence": ["root-related", "receive-authorization-diagnosis", "receipt-binding-fix"],
       "status": "mechanism-pass",
       "limits": []
     },
@@ -713,7 +766,9 @@
       "currentEvidence": [
         "candidate-public-content-check",
         "logging-source-review",
-        "receive-diagnostic-regression"
+        "receive-diagnostic-regression",
+        "receive-authorization-diagnosis",
+        "receipt-binding-fix"
       ],
       "status": "source-audit",
       "limits": [
@@ -729,9 +784,11 @@
         "live-demand-chain",
         "live-loop-guard-diagnosis",
         "live-receive-evidence-correction",
-        "receive-controlled-switch"
+        "receive-controlled-switch",
+        "receive-authorization-diagnosis",
+        "receipt-binding-fix"
       ],
-      "status": "real-human-demand-pm-dispatch-partial-executor-inbound-unobserved",
+      "status": "new-real-demand-executor-native-parsed-authorization-denied-fix-pending-real-validation",
       "limits": [
         "Two native identities and configuration revision verified. Real human input accepted and PM native dispatch sent/visible; executor input/report not observed. Earlier interpretation of a provider receive-event report was withdrawn after user clarification. Native event absent and production service debug disabled; complete real chain, anomalies and final acceptance remain pending."
       ]
@@ -739,5 +796,6 @@
   },
   "maintenanceSource": "8c752d581e8880db2533df11b5dc5018a5a2d837",
   "diagnosticSource": "19059fb36abebbcdb9daf19268ca636110cc5cad",
-  "currentApplicationSource": "b35fa82f561e17e0f4c03077d75e561b022327e2"
+  "currentApplicationSource": "b35fa82f561e17e0f4c03077d75e561b022327e2",
+  "receiptBindingFixSource": "aca671101531717575635a6dc1a46e88e5952525"
 }

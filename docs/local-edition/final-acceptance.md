@@ -4,7 +4,7 @@ Status: in-progress
 
 对应[18 工单](../issues/zcode-local/18-end-to-end-acceptance.md)。父规格 [T01–T36](spec.md#验收场景矩阵) 为唯一验收矩阵；本报告只定位证据，不重写场景定义。当前不代表用户已验收。
 
-当前落点：用户批准的最小接收诊断已实现并复审，`3.16.2-local.2` 候选构建、独立核验及受控切换通过。当前应用源码为 `b35fa82f561e17e0f4c03077d75e561b022327e2`，新 owner/runtime/PID/token/版本和 Host ready 对应，指定执行者的诊断记录 connection/ready。原只读需求已到 PM 派单，执行者入站仍未证明；等待真人发送新的有限只读诊断需求。busy 的具体后台来源及无回应根因均未确认，18 尚未完成。
+当前落点：local.2 已受控切换并完成最小诊断；新真人只读需求的事件到达执行者、原生提及匹配、解析成功，但被协作授权拒绝。消息指纹与 PM sent 回执相同，原生 sender open_id 与配置 PM openId 不同，旧比较构成已确认的拒绝条件；ID 差异的 Provider 原因尚未确认。用户已批准按原发送回执绑定来源，修正源码 `aca671101531717575635a6dc1a46e88e5952525` 完成回归与两轴复审，正准备 local.3 候选；当前运行仍为 b35fa82f / local.2，真实闭环未通过，18 尚未完成。
 
 ## 基线与范围
 
@@ -162,3 +162,17 @@ Status: in-progress
 指定执行者观察器已独占领取一次私有请求，0600 输出目前记录 connection/ready，facts 为空；这证明观察器及既有 WebSocket 连接就绪，不证明真实模型或业务收件成功。切换前备份与切换后的协作 ledger 字节相同：1 个需求、3 个输入、2 个交接、0 个在途入站协调记录，新增记录不是本次切换重放产生。等待新的真人原生需求，在有限窗口内观察 SDK 收件至受理阶段；旧派单不自动重发。根因及完整闭环继续未确认。
 
 私有证据定位：`receive-diagnostic-review.json`、`receive-diagnostic-contract-final.json`、`receive-diagnostic-root-serial.json`、`receive-source-push.log`、`receive-candidate-build-2.log`、`receive-candidate-verify.json`、`busy-investigation-summary.json`、`receive-install.private.json`、`receive-installed-verify.json`、`receive-postswitch-ledger-summary.json`。真实身份、消息标识、请求 salt、路径和正文不进入公开材料。
+
+## 授权断点已确认，修正待真实验证（2026-10-24）
+
+切换后的新真人需求到达 PM 并形成第三条已结算交接。指定执行者的有限诊断观察 transport/native received、prepare ready、parse parsed（1 条、原生提及匹配）后 authorization deny；complete ready 仅表示回调结束，不是任务受理或业务完成。私有 salt 下的事件指纹与本次原 sent providerMessageId 对应，而原生 sender ID 指纹与配置 PM openId 不同。来源 task/input、sent、authorization/sourceCommandId、accepted/done、职责、版本、目标与需求 active 等已观察前提匹配。未进入旧守卫或执行者 admission，不能把本次归因为循环上限或未推送。机器人 ID 为何不同尚未独立证明，不把真人身份的单应用规则扩大为该事件的已证实原因。
+
+用户已批准按 [05 局部合同](../issues/zcode-local/05-trusted-handoffs.md#18-真实验收补正原生机器人交接按已确认回执绑定2026-10-24) 修正。源码 `aca671101531717575635a6dc1a46e88e5952525` 仅在既有协作 owner 中移除跨接收视角 bot ID 的直接相等要求，保留非空原始 sender 和全部原发送回执/范围/方向/版本/成员/项目/输入/停止边界；来源仍沿原投递 owner 的真实 sent 回执绑定，不新增身份映射、schema、队列或查询/发送路径。
+
+真实协作模块的隔离私有复现：同一有效回执但 sender ID 不同先为 deny/退出 1，修改后为 allow/退出 0；错误回执仍 deny、ledger 未改。Provider→实际 Bot/Repo/协作 owner→可控任务 SDK 的默认群/话题双向交接先 2 项红灯，修正后通过，并验证原 sender 来源和重投去重。首次绿灯尝试另有夹具误断言不存在的 source.senderType，已按实际公开 schema 修正；首轮完整交接 140 通过/1 失败/1 跳过，失败是新真人拒绝反例错误要求没有原权限提示，任务始终未受理，已修正提示与受理的区分。原失败日志均保留。
+
+最终相关回归 17 文件 / 494 通过、1 专用入口跳过；根类型通过，Lint 0 errors/97 存量 warnings，架构 0 新违规和变更格式通过。固定 `6d68c7fb...aca67110` 独立复审 Standards 0、Spec 0。普通源分支推送的官方 affected 选择 109/2064，1821 通过/2 跳过，schema 8、架构工具 36、Lint/架构通过；不是全量，不覆盖此前 Main starting/ready 的未修改失败。
+
+为遵守原版本严格更新门禁，下一候选使用 `3.16.2-local.3` 及同名集成分支。当前 local.2 保持运行；待候选独立核验后，仅在原维护入口明确空闲时受控切换，再以新的真人只读需求验证修正。已拒绝的旧派单不自动重放，没有清理租约/计数或恢复覆盖数据。最终用户验收继续待完成。
+
+私有证据：`receive-authorization-findings.json`、`receive-authorize-check.private.json`、`repro-sender-boundary.log` / `repro-sender-boundary-green.log`、`receipt-fix-red.json`、`receipt-fix-green-2.json`、`receipt-fix-handoffs.json`、`receipt-fix-boundaries.json`、`receipt-fix-related.json`、`receipt-fix-typecheck-final.json`、`receipt-fix-lint.json`、`receipt-fix-architecture.json`、`receipt-fix-review.json`、`receipt-fix-source-push.log`。
