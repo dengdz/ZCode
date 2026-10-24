@@ -524,7 +524,7 @@
     },
     "readonly-routing-fix": {
       "sourceBase": "d7b0f8ee0b062e05837732688bb92cf069e7399b",
-      "status": "reviewed-zero-unclosed-findings-prepush-fixture-correction-candidate-pending",
+      "status": "reviewed-zero-unclosed-findings-source-pushed-local4-candidate-pending",
       "evidence": [
         "readonly-prompt-red.json",
         "readonly-write-red-2.json",
@@ -547,7 +547,10 @@
         "readonly-review-final.json",
         "readonly-source-push.log",
         "readonly-host-startup-red.json",
-        "readonly-host-startup-typed.json"
+        "readonly-host-startup-typed.json",
+        "readonly-review-with-fixture.json",
+        "readonly-source-push-2.json",
+        "readonly-source-push-3.log"
       ],
       "rootFiles": 17,
       "rootPassed": 503,
@@ -567,7 +570,7 @@
       "realApplicationContainsFix": false,
       "limits": [
         "Original failures retained. CLI line-count warnings explicitly registered for two existing oversized files; threshold remains 800. Architecture module ownership added without baseline relaxation.",
-        "Reviewed behavior source passed both axes. Push selected 1373/2064 root files: 15692 passed, 1 failed, 4 skipped; Host InitLocal VM fixture lacked existing reportHostRunningTaskCount/HostReady ports. Fixture-only correction and push rerun required. Candidate and real native validation remain pending; no replay or data restoration."
+        "Behavior source and fixture increment each passed both review axes. First selected test failure and later transport-only failure retained. Normal source push succeeded after all selected checks. Local.4 candidate and new real native validation pending; current application remains local.3. No replay or restoration."
       ],
       "initialReview": {
         "head": "0b309623de84af7b3a2fd6a21d96d50a2be8c40c",
@@ -581,6 +584,16 @@
         "head": "d5471c3d70d887f9a8f37843fedc15491f4378de",
         "standardsFindings": 0,
         "specFindings": 0
+      },
+      "sourceHeadWithFixture": "de16c014",
+      "sourcePush": {
+        "selectedFiles": 1373,
+        "totalDiscoveredFiles": 2064,
+        "passedFiles": 1373,
+        "passedTests": 15693,
+        "skippedTests": 4,
+        "status": "passed-and-api-verified",
+        "transport": "strict SSH443 command-only keepalive"
       }
     }
   },

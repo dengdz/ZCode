@@ -264,3 +264,11 @@ sequenceDiagram
 失败是 `hostRemoteStartupIntegration.test.ts` 的 InitLocal 沙箱未注入已有 `reportHostRunningTaskCount`，抛出 ReferenceError；独立单文件复现。`b9817f9e` 已加入该真实调用，而测试仍来自 `0a1fc56d`；本次只读源码没有修改该启动函数。按既有启动/维护合同补齐计数和 HostReady 端口，并断言 base attachment→初始计数→HostReady→后台迁移→数据库 ready 的顺序；只修测试夹具，不改应用逻辑或门禁。单文件修正后 4/4 通过，原失败保留；完整推送检查与下一候选仍须完成。
 
 私有证据：`readonly-review-final.json`、`readonly-source-push.log`、`readonly-host-startup-red.json`、`readonly-host-startup-green.json`、`readonly-host-startup-typed.json`。当前仍运行旧 local.3，未重放旧派单、未恢复真实台账，18 未完成。
+
+### local.4 候选准备
+
+行为源码固定于 d5471c3d；测试夹具补正端点 de16c014 的增量 Standards/Spec 各 0 项。相同选定范围再次实跑 1373 个文件、15693 项通过/4 跳过，普通 fork 推送成功，GitHub API 独立核对源码端点一致。第二次尝试虽测试全绿但 SSH 在检查期间被远端关闭（exit 141），未推送；第三次只在单次命令加连接保活，保留严格主机校验和全部 pre-push，成功完成。原检查失败及传输中断不覆盖。
+
+原安装入口要求严格更新，当前分支与根版本进入 `3.16.2-local.4`，用于准备下一候选；父规格冻结、官网包、保存的远端及全局 SSH 配置不变，没有创建或发布 tag。当前运行的仍是 71e8ae05 / local.3，下一版本的构建、独立验签和空闲受控切换尚待完成。新的显式只读需求将覆盖 PM/执行者；另核对上次发现的项目外台账哈希，不恢复或覆盖真实台账，也不重放旧需求。
+
+私有证据：`readonly-review-with-fixture.json`、`readonly-source-push-2.json`、`readonly-source-push-3.log`。18 保持 in-progress；真实完整闭环、关键异常及用户明确验收仍未完成。

@@ -4,7 +4,7 @@
 
 父规格：[ZCode Local spec](../../local-edition/spec.md)。[已确认拆分](../../local-edition/ticket-plan.md)。父 Issue 保持不变，执行状态以各子工单为准。
 
-当前集成分支：`3.16.2-local.3`。01–17 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)，09 见[同项目串行报告](../../local-edition/project-serial-execution.md)，10 见[合法长链报告](../../local-edition/collaboration-chain-admission.md)，11 见[实际停止报告](../../local-edition/stop-execution.md)，12 见[状态核对报告](../../local-edition/state-reconciliation.md)，13 见[PM 审核与验收报告](../../local-edition/pm-review-acceptance.md)，14 见[版本候选维护报告](../../local-edition/versioned-candidates.md)，15 见[备份与保留报告](../../local-edition/backup-retention.md)，16 见[安全切换报告](../../local-edition/safe-installation.md)，17 见[回退与恢复报告](../../local-edition/rollback-restore.md)；日常安装与数据切换继续受后续工单门禁约束。
+当前集成分支：`3.16.2-local.4`。01–17 已完成，分别见[基线核对报告](../../local-edition/baseline-3.16.2.md)、[独立 Local 候选报告](../../local-edition/local-app-candidate.md)、[共用数据及受控启动报告](../../local-edition/shared-data-ownership.md)与[协作群设置报告](../../local-edition/group-collaboration-settings.md)。05 见[可信交接报告](../../local-edition/trusted-handoffs.md)，06 见[职责与引用校验报告](../../local-edition/dispatch-role-validation.md)，07 见[静默确认报告](../../local-edition/silent-acknowledgments.md)，08 见[候选选人与续发报告](../../local-edition/recipient-selection.md)，09 见[同项目串行报告](../../local-edition/project-serial-execution.md)，10 见[合法长链报告](../../local-edition/collaboration-chain-admission.md)，11 见[实际停止报告](../../local-edition/stop-execution.md)，12 见[状态核对报告](../../local-edition/state-reconciliation.md)，13 见[PM 审核与验收报告](../../local-edition/pm-review-acceptance.md)，14 见[版本候选维护报告](../../local-edition/versioned-candidates.md)，15 见[备份与保留报告](../../local-edition/backup-retention.md)，16 见[安全切换报告](../../local-edition/safe-installation.md)，17 见[回退与恢复报告](../../local-edition/rollback-restore.md)；日常安装与数据切换继续受后续工单门禁约束。
 
 执行策略：按编号一次一票。01–17 已完成；[18 整体验收](18-end-to-end-acceptance.md)已完成隔离回归、证据索引与当前 ready 候选准备；用户确认插件链接备份边界补正并继续后，状态回到 in-progress，真实群和最终用户验收未完成。03a 测试弹窗修复继续有效。普通本地提交与 fork 分支 push 延续既有授权；origin 为用户公开 fork，upstream 只拉取。真实步骤不打断工作，日常数据恢复仍须主动触发并明确确认。
 
@@ -30,6 +30,8 @@
 | 18   | [完成整体回归与真实群只读验收](18-end-to-end-acceptance.md)                      | 13、17     |
 
 ## Progress
+
+- 2026-10-24：已批准的协作提示与显式只读约束修正完成，行为源码 d5471c3d，两轴复审 0/0；推送暴露的 Host 整合夹具缺端口经单文件红绿补正至 de16c014，增量复审 0/0。官方 affected 1373/2064 个文件、15693 项通过/4 跳过，fork 源分支推送与 API 核对成功；首次失败与 SSH 中断保留。原严格版本门要求进入 local.4，当前仅准备下一候选，仍运行旧 local.3，真实闭环未完成。
 
 - 2026-10-24：local.3 新真人需求实测确认回执绑定修正生效，执行者已受理原 sent 派单并完成文档读取，文件依据独立核对正确。但执行者仅发普通正文、没有协作 report，PM 没有 final；PM 还成功 Edit 项目外台账，真实只读验收失败。角色章程未丢失，提示适用范围及显式只读工具约束方案待确认。未重放或恢复真实数据，18 保持 in-progress，详见[最新结果与方案](../../local-edition/final-acceptance.md#修正版真实受理通过回报与只读验收失败2026-10-24)。
 
