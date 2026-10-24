@@ -99,6 +99,7 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
   ) => {
     if (
       message.senderType !== "app" ||
+      !message.actor.providerUserId ||
       message.mentionedBot !== true ||
       message.groupCardAction ||
       message.elicitationResponse
@@ -121,7 +122,9 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
       )
         continue;
       const sender = await validMember(config, handoff.fromBotId);
-      if (!sender || sender.member.openId !== message.actor.providerUserId) continue;
+      // 真实派单在接收端的 sender open_id 与发出端保存的 bot openId 不同。
+      // 来源继续由下方原投递 owner 的精确平台消息回执绑定，不能跨应用直接等同 open_id。
+      if (!sender) continue;
       if (
         handoff.fromBotId === config.pm.botId &&
         !config.executors.some(

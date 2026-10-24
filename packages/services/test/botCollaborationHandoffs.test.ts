@@ -283,6 +283,48 @@ async function setup(
   };
 }
 
+it.each([undefined, "omt_receipt_identity"])(
+  "18 接收视角 sender ID 不同时按原发送回执完成双向交接并保持原始来源：%s",
+  async (threadId) => {
+    const f = await setup(threadId);
+    await f.service.handleInboundMessage(f.human());
+    const accepted = () =>
+      vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.map(([input]) => input);
+    for (const [from, to] of [
+      ["pm", "app"],
+      ["app", "pm"],
+    ] as const) {
+      const input = accepted().at(-1)!;
+      const receipt = await f.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: `task-${from}`,
+        inputId: input.commandId,
+        toolCallId: `receipt-identity-${from}`,
+        parts: [{ type: "text", text: "Read existing documentation only" }],
+        collaboration:
+          from === "pm"
+            ? { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" }
+            : { kind: "report" },
+      });
+      if (receipt.status !== "sent") throw Error("Synthetic handoff was not sent");
+      const event = f.native(to, from, receipt.providerMessageId!, "Synthetic evidence");
+      const senderId = `ou_${from}_seen_by_${to}`;
+      event.event.sender.sender_id.open_id = senderId;
+      await f.service.handleProviderCallback("feishu", event);
+      expect(accepted()).toHaveLength(from === "pm" ? 2 : 3);
+      expect(accepted().at(-1)).toMatchObject({
+        taskId: `task-${to}`,
+        source: { senderId },
+      });
+      await f.service.handleProviderCallback("feishu", {
+        ...event,
+        header: { ...event.header, event_id: `redelivery-${from}` },
+      });
+      expect(accepted()).toHaveLength(from === "pm" ? 2 : 3);
+    }
+  },
+);
+
 it.each([false, true])(
   "18 最小诊断观察真实接收至受理且不泄露正文、身份或秘密，IO 故障=%s",
   async (ioFailure) => {
@@ -1615,41 +1657,60 @@ it.each([undefined, "omt_project"])(
   },
 );
 
-it.each(["sender", "message", "unknown", "stopped"])(
-  "派单的%s边界不成立时不受理机器人输入",
-  async (boundary) => {
-    const f = await setup();
-    await f.service.handleInboundMessage(f.human());
-    const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
-    const receipt = await f.service.replyToChannel!({
-      workspacePath: "/project",
-      taskId: "task-pm",
-      inputId: input.commandId,
-      toolCallId: "boundary",
-      parts: [{ type: "text", text: "Work" }],
-      collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
-    });
-    if (receipt.status !== "sent") throw Error("dispatch failed");
-    if (boundary === "unknown" || boundary === "stopped") {
-      const state = await f.repo.readState();
-      const group = Object.values(state.bots).find((context) => context.botId === "pm")!.group!;
-      if (boundary === "unknown") group.deliveries![receipt.deliveryId]!.status = "unknown";
-      else group.inputs![input.commandId]!.progress = { status: "stopped" };
-      await f.repo.writeState(state);
-    }
-    await f.service.handleProviderCallback(
-      "feishu",
-      f.native(
-        "app",
-        boundary === "sender" ? "product" : "pm",
-        boundary === "message" ? "om_wrong" : receipt.providerMessageId!,
-        "Work",
-      ),
-    );
-    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
-    expect(f.sent).toHaveLength(1);
-  },
-);
+it.each([
+  "sender",
+  "message",
+  "missing-sender",
+  "self",
+  "user",
+  "group",
+  "thread",
+  "unknown",
+  "stopped",
+  "cancelled",
+  "discarded",
+])("派单的%s边界不成立时不受理机器人输入", async (boundary) => {
+  const f = await setup();
+  await f.service.handleInboundMessage(f.human());
+  const input = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0];
+  const receipt = await f.service.replyToChannel!({
+    workspacePath: "/project",
+    taskId: "task-pm",
+    inputId: input.commandId,
+    toolCallId: "boundary",
+    parts: [{ type: "text", text: "Work" }],
+    collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+  });
+  if (receipt.status !== "sent") throw Error("dispatch failed");
+  if (["unknown", "stopped", "cancelled", "discarded"].includes(boundary)) {
+    const state = await f.repo.readState();
+    const group = Object.values(state.bots).find((context) => context.botId === "pm")!.group!;
+    if (boundary === "unknown") group.deliveries![receipt.deliveryId]!.status = "unknown";
+    else if (boundary === "stopped" || boundary === "cancelled" || boundary === "discarded")
+      group.inputs![input.commandId]!.progress = { status: boundary };
+    await f.repo.writeState(state);
+  }
+  // 原生消息 ID 由 Provider 分配；伪造来源的机器人只能发送自己的新消息，不能复用 PM 的回执。
+  const event = f.native(
+    "app",
+    boundary === "sender" ? "product" : "pm",
+    boundary === "sender"
+      ? "om_unrelated_bot_message"
+      : boundary === "message"
+        ? "om_wrong"
+        : receipt.providerMessageId!,
+    "Work",
+  );
+  if (boundary === "missing-sender") event.event.sender.sender_id.open_id = "";
+  if (boundary === "self") event.event.sender.sender_id.open_id = "ou_bot_app";
+  if (boundary === "group") event.event.message.chat_id = "oc_other";
+  if (boundary === "thread") event.event.message.thread_id = "omt_other";
+  if (boundary === "user") event.event.sender.sender_type = "user";
+  await f.service.handleProviderCallback("feishu", event);
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(1);
+  // 原真人权限拒绝可以发送已有提示；提示不是新的派单或任务受理。
+  if (boundary !== "user") expect(f.sent).toHaveLength(1);
+});
 
 it.each([false, true])("可信派单首次接入话题并尊重显式停用：%s", async (disabled) => {
   const f = await setup("omt_new");

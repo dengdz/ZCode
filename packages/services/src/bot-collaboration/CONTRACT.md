@@ -39,3 +39,5 @@ replyRouting.ts 是同一 owner 的私有实现：沿原 ledger/read/write 与�
 13：语义章程由 roleContext.ts 注入，PM 负责依赖、证据、整改和三轮无进展判断，执行者只回报 PM；代码不解析正文或按交接次数推断。既有 requirements 增加 active/awaiting_acceptance/closed 阶段。prepare 只登记 final/dispatch/question 的最小 stageDeliveries 意图；只有原投递 owner 确认 sent 后才结算，final 进入待验收，dispatch/question 在反馈后回到 active，旧投递重放不覆盖后续阶段。accept 是 PM-only 控制结果，要求单个空 text，当前输入必须晚于已送达 final 且来自可信真人；关闭后同一输入不能再发送或派单，后续真人消息创建新需求。真实模型是否遵守语义章程不由此契约保证，留真实群验收。
 
 18：经用户批准的 bot-receive-diagnostic 独立拥有本机有限观察输出，Bot 服务通过其公开入口调用，不参与协作状态或业务判定，不扩张本协作契约。诊断的默认关闭、scope、私有请求、脱敏、时限/数量和生命周期见该模块 CONTRACT.md 及 18 局部实施合同；本模块原授权、去重、守卫、受理和持久格式不变。
+
+18 授权补正：原生 bot/app 事件的派单来源由原投递 owner 的精确 Provider 消息回执绑定，不把发出应用配置中的 bot openId 直接当作接收应用事件的 sender ID。原始 sender ID 仍保留审计。消息必须属于同群/线程/当前版本的合法方向交接，当前成员和固定项目权限有效，原来源 task/input/authorization/sourceCommandId 一致，原 delivery=sent 且 providerMessageId 精确相同，来源输入 accepted 且未停止/取消/丢弃、需求未停止/关闭。无匹配回执的机器人、自报身份、错消息或未知结果仍拒绝。去重、真人授权、循环守卫及持久格式不变；不增加身份映射或新查询/发送路径。详见 05/18 的 2026-10-24 局部补正合同。
