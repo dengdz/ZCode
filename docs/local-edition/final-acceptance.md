@@ -272,3 +272,17 @@ sequenceDiagram
 原安装入口要求严格更新，当前分支与根版本进入 `3.16.2-local.4`，用于准备下一候选；父规格冻结、官网包、保存的远端及全局 SSH 配置不变，没有创建或发布 tag。当前运行的仍是 71e8ae05 / local.3，下一版本的构建、独立验签和空闲受控切换尚待完成。新的显式只读需求将覆盖 PM/执行者；另核对上次发现的项目外台账哈希，不恢复或覆盖真实台账，也不重放旧需求。
 
 私有证据：`readonly-review-with-fixture.json`、`readonly-source-push-2.json`、`readonly-source-push-3.log`。18 保持 in-progress；真实完整闭环、关键异常及用户明确验收仍未完成。
+
+## local.4 已运行，新的只读真实轮待执行（2026-10-25）
+
+候选源码 `f2ef20bf701fb8004bb9e15b13321623883ece5b` / `3.16.2-local.4`。行为 d5471c3d、夹具补正 de16c014、版本增量至 f2ef20bf 的独立 Standards/Spec 复核均为 0 项未关闭发现；复审只覆盖源码，不替代产物验证。原维护入口于 2026-10-24 生成 candidate-5 ready：维护测试 50/50，类型、Lint 0 errors/97 存量 warnings、架构 0 新违规通过；affected 全选 2064 后按合同跳过，不能记为全量。完整应用、ASAR 元数据、deep/strict 签名、ZIP 全成员与只读 DMG 经原入口及独立核对通过。应用树 SHA-256 为 `f551f527271fdce17dc3efa41c6bdfd1f1f7673e9df1701f6d8807661598367b`。没有创建或发布 tag。
+
+安装前发现旧 local.3 的 launcher 已结束，但应用及其相关进程仍在；退出原因未确认，不能仅凭原 runtime ready 接管。现场私有归档，用户先保留工作，随后明确正常退出 Local。再次确认原关联进程、进程组与两类应用均结束，业务根无打开文件句柄，admission/项目租约为 0，两根 owner 与归档精确一致，无 gate/request/commit。持久化任务终态本身不当作 idle 证明。
+
+按 17 人工边界，在原同序 owner 锁内调用 15 公开的 createVerifiedBackup / verifyReadyBackup，先完成当前应用/数据备份及独立验证，逐项核对当前源与完整基线一致，再把精确匹配的旧 owner 移入私有归档。首轮调用的 umask 077 使 14 个应用链接权限从 755 变成 700，成员数量、类型和内容 hash 一致；原校验拒绝且未解除 owner。首次诊断将目录模式说得过宽，后更正为链接权限。仅将本次进程恢复为常规 umask 022 后，原实现及独立 verify 通过；私有根/记录仍显式 0700/0600。原 pending 备份与失败保留，未豁免权限检查，也未宣称支持任意 umask。没有新增 force/TTL 入口、强杀、重置业务状态或恢复真实数据。
+
+原 install 随后按冷态无占用路径完成自己的备份/独立 verify、staging 核对、原子替换、takeover 与 Host-ready；此次不声称存在运行中应用的 idle→commit→accepted 退出握手。独立核对安装目标完整树/源码/签名、存活 launcher 和应用、owner/runtime/PID/token/版本均一致，gate 已释放。当前清单指针更新为 candidate-5，v3 历史指针保留；官网未替换或启动，旧需求未重放，真实台账未恢复。
+
+新真人输入前 ledger 与切换前字节一致：1 个需求、6 个输入、4 个交接、0 个在途协调记录。PM 范围的有限诊断已独占领取私有请求，0600 输出 connection/ready；仅证明观察器与既有连接就绪。项目 HEAD/status/diff、目标文档及已知项目外台账 hash 基线已保存。下一轮由同一真人原生提及 PM，以显式只读首行创建新的有限需求，验证 report、PM final/待验收及文件依据。需求不设过期时间；诊断仍按原独立时限/额度停止，不因观察到期重放或重启。旧 C 失败、其他关键真实异常与最终用户验收仍未完成，18 保持 in-progress。
+
+私有证据：`readonly-candidate-build.json`、`candidate-5/candidate.json`、`readonly-candidate-verify.json`、`readonly-review-candidate-source.json`、`readonly-orphan-preflight/audit.private.json`、`readonly-cold-copy-mode-confirmed.json`、`readonly-cold-owner-recovery-2/result.json`、`readonly-install.private.json`、`readonly-installed-verify.json`、`readonly-postswitch-ledger-summary.json`、`readonly-d-before.private.json`。

@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-real-round-failed-readonly-routing-reviewed-candidate-pending",
+  "overall": "in-progress-readonly-fixed-local4-running-new-real-round-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -524,7 +524,7 @@
     },
     "readonly-routing-fix": {
       "sourceBase": "d7b0f8ee0b062e05837732688bb92cf069e7399b",
-      "status": "reviewed-zero-unclosed-findings-source-pushed-local4-candidate-pending",
+      "status": "implemented-reviewed-and-running-new-real-round-pending",
       "evidence": [
         "readonly-prompt-red.json",
         "readonly-write-red-2.json",
@@ -550,7 +550,9 @@
         "readonly-host-startup-typed.json",
         "readonly-review-with-fixture.json",
         "readonly-source-push-2.json",
-        "readonly-source-push-3.log"
+        "readonly-source-push-3.log",
+        "readonly-review-candidate-source.json",
+        "readonly-installed-verify.json"
       ],
       "rootFiles": 17,
       "rootPassed": 503,
@@ -567,10 +569,10 @@
       "cliLintWarnings": 72,
       "cliPristineLineDiagnostics": 11,
       "architectureNewViolations": 0,
-      "realApplicationContainsFix": false,
+      "realApplicationContainsFix": true,
       "limits": [
         "Original failures retained. CLI line-count warnings explicitly registered for two existing oversized files; threshold remains 800. Architecture module ownership added without baseline relaxation.",
-        "Behavior source and fixture increment each passed both review axes. First selected test failure and later transport-only failure retained. Normal source push succeeded after all selected checks. Local.4 candidate and new real native validation pending; current application remains local.3. No replay or restoration."
+        "Behavior, fixture and candidate version increments passed both source review axes. Local.4 is running. Old real-round failure and earlier test/transport failures retained. New native business round and remaining real scenarios pending; no replay or real data restoration."
       ],
       "initialReview": {
         "head": "0b309623de84af7b3a2fd6a21d96d50a2be8c40c",
@@ -594,7 +596,54 @@
         "skippedTests": 4,
         "status": "passed-and-api-verified",
         "transport": "strict SSH443 command-only keepalive"
-      }
+      },
+      "candidateSource": "f2ef20bf701fb8004bb9e15b13321623883ece5b"
+    },
+    "readonly-fixed-candidate": {
+      "status": "ready-independently-verified-and-installed",
+      "source": "f2ef20bf701fb8004bb9e15b13321623883ece5b",
+      "version": "3.16.2-local.4",
+      "maintenancePassed": 50,
+      "affectedSelected": 2064,
+      "affectedTotal": 2064,
+      "affectedExecuted": false,
+      "artifactTreeSha256": "f551f527271fdce17dc3efa41c6bdfd1f1f7673e9df1701f6d8807661598367b",
+      "evidence": [
+        "readonly-candidate-build.json",
+        "candidate-5/candidate.json",
+        "readonly-candidate-verify.json",
+        "readonly-review-candidate-source.json"
+      ],
+      "limits": [
+        "All-selected affected skip is not a full-suite result. Subagent reviews cover source only; artifact verification is separate. No tag publication."
+      ]
+    },
+    "readonly-cold-owner-audit": {
+      "status": "precision-owner-archived-after-human-normal-exit-and-verified-current-backup",
+      "evidence": [
+        "readonly-orphan-preflight/audit.private.json",
+        "readonly-cold-copy-mode-confirmed.json",
+        "readonly-cold-owner-recovery-2/result.json"
+      ],
+      "limits": [
+        "Launcher exit cause unconfirmed. Initial umask077 symlink permission mismatch rejected without owner release; original implementation under normal022 passed. No process killed, TTL takeover, force interface, business-state reset or real data restore. Persisted task status alone is not idle evidence."
+      ]
+    },
+    "readonly-controlled-switch": {
+      "status": "cold-installed-and-independently-verified",
+      "source": "f2ef20bf701fb8004bb9e15b13321623883ece5b",
+      "evidence": [
+        "readonly-install.private.json",
+        "readonly-installed-verify.json",
+        "readonly-postswitch-ledger-summary.json",
+        "readonly-d-before.private.json"
+      ],
+      "ledgerBytesUnchangedBeforeNewNativeInput": true,
+      "oldDemandReplayed": false,
+      "realDataRestored": false,
+      "limits": [
+        "Cold no-owner route after audited manual owner archival; no running-app idle/commit/accepted handshake claimed. Host-ready and diagnostic connection/ready do not establish model or business round trip. Known external ledger hash recorded; this is not an all-filesystem audit."
+      ]
     }
   },
   "scenarios": {
@@ -904,7 +953,8 @@
         "live-backup",
         "live-verify",
         "receive-controlled-switch",
-        "receipt-fixed-switch"
+        "receipt-fixed-switch",
+        "readonly-controlled-switch"
       ],
       "status": "real-backup-and-independent-verify-pass-recovery-fixtures-pass",
       "limits": [
@@ -913,7 +963,7 @@
     },
     "T33": {
       "issues": ["../issues/zcode-local/17-rollback-restore.md"],
-      "currentEvidence": ["maintenance", "plugin-maintenance-all"],
+      "currentEvidence": ["maintenance", "plugin-maintenance-all", "readonly-cold-owner-audit"],
       "status": "mechanism-pass",
       "limits": []
     },
@@ -923,7 +973,13 @@
         "../issues/zcode-local/03-data-compatibility-ownership.md",
         "../issues/zcode-local/16-safe-installation.md"
       ],
-      "currentEvidence": ["candidate-build", "plugin-maintenance-all", "live-runtime"],
+      "currentEvidence": [
+        "candidate-build",
+        "plugin-maintenance-all",
+        "live-runtime",
+        "readonly-fixed-candidate",
+        "readonly-controlled-switch"
+      ],
       "status": "signed-current-local-startup-and-host-ready-pass",
       "limits": ["Host-ready is not proof of model or robot business round trip."]
     },
@@ -939,7 +995,8 @@
         "receive-diagnostic-regression",
         "receive-authorization-diagnosis",
         "receipt-binding-fix",
-        "receipt-fixed-candidate"
+        "receipt-fixed-candidate",
+        "readonly-fixed-candidate"
       ],
       "status": "source-audit",
       "limits": [
@@ -960,9 +1017,10 @@
         "receipt-binding-fix",
         "receipt-fixed-switch",
         "receipt-fixed-real-round",
-        "readonly-routing-fix"
+        "readonly-routing-fix",
+        "readonly-controlled-switch"
       ],
-      "status": "real-receipt-admission-pass-report-final-and-readonly-failed",
+      "status": "previous-real-round-failed-readonly-fixed-local4-running-new-round-pending",
       "limits": [
         "New native input confirmed the receipt-binding repair. Correct file facts and stable project fingerprints do not negate the external ledger write. Executor report, PM final, anomaly scenarios and explicit final user acceptance remain incomplete. No replay or data restoration performed."
       ]
@@ -970,6 +1028,6 @@
   },
   "maintenanceSource": "8c752d581e8880db2533df11b5dc5018a5a2d837",
   "diagnosticSource": "19059fb36abebbcdb9daf19268ca636110cc5cad",
-  "currentApplicationSource": "71e8ae055174a2bf371a4f5de4412a1bb3301028",
+  "currentApplicationSource": "f2ef20bf701fb8004bb9e15b13321623883ece5b",
   "receiptBindingFixSource": "aca671101531717575635a6dc1a46e88e5952525"
 }
