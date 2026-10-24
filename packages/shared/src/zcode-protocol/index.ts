@@ -5,6 +5,8 @@ export { channelReplyRequestSchema, channelReplyResultSchema } from "../channel-
 export {
   collaborationReplyIntentSchema,
   collaborationBlockedResultSchema,
+  localCollaborationTurnSchema,
+  type LocalCollaborationTurn,
 } from "../local-collaboration/index.js";
 export { zcodeProtocolTraceSchema, type ZCodeProtocolTrace } from "./trace.js";
 import {

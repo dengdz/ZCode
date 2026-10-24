@@ -1,4 +1,5 @@
 import { resolveDeferredToolCall } from "../deferred-call.js";
+import { isLocalReadOnlyToolAllowed } from "@zcode/shared";
 import {
   type AgentTelemetryErrorCategory,
   CoreErrorType,
@@ -186,6 +187,30 @@ async function executeToolCallImpl(
     return result;
   }
 
+  // 真实只读验收曾写入项目外台账：不能靠模型承诺或可被 YOLO/Hook 放行的普通权限门。
+  // 在任何工具准备、Hook 和 handler 前按原受理约束校验归一化目标，MCP 同名也不放行。
+  if (
+    deps.getLocalCollaboration?.()?.readOnly &&
+    (entry.metadata.mcpPresentation ||
+      !isLocalReadOnlyToolAllowed(canonicalToolCall.name, canonicalToolCall.input))
+  ) {
+    const result = createPermissionErrorResult(
+      canonicalToolCall,
+      "Local read-only requirement denies this tool",
+      { ruleId: "local.readOnly" },
+    );
+    await emitToolCallError(
+      deps,
+      canonicalToolCall.id,
+      traceContext,
+      turnId,
+      result.error,
+      undefined,
+      pluginId,
+    );
+    telemetry?.finishFailed("permission", "permission", result.error);
+    return result;
+  }
   let lifetime: ReturnType<NonNullable<ToolEntry["retainExecution"]>> | undefined;
   try {
     lifetime = entry.retainExecution?.(canonicalToolCall.id);

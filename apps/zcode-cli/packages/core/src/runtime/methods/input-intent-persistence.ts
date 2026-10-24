@@ -25,6 +25,7 @@ export function buildPersistedConversationInputIntent(
     ...(intent.inputOrigin ? { inputOrigin: intent.inputOrigin } : {}),
     ...(intent.conversationQuotes ? { conversationQuotes: intent.conversationQuotes } : {}),
     ...(intent.botGroupSource ? { botGroupSource: intent.botGroupSource } : {}),
+    ...(intent.localCollaboration ? { localCollaboration: intent.localCollaboration } : {}),
     sourceCommandId: intent.sourceCommandId,
     queueItemId: intent.queueItemId,
     clientId: intent.clientId,

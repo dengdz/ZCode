@@ -27,6 +27,7 @@ import {
   conversationInputIntentSchema,
   type AttachmentRef,
   type CommandEnvelope,
+  type CommandPayloadMap,
   type ConversationInputIntent,
   type ConversationSnapshot,
   type V4ConversationFileChangesResult,
@@ -255,6 +256,7 @@ async function previewConversationFileRewind(
 }
 
 interface InputCommandForAdmission {
+  localCollaboration?: ConversationInputIntent["localCollaboration"];
   inputOrigin?: "desktop" | "mobile";
   conversationQuotes?: import("@zcode/contracts").TurnInputIntentMetadata["conversationQuotes"];
   botGroupSource?: ConversationInputIntent["botGroupSource"];
@@ -341,6 +343,7 @@ export function resolveInputCommandForAdmission(
       inputOrigin?: "desktop" | "mobile";
       conversationQuotes?: import("@zcode/contracts").TurnInputIntentMetadata["conversationQuotes"];
       botGroupSource?: ConversationInputIntent["botGroupSource"];
+      projectExecutionScope?: CommandPayloadMap["sendText"]["projectExecutionScope"];
     };
     return {
       kind: envelope.type,
@@ -351,6 +354,9 @@ export function resolveInputCommandForAdmission(
       ...(payload.inputOrigin ? { inputOrigin: payload.inputOrigin } : {}),
       ...(payload.conversationQuotes ? { conversationQuotes: payload.conversationQuotes } : {}),
       ...(payload.botGroupSource ? { botGroupSource: payload.botGroupSource } : {}),
+      ...(payload.projectExecutionScope?.collaboration
+        ? { localCollaboration: payload.projectExecutionScope.collaboration }
+        : {}),
     };
   }
   if (envelope.type === "compact") {
@@ -378,6 +384,9 @@ export function resolveInputCommandForAdmission(
       ? { conversationQuotes: payload.conversationQuotes ?? canonical.intent.conversationQuotes }
       : {}),
     ...(canonical.intent.botGroupSource ? { botGroupSource: canonical.intent.botGroupSource } : {}),
+    ...(canonical.intent.localCollaboration
+      ? { localCollaboration: canonical.intent.localCollaboration }
+      : {}),
     text:
       envelope.type === "editUserQuery"
         ? (payload.newText ?? canonical.intent.text)
@@ -436,6 +445,7 @@ function buildForkInitialInput(
     ...(input.inputOrigin ? { inputOrigin: input.inputOrigin } : {}),
     ...(input.conversationQuotes ? { conversationQuotes: input.conversationQuotes } : {}),
     ...(input.botGroupSource ? { botGroupSource: input.botGroupSource } : {}),
+    ...(input.localCollaboration ? { localCollaboration: input.localCollaboration } : {}),
     text: input.text,
     attachments: input.attachments,
     delivery: {
@@ -936,6 +946,7 @@ export function createConversationV4Gateway(
         ...(input.inputOrigin ? { inputOrigin: input.inputOrigin } : {}),
         ...(input.conversationQuotes ? { conversationQuotes: input.conversationQuotes } : {}),
         ...(input.botGroupSource ? { botGroupSource: input.botGroupSource } : {}),
+        ...(input.localCollaboration ? { localCollaboration: input.localCollaboration } : {}),
         sourceCommandId: envelope.commandId,
         queueItemId: admission.queueItemId,
         clientId: envelope.clientId || "cli",

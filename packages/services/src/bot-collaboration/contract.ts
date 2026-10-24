@@ -67,7 +67,7 @@ export interface BotCollaborationContract {
   ): Promise<{ kind: "stop"; state: CollaborationStopState } | CollaborationRecovery | undefined>;
   /** 群的可信入站方向；其他真人和未关联机器人不能触发运行时。 */
   authorize(message: BotInboundMessage): Promise<"legacy" | "allow" | "redirect" | "deny">;
-  /** 在既有运行时受理前关联原需求；只返回模型材料，不修改官网来源结构。 */
+  /** 在既有运行时受理前关联原需求，同次返回模型材料和唯一输入约束；不改官网来源。 */
   bindInput(
     message: BotInboundMessage,
     execution: {
@@ -76,7 +76,7 @@ export interface BotCollaborationContract {
       workspacePath: string;
       workspaceIdentity?: string;
     },
-  ): Promise<string | undefined>;
+  ): Promise<{ context: string; turn: import("@zcode/shared").LocalCollaborationTurn } | undefined>;
   /** Host 已核对实际执行输入，协作所有者再校验方向并生成唯一原生目标或验收结果。 */
   prepareReply(
     request: ChannelReplyHostRequest,

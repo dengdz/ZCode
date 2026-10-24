@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-real-receipt-binding-pass-report-and-readonly-failed",
+  "overall": "in-progress-real-round-failed-approved-readonly-routing-fix-isolated-validation-review-candidate-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -519,7 +519,45 @@
         "Diagnostic window expired before native input; no authorization/allow diagnostic observed. Admission is established by original receipt and runtime facts.",
         "Concurrent instructions are confirmed; a deterministic claim that one sentence caused model behavior is not established.",
         "Unchanged project fingerprints do not establish global read-only behavior. Actual external ledger Edit is retained privately without restoration.",
-        "Prompt and explicit execution-constraint proposal awaits user alignment. Complete real chain, anomaly cases and final acceptance remain incomplete."
+        "Prompt and explicit execution-constraint proposal approved; isolated implementation validation completed, review/candidate and new real validation remain pending."
+      ]
+    },
+    "readonly-routing-fix": {
+      "sourceBase": "d7b0f8ee0b062e05837732688bb92cf069e7399b",
+      "status": "implemented-isolated-validation-review-and-candidate-pending",
+      "evidence": [
+        "readonly-prompt-red.json",
+        "readonly-write-red-2.json",
+        "readonly-topic-idle-red.json",
+        "readonly-root-source-final.json",
+        "readonly-core-final.json",
+        "readonly-projection-contract.json",
+        "readonly-bootstrap-refreshed.json",
+        "readonly-typecheck-source-final.json",
+        "readonly-cli-typecheck-final.json",
+        "readonly-root-lint-source-final.json",
+        "readonly-cli-lint-2.json",
+        "readonly-architecture-source-final.json"
+      ],
+      "rootFiles": 17,
+      "rootPassed": 502,
+      "rootSkipped": 1,
+      "coreFiles": 10,
+      "corePassed": 114,
+      "projectionContractPassed": 1,
+      "bootstrapFiles": 5,
+      "bootstrapPassed": 62,
+      "cliTypecheckTasks": 32,
+      "rootLintErrors": 0,
+      "rootLintWarnings": 97,
+      "cliLintErrors": 0,
+      "cliLintWarnings": 72,
+      "cliPristineLineDiagnostics": 11,
+      "architectureNewViolations": 0,
+      "realApplicationContainsFix": false,
+      "limits": [
+        "Original failures retained. CLI line-count warnings explicitly registered for two existing oversized files; threshold remains 800. Architecture module ownership added without baseline relaxation.",
+        "Fixed source review, next candidate and real native validation remain pending. Dependency-refreshed verification passed. No old message replay or real data restoration."
       ]
     }
   },
@@ -693,7 +731,7 @@
     },
     "T19": {
       "issues": ["../issues/zcode-local/13-pm-review-acceptance.md"],
-      "currentEvidence": ["root-related", "receipt-fixed-real-round"],
+      "currentEvidence": ["root-related", "receipt-fixed-real-round", "readonly-routing-fix"],
       "status": "real-model-partial-report-and-readonly-failed",
       "limits": [
         "Real PM/executor input and read completed. No executor collaboration report or PM final followed; PM also completed an external ledger Edit. Full model judgment and acceptance behavior remain unproven."
@@ -701,7 +739,7 @@
     },
     "T20": {
       "issues": ["../issues/zcode-local/13-pm-review-acceptance.md"],
-      "currentEvidence": ["root-related", "receipt-fixed-real-round"],
+      "currentEvidence": ["root-related", "receipt-fixed-real-round", "readonly-routing-fix"],
       "status": "real-model-partial-report-and-readonly-failed",
       "limits": [
         "Real PM/executor input and read completed. No executor collaboration report or PM final followed; PM also completed an external ledger Edit. Full model judgment and acceptance behavior remain unproven."
@@ -725,7 +763,12 @@
     },
     "T23": {
       "issues": ["../issues/zcode-local/13-pm-review-acceptance.md"],
-      "currentEvidence": ["root-related", "cli-core", "receipt-fixed-real-round"],
+      "currentEvidence": [
+        "root-related",
+        "cli-core",
+        "receipt-fixed-real-round",
+        "readonly-routing-fix"
+      ],
       "status": "real-model-partial-report-and-readonly-failed",
       "limits": [
         "Real PM/executor input and read completed. No executor collaboration report or PM final followed; PM also completed an external ledger Edit. Full model judgment and acceptance behavior remain unproven."
@@ -880,7 +923,8 @@
         "receive-authorization-diagnosis",
         "receipt-binding-fix",
         "receipt-fixed-switch",
-        "receipt-fixed-real-round"
+        "receipt-fixed-real-round",
+        "readonly-routing-fix"
       ],
       "status": "real-receipt-admission-pass-report-final-and-readonly-failed",
       "limits": [

@@ -12,6 +12,92 @@ import { createTestModelFactory } from "./test-runtime-model.js";
 const MEMORY_ROOT = "/storage/memories/projects/project-0123456789abcdef/memory";
 
 describe("project Memory foreground permission", () => {
+  it.each(["Write", "Edit"])(
+    "Local 只读轮在实际 %s 前拒绝，YOLO 与 Hook 放行不能解除且下一普通轮不受污染",
+    async (toolName) => {
+      const target = "/outside/ledger.md";
+      const fileSystemPort = new MemoryFileSystem({ [target]: "before" });
+      let calls = 0;
+      let hookCalls = 0;
+      const exposed: string[][] = [];
+      const runtime = createTestAgentRuntime(
+        createSessionId("local-readonly-write"),
+        {
+          workingDirectory: "/workspace",
+          mode: "yolo",
+          toolSearch: { mode: "local" },
+        },
+        {
+          eventStore: createTestSessionEventStore(),
+          fileSystemPort,
+          hookRunner: createInMemoryHookRunner({
+            hooks: [
+              {
+                event: "PreToolUse",
+                matcher: toolName,
+                callback: async () => {
+                  hookCalls++;
+                  return {
+                    hookSpecificOutput: {
+                      hookEventName: "PreToolUse",
+                      permissionDecision: "allow",
+                    },
+                  };
+                },
+              },
+            ],
+          }),
+          modelFactory: createTestModelFactory({
+            async generateText(request) {
+              calls++;
+              exposed.push((request.tools ?? []).map((t: { name: string }) => t.name));
+              return [1, 2, 4].includes(calls)
+                ? {
+                    finishReason: "tool-calls",
+                    text: "",
+                    toolCalls: [
+                      {
+                        id: `tool-${calls}`,
+                        name: calls === 1 ? "Read" : toolName,
+                        input:
+                          calls === 1
+                            ? { file_path: target }
+                            : toolName === "Edit"
+                              ? { file_path: target, old_string: "before", new_string: "after" }
+                              : { file_path: target, content: "after" },
+                      },
+                    ],
+                    usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                  }
+                : {
+                    finishReason: "stop",
+                    text: "done",
+                    usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                  };
+            },
+          } as never),
+        },
+      );
+      await runtime.executeTurn("Read only", undefined, {
+        intent: {
+          sourceCommandId: "readonly",
+          queueItemId: "readonly",
+          clientId: "host",
+          kind: "sendText",
+          localCollaboration: { requirementId: "synthetic", role: "PM", readOnly: true },
+        },
+      });
+      expect(fileSystemPort.files[target]).toBe("before");
+      expect(hookCalls).toBe(0);
+      expect(exposed[0]).not.toContain(toolName);
+      expect(exposed[0]).toContain("Read");
+      expect(exposed[0]).toContain("ReplyToChannel");
+      expect(exposed[0]).not.toContain("DeferredToolCall");
+      await runtime.executeTurn("Ordinary authorized write");
+      expect(fileSystemPort.files[target]).toBe("after");
+      expect(hookCalls).toBe(1);
+    },
+  );
   it("allows only contained lowercase Markdown Write/Edit after generic policy", () => {
     expect(apply({ file_path: `${MEMORY_ROOT}/user-preference.md` }).decision).toBe("allow");
     expect(

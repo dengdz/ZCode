@@ -1,16 +1,24 @@
 import type { AgentRuntimeInternal } from "../internal.js";
+import { LOCAL_READONLY_TOOL_NAMES } from "@zcode/shared";
 import {
   AUTOMATION_MUTATION_TOOL_NAMES,
   OFF_PEAK_MUTATION_TOOL_NAMES,
   isAutomationMutationRestrictedTurn,
   isOffPeakCreateRestrictedTurn,
   type RegularTurnLoopState,
-} from "./turn-loop-state.js";
+} from "../methods/turn-loop-state.js";
 
 export function getTurnTools(runtime: AgentRuntimeInternal, state: RegularTurnLoopState) {
   const disallowed = buildTurnDisallowedTools(state);
   if (state.automationCreateLimitReached) return [];
-  const tools = runtime.getTools(state.model);
+  const tools = runtime
+    .getTools(state.model)
+    .filter(
+      (tool) =>
+        !state.activeTurn?.localCollaboration?.readOnly ||
+        (LOCAL_READONLY_TOOL_NAMES.includes(tool.name) &&
+          !runtime.getToolRegistry().get(tool.name)?.metadata.mcpPresentation),
+    );
   return disallowed ? tools.filter((tool) => !disallowed.has(tool.name)) : tools;
 }
 

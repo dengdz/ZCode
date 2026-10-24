@@ -75,6 +75,7 @@ export type ShouldEnqueueBackgroundTaskNotification = (
 ) => boolean;
 
 export interface ToolExecutorOptions {
+  getLocalCollaboration?: () => import("@zcode/shared").LocalCollaborationTurn | undefined;
   agentTelemetry?: AgentExecutionTelemetryPort;
   agentTelemetryActorKind?: AgentTelemetryActorKind;
   registry: ToolRegistry;
@@ -190,6 +191,7 @@ export interface ToolBatchExecuteOptions extends ToolExecuteOptions {
 }
 
 export interface ToolExecutorDeps {
+  getLocalCollaboration?: () => import("@zcode/shared").LocalCollaborationTurn | undefined;
   agentTelemetry?: AgentExecutionTelemetryPort;
   agentTelemetryActorKind?: AgentTelemetryActorKind;
   registry: ToolRegistry;

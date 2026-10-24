@@ -4,7 +4,7 @@ Status: in-progress
 
 对应[18 工单](../issues/zcode-local/18-end-to-end-acceptance.md)。父规格 [T01–T36](spec.md#验收场景矩阵) 为唯一验收矩阵；本报告只定位证据，不重写场景定义。当前不代表用户已验收。
 
-当前落点：`71e8ae055174a2bf371a4f5de4412a1bb3301028` / local.3 已通过新的真人需求确认回执绑定修正生效：执行者实际受理原 PM sent 派单并完成文档读取，原生 sender 与保存的 PM openId 仍不同。本轮没有形成执行者协作 report 或 PM final，且 PM 成功 Edit 项目外台账，违反只读约束。因此真实群整体验收失败，18 保持 in-progress；下一步修正方案待用户确认，未重发需求或恢复真实数据。
+当前落点：运行中的 `71e8ae055174a2bf371a4f5de4412a1bb3301028` / local.3 已证明回执绑定修正生效，但真实需求没有协作 report/PM final，且 PM Edit 项目外台账，整体验收失败。用户随后批准提示范围及显式只读约束修正；新实现已完成隔离回归，待固定源码复审与下一候选。运行应用尚未切换，18 保持 in-progress；未重发需求或恢复真实数据。
 
 ## 基线与范围
 
@@ -199,7 +199,7 @@ Status: in-progress
 
 只读核对实际 promoted 输入与模型可见用户消息后确认：两名机器人的 Local 角色章程均在，要求通过 ReplyToChannel 的协作意图完成交接。同时，CLI 通用消息包装为所有 bot 来源附加普通回复自动投递及不要调用消息工具的指导，PM 的派单正文又明确禁止执行者调用 ReplyToChannel。可以确认这几层指导并存且本轮模型选择了普通回复；尚不能仅凭共现证明某一句话必然导致模型行为，也未确认 PM 产生该禁令的历史原因。
 
-当前 Bot 群输入公开入口没有显式只读工具策略。已有 session 工具 allowlist 和部分 turn denylist 能力不能直接等同于该入口的只读保证；Plan 还会阻止必要的网络协作工具，不能直接替换。上述结果不扩张为所有权限路径或模型的审计结论。
+当前 Bot 群输入公开入口没有显式只读工具策略。已有 session 工具 allowlist 和部分 turn denylist 能力不能直接等同于该入口的只读保证。初查曾误写 Plan 会阻止渠道工具；完整路径及既有回归确认 ReplyToChannel 有先于 Plan 的专用放行，该说法更正。Plan 仍允许非 destructive MCP，不能保证本次限定工具范围。上述结果不扩张为所有权限路径或模型的审计结论。
 
 私有命令 `python3 evaluate-readonly-round.py` 对选定本轮的真实捕获作断言，退出 1：原发送回执受理、执行完成、文件依据正确三项通过；协作 report、PM final 和无文件写入三项失败。它只读取原状态及选定捕获，不重放消息、不调用模型、不改变业务状态。原项目命令核对曾因将带行尾注释的整行与裸命令作相等比较而误判，已改为独立核对命令及行号；原误判保留。较早观察脚本也曾将含相同标记的执行者输入覆盖真人输入索引，最终判定按配置中的角色分别核对，两条输入均明确存在。
 
@@ -207,7 +207,7 @@ Status: in-progress
 
 ### 待确认的下一步修正边界
 
-此处是可审阅方案，尚未批准或实现；不是对当前运行应用能力的说明。
+用户随后已明确批准此方案；实施合同见 [18 的已批准合同](../issues/zcode-local/18-end-to-end-acceptance.md#已批准的协作提示与只读执行合同2026-10-24)。当前运行应用尚不具备该能力，实现与验证仍待完成。
 
 - 明确可信 Local 路由指导与通用自动回复指导的适用范围：PM 派单、执行者 report 和 PM final 使用已有协作意图，普通最终正文不代替交接；业务派单不能禁止必要的 Host 协作动作。普通机器人对话仍沿原自动投递语义。保留模型判断业务内容、Host 校验身份/职责/回执/状态的分工，不从正文推断或伪造 report。
 - 为下一次验收增加用户显式启用、限定到新验收需求的只读执行约束。Local owner 持有唯一约束并向 PM、执行者及后续交接传递，CLI 沿原 CommandInbox 受理和恢复边界保存并执行。工具面仅开放 Read/Glob/Grep 及经过原 owner 授权的 ReplyToChannel；文件写入、Shell、可变 MCP/插件、子代理及其他工具入口均不能绕过。不能从自然语言、超时或机器人自报推断/解除约束，未知或旧协议不支持时拒绝执行；不更改全局权限或普通开发需求。
@@ -230,4 +230,23 @@ sequenceDiagram
     H-->>U: 待用户明确验收
 ```
 
-依据根 [AGENTS.md](../../AGENTS.md)「发现设计缺陷时先与用户对齐」，上述提示指导与执行约束超出此前仅修正回执绑定的授权，须确认后再实施；当前仅归档调查结果，18 不记完成。
+依据根 [AGENTS.md](../../AGENTS.md)「发现设计缺陷时先与用户对齐」，上述提示指导与执行约束在实施前已完成范围确认；不得据此将尚未完成的实现、切换或真实验收记为通过，18 不记完成。
+
+## 已批准修正的实现与隔离证据（候选待准备）
+
+实施基线为 `d7b0f8ee0b062e05837732688bb92cf069e7399b`。先更新 18、CLI 工具变更链及模块合同，再补回归。Local owner 在原生授权真人的显式首行命令下创建独立只读需求，要求原群实际空闲且无其他协调 token；普通自然语言、引用和机器人正文不启用。约束沿原 V4 scope、canonical input intent、CommandInbox、SQLite 和实际 ActiveTurn 传递；不扩 Bot v3。稳定项目租约只取得 projectId/workspaceKey，不缓存单轮策略。
+
+模型材料与工具面投影收口为 cli-input-projection 受控模块，原执行 owner 不迁移。Local 协作指导与普通自动投递指导分开，模型不按派单中的禁令绕过协作工具。只读轮直接曝光内置 Read/Glob/Grep/ReplyToChannel 的完整 schema；executor 在工具准备/Hook/handler 之前再次检查最终目标，拒绝 Write/Edit、Shell、MCP 同名伪装、子代理、工作流和 deferred 写入，渠道工具只接受既有协作意图。原 Host 继续校验角色、职责、回执及需求状态；本轮不派生可写项目记忆提取。下一普通需求保留原开发能力。
+
+话题场景额外得到可复现红灯：原普通准备器会在验收命令受理前停止旧工作。现在显式验收命令绕开该准备器，busy/unknown 直接拒绝，已有准备中/等待停止也不能当 idle；原生主群与话题双向交接、final→真人明确 accept→新普通需求均已在隔离接口中验证。原已拒消息和旧需求不重放。
+
+- 原 Provider→实际 Bot/Repo/Local owner→任务 admission 的 17 个根文件：502 通过、1 专用子进程入口跳过。含不同接收视角 ID 的原回执边界、真实原生提及、只读命令、忙碌/未知、重投、重建、交接/待验收与关闭后的隔离；不连接真实群或模型。
+- CLI Core 定向 10 文件 114 通过；另以私有临时 Vitest include 配置运行受控模块公开投影契约 1/1。原包默认选择未包含 src 下该契约，因此它单独执行，不声称默认包选择已覆盖。Read 后的 Write 先证明能改合成台账，再实现拒绝，并覆盖实际 Write/Edit、Hook 未运行及下一普通轮仍能写；真实渠道工具的 report/final 可达合成端口，普通额外发送被拒。
+- Bootstrap 的原 V4→CommandInbox/SQLite→实际 Turn：5 文件 62 通过，包含排队、手机 replayable 冷恢复后的编辑与重试保留约束、非法结构在 admission 前拒绝。依赖产物刷新后已重新执行相同边界并通过，不将 stale dist 当最终源码验证。
+- 根类型检查通过；CLI 类型检查 32/32（24 缓存）通过。根 Lint 0 errors/97 既有 warnings；CLI Lint 0 errors/72 warnings/11 原样上游行数诊断。首次 CLI Lint 的两处超长错误保留：原文件分别 5918/2196 行，仅新增输入字段投影；按根存量合同将这两处精确登记为 max-lines 告警，800 阈值及其他检查不变。架构首次指出两个本地新增投影文件未受管，现由上述模块接管，复验 0 新违规，未改架构 baseline。
+
+原红灯与中间失败均保留：工具夹具最初未先 Read、渠道 executor 夹具缺权限读取端口、cold runtime event store 不承载历史事件的误断言均已纠正。稳定租约误接收单轮字段、队列投影及编辑重试漏字段是在接口回归中实际暴露并修正的路径；早期 CLI 依赖产物需刷新，最终验证按实际源码和依赖刷新后的结果记录。临时阶段探针已移除，不加入应用日志。
+
+本节是合成接口、真实持久化和实际工具机制证据，不能证明真实 PM 会遵守提示、审核依据或等待用户。当前日常数据未启用新命令；运行应用仍是旧 local.3，下一修订须复审、原标准构建/独立核验及空闲受控切换后，再由真人提交新的只读验收。原 C 失败结论及其他历史失败继续有效，18 未完成。
+
+私有证据：`readonly-prompt-red.json`、`readonly-write-red-2.json`、`readonly-topic-idle-red.json`、`readonly-root-source-final.json`、`readonly-core-final.json`、`readonly-projection-contract.json`、`readonly-bootstrap-refreshed.json`、`readonly-typecheck-source-final.json`、`readonly-cli-typecheck-final.json`、`readonly-root-lint-source-final.json`、`readonly-cli-lint.json`、`readonly-cli-lint-2.json`、`readonly-preexisting-lines.json`、`readonly-architecture-source-final.json`。最终源码端点、复审及候选结果后续追加，不回填为已经完成。

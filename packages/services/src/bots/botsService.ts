@@ -83,6 +83,7 @@ import {
   type BotPendingElicitation,
   type BotStructuredElicitationResponse,
   isFeishuBotProvider,
+  hasLocalReadOnlyHeader,
   type BotProvider,
   type BotProviderCallbackResult,
   type BotReplyGranularity,
@@ -1063,14 +1064,21 @@ export function createBotsService(
           },
           isIdle: async (scope, current) => {
             const config = await repo.readConfig();
-            const states = Object.values((await repo.readState()).bots).filter(
-              (context) =>
+            const states = Object.entries((await repo.readState()).bots).filter(
+              ([, context]) =>
                 context.group?.chatId === scope.chatId &&
                 config.bots.some(
                   (bot) => bot.id === context.botId && bot.provider === scope.provider,
                 ),
             );
-            for (const context of states) {
+            for (const [conversationKey, context] of states) {
+              if (
+                topicContinuations.has(conversationKey) ||
+                topicPreparation
+                  .snapshot(conversationKey)
+                  .some((entry) => entry.status !== "failed")
+              )
+                return false;
               if (!(await isRemoteWorkspaceConnected(context))) return false;
               if (
                 Object.values(context.group?.deliveries ?? {}).some(
@@ -7598,6 +7606,12 @@ export function createBotsService(
       workspacePath: context.workspacePath,
       workspaceIdentity: context.workspaceIdentity,
     });
+    if (
+      collaboration &&
+      hasLocalReadOnlyHeader(message.commandText ?? message.text) &&
+      !collaborationContext
+    )
+      throw new Error("Local read-only command requires enabled collaboration");
     diagnoseInbound(message, {
       stage: "binding",
       outcome: collaborationContext ? "linked" : "legacy",
@@ -7628,10 +7642,11 @@ export function createBotsService(
               projectExecutionScope: {
                 projectId: context.projectId,
                 workspaceKey: context.workspaceIdentity?.trim() || context.workspacePath,
+                collaboration: collaborationContext.turn,
               },
             }
           : {}),
-        content: prepared.content + (collaborationContext ?? ""),
+        content: prepared.content + (collaborationContext?.context ?? ""),
         ...(topicBatch
           ? {
               conversationQuotes:
@@ -10718,7 +10733,15 @@ export function createBotsService(
       };
       if (!(await admitAutoReplyTurn(message, collaborationAdmission === "allow"))) return [];
       const replies =
-        message.actor.chatType === "group" && message.actor.threadId && commandType === "message"
+        message.actor.chatType === "group" &&
+        message.actor.threadId &&
+        commandType === "message" &&
+        // 验收命令只能空闲受理，不能先经过会 stopAndWait 的普通话题准备器打断工作。
+        !(
+          collaboration &&
+          message.senderType !== "app" &&
+          hasLocalReadOnlyHeader(message.commandText ?? message.text)
+        )
           ? await receiveTopicMessage(message)
           : await enqueueInboundProcessing(message.actor, processInbound, isGroupControl);
       if (message.actor.chatType !== "group") return replies;

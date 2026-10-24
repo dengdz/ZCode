@@ -1,6 +1,6 @@
 import { beginLocalTurnPreparation, type LocalTtftDetail } from "@zcode/contracts";
 import { runtimeInputMetadata } from "../../agent/runtime-input-presentation.js";
-import { withConversationQuotes } from "../helpers/conversation-quotes.js";
+import { withConversationQuotes } from "../input-projection/index.js";
 import { ensureGroupTaskPermissionScope } from "./input-intent-persistence.js";
 import { prepareOffPeakTurn } from "../off-peak/runtime.js";
 import {
@@ -449,6 +449,7 @@ export async function executeTurnCommand(
           ...(options?.inputId === undefined ? {} : { inputId: options.inputId }),
         },
       );
+      activeTurn.localCollaboration = options?.intent?.localCollaboration;
       this.logger?.info("Turn started", {
         ...traceContextToLogContext(turnTraceContext),
         event: "turn.started",
@@ -696,6 +697,7 @@ export async function executeTurnCommand(
                 input,
                 options?.intent?.conversationQuotes,
                 options?.intent?.botGroupSource,
+                options?.intent?.localCollaboration,
               ),
               resolvedAttachments,
               {
@@ -945,7 +947,10 @@ export async function executeTurnCommand(
           toolCallCount: loopState.toolCallCount,
         });
         // 单轮执行策略只抑制本次成功 Turn 的后台提取，不修改 Session Memory 配置。
-        if (options?.modelExecution?.memoryExtraction !== "skip") {
+        if (
+          options?.modelExecution?.memoryExtraction !== "skip" &&
+          !activeTurn.localCollaboration?.readOnly
+        ) {
           scheduleProjectMemoryExtraction(this, {
             model: loopState.model,
             traceContext: turnTraceContext,

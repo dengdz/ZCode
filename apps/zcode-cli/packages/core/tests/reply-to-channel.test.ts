@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { createToolExecutor } from "../src/tool/executor.js";
+import { createToolRegistry } from "../src/tool/registry.js";
+import { PermissionService } from "../src/permission/service.js";
 import {
   replyToChannelHandler,
   replyToChannelToolEntry,
@@ -65,6 +68,42 @@ const input = {
   ],
 };
 describe("ReplyToChannel", () => {
+  it.each(["report", "final"] as const)(
+    "Local 只读 executor 允许真实渠道 %s 工具，拒绝普通额外发送",
+    async (kind) => {
+      const f = fixture();
+      const registry = createToolRegistry();
+      registry.register(replyToChannelToolEntry);
+      const executor = createToolExecutor({
+        registry,
+        sessionId: f.context.sessionId,
+        mode: "yolo",
+        permissionService: new PermissionService(),
+        emitEvent: async () => {},
+        sessionStore: { ...f.context.sessionStore!, getSession: async () => null },
+        topicResourcePort: f.context.topicResourcePort,
+        getLocalCollaboration: () => ({
+          requirementId: "synthetic",
+          role: kind === "report" ? "executor" : "PM",
+          readOnly: true,
+        }),
+      });
+      const result = await executor.execute({
+        id: "call",
+        name: "ReplyToChannel",
+        input: {
+          parts: [{ type: "text", text: "Evidence" }],
+          collaboration: { kind },
+        },
+      });
+      expect(result.success, result.error?.message).toBe(true);
+      expect(f.reply).toHaveBeenCalledOnce();
+      const rejected = await executor.execute({ id: "call", name: "ReplyToChannel", input });
+      expect(rejected.success).toBe(false);
+      expect(rejected.error?.message).toContain("Local read-only");
+      expect(f.reply).toHaveBeenCalledOnce();
+    },
+  );
   it("returns a strict blocked result without claiming delivery or rewriting duty", async () => {
     const f = fixture();
     const blocked = {

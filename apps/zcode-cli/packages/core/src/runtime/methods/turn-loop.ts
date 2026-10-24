@@ -1,4 +1,4 @@
-import { getTurnTools } from "./turn-tool-visibility.js";
+import { getTurnTools } from "../input-projection/index.js";
 import { refreshOffPeakTurnAfterTakeover } from "../off-peak/turn.js";
 import { appendRuntimeAgentListing } from "../helpers/agent-listing.js";
 import { beginLocalTurnPreparation } from "@zcode/contracts";

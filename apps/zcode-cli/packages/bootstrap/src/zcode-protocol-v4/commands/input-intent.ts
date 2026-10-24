@@ -10,6 +10,7 @@ import type {
 import { commandAdmissionOf } from "./executor.js";
 
 export interface CanonicalCommandIntent {
+  localCollaboration?: TurnInputIntentMetadata["localCollaboration"];
   inputOrigin?: "desktop" | "mobile";
   conversationQuotes?: import("@zcode/contracts").TurnInputIntentMetadata["conversationQuotes"];
   botGroupSource?: TurnInputIntentMetadata["botGroupSource"];
@@ -54,6 +55,13 @@ export function inputIntentMetadata(
       ? (envelope.payload as CommandPayloadMap["sendText"]).highspeedMeta
       : undefined;
   return {
+    ...(envelope.type === "sendText" &&
+    (envelope.payload as CommandPayloadMap["sendText"]).projectExecutionScope?.collaboration
+      ? {
+          localCollaboration: (envelope.payload as CommandPayloadMap["sendText"])
+            .projectExecutionScope!.collaboration,
+        }
+      : {}),
     ...(options.inputOrigin ? { inputOrigin: options.inputOrigin } : {}),
     ...(options.conversationQuotes ? { conversationQuotes: options.conversationQuotes } : {}),
     ...(options.botGroupSource ? { botGroupSource: options.botGroupSource } : {}),
@@ -103,6 +111,7 @@ export function inputIntentMetadataFromCanonical(
     ...(canonical.inputOrigin ? { inputOrigin: canonical.inputOrigin } : {}),
     ...(canonical.conversationQuotes ? { conversationQuotes: canonical.conversationQuotes } : {}),
     ...(canonical.botGroupSource ? { botGroupSource: canonical.botGroupSource } : {}),
+    ...(canonical.localCollaboration ? { localCollaboration: canonical.localCollaboration } : {}),
     sourceCommandId: envelope.commandId,
     queueItemId: admission.queueItemId,
     clientId: envelope.clientId || canonical.clientId || "cli",
@@ -140,6 +149,7 @@ export function inputIntentMetadataFromQueueItem(
     ...(item.inputOrigin ? { inputOrigin: item.inputOrigin } : {}),
     ...(item.conversationQuotes ? { conversationQuotes: item.conversationQuotes } : {}),
     ...(item.botGroupSource ? { botGroupSource: item.botGroupSource } : {}),
+    ...(item.localCollaboration ? { localCollaboration: item.localCollaboration } : {}),
     sourceCommandId: item.sourceCommandId,
     queueItemId: item.queueItemId,
     clientId: item.clientId,

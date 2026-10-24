@@ -6,6 +6,8 @@ import {
   collaborationConfigSchema,
   collaborationSaveSchema,
   collaborationVerificationSchema,
+  LOCAL_READONLY_REQUEST_HEADER,
+  hasLocalReadOnlyHeader,
   isFeishuBotProvider,
   type BotGroupDelivery,
   type CollaborationScope,
@@ -258,9 +260,36 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
         )
           fail("stopping");
         const handoff = await incomingHandoff(ledger, message, config);
+        const command = (message.commandText ?? message.text).trim();
+        // 原 Provider 对真人省略 senderType；decision 已核对授权用户的 union/tenant，不能因此漏掉只读命令。
+        const explicitReadOnly =
+          message.senderType !== "app" &&
+          message.botId === config.pm.botId &&
+          hasLocalReadOnlyHeader(command);
+        if (
+          explicitReadOnly &&
+          !/^\r?\n\s*\S/u.test(command.slice(LOCAL_READONLY_REQUEST_HEADER.length))
+        )
+          fail("readonly_invalid_command");
+        // 显式命令创建独立新需求，不能把旧需求的活动状态当作空闲或重放许可。
+        if (explicitReadOnly && !replay) {
+          const admissions = ledger.admissions.filter((entry) => key(entry) === key(scope));
+          // 只承认当前唯一接收调用；同 PID/消息的遗留令牌也可能是未知旧工作，不能自动抢占。
+          if (
+            admissions.length !== 1 ||
+            admissions[0]!.ownerPid !== process.pid ||
+            admissions[0]!.botId !== message.botId ||
+            admissions[0]!.messageId !== message.actor.providerMessageId ||
+            !(await port.isIdle(scope, config))
+          )
+            fail("readonly_busy");
+        }
         const requirementId =
+          replay?.requirementId ??
           handoff?.requirementId ??
-          (priorRequirement?.stopRequested || priorRequirement?.status === "closed"
+          (explicitReadOnly ||
+          priorRequirement?.stopRequested ||
+          priorRequirement?.status === "closed"
             ? undefined
             : prior?.requirementId) ??
           createHash("sha256")
@@ -295,6 +324,7 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
             revision: config.revision,
             ...config.authorizedUser,
             name: message.actor.displayName ?? "Original user",
+            ...(explicitReadOnly ? { readOnly: true as const } : {}),
             status: "active",
             stageDeliveries: [],
           });
@@ -336,15 +366,20 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
           revision: config.revision,
         });
         const bots = await port.readConfig();
-        return collaborationRoleContext({
-          role: message.botId === config.pm.botId ? "PM" : "executor",
-          requirement: ledger.requirements.find((item) => item.id === requirementId)!,
-          participants: [config.pm, ...config.executors].map((member) => ({
-            botId: member.botId,
-            name: bots.bots.find((bot) => bot.id === member.botId)?.name,
-            duty: "duty" in member ? String(member.duty) : "PM",
-          })),
-        });
+        const role = message.botId === config.pm.botId ? "PM" : "executor";
+        const requirement = ledger.requirements.find((item) => item.id === requirementId)!;
+        return {
+          turn: { requirementId, role, readOnly: requirement.readOnly === true },
+          context: collaborationRoleContext({
+            role,
+            requirement: ledger.requirements.find((item) => item.id === requirementId)!,
+            participants: [config.pm, ...config.executors].map((member) => ({
+              botId: member.botId,
+              name: bots.bots.find((bot) => bot.id === member.botId)?.name,
+              duty: "duty" in member ? String(member.duty) : "PM",
+            })),
+          }),
+        };
       });
     },
     prepareReply: routing.prepareReply,

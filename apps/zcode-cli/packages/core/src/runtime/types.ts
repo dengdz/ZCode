@@ -817,6 +817,8 @@ export interface PreparedImageData {
 }
 
 export interface ActiveTurnSteeringState {
+  /** 唯一当前执行约束，来自已受理 intent；executor 与 provider 工具面共同读取。 */
+  localCollaboration?: import("@zcode/shared").LocalCollaborationTurn;
   kind: ActiveTurnKind;
   // active turn 被 Stop 时，goal reminder 不能插进尚未闭合的 tool results。
   // deferral 只在 regular model/tool loop 内打开，退出 loop 时先关闭再物化 pending。

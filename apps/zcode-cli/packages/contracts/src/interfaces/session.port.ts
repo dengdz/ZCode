@@ -319,6 +319,7 @@ export type TurnInputSourceMetadata =
   | { kind: "genUi"; path: string; title?: string };
 
 export interface TurnInputIntentMetadata {
+  localCollaboration?: import("@zcode/shared").LocalCollaborationTurn;
   planEnabled?: boolean;
   conversationQuotes?: Array<{
     text: string;

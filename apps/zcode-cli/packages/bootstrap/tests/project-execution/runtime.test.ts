@@ -1,7 +1,70 @@
 import { join } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { expect, it } from "vitest";
+import { SessionEventType } from "@zcode/contracts";
 import { fixture } from "./fixtures.js";
+
+it.each(["editUserQuery", "retryTurn"] as const)(
+  "18 Local 只读约束经过原队列提升、SQLite 冷恢复和 %s 仍进入实际 Turn",
+  async (command) => {
+    const f = await fixture();
+    const session = await f.create();
+    await f.command(session, "sendText", { text: "First work" });
+    await expect.poll(() => f.started.length).toBe(1);
+    const collaboration = { requirementId: "synthetic-readonly", role: "PM", readOnly: true };
+    const queued = await f.command(session, "sendText", {
+      text: "Restricted work",
+      requestedDelivery: "queue",
+      projectExecutionScope: { projectId: "fixed", workspaceKey: f.home, collaboration },
+      botGroupSource: {
+        provider: "feishu",
+        botId: "pm",
+        chatId: "oc_synthetic",
+        senderId: "ou_synthetic",
+        senderName: "User",
+        messageId: "om_synthetic",
+      },
+    });
+    expect(queued.status, JSON.stringify(queued)).toBe("accepted");
+    expect((await f.snapshot(session)).queue.items[0]).toMatchObject({
+      localCollaboration: collaboration,
+    });
+    f.releases.shift()!();
+    await expect.poll(() => f.started.length).toBe(2);
+    const lastIntent = async () => {
+      const app = f.apps.get(session)!;
+      const events = await app.runtime.getSessionEventStore().getEvents(app.sessionId);
+      const event = events.findLast((e) => e.type === SessionEventType.TurnStarted);
+      return (event?.payload as { intent?: unknown })?.intent;
+    };
+    expect(await lastIntent()).toMatchObject({ localCollaboration: collaboration });
+    f.releases.shift()!();
+    await expect
+      .poll(() => f.apps.get(session)!.runtime.getActiveForegroundExecutionId())
+      .toBeUndefined();
+    const cold = f.otherClient();
+    const snapshot = await cold.snapshot(session, "web-remote-replayable");
+    const row = snapshot.rows.window.findLast((r) =>
+      command === "editUserQuery"
+        ? r.kind === "userInput" && r.text === "Restricted work"
+        : r.kind === "assistantText",
+    )!;
+    expect(row).toBeDefined();
+    expect(
+      await cold.command(
+        session,
+        command,
+        {
+          ...(command === "editUserQuery" ? { newText: "Edited restricted work" } : {}),
+          target: { rowId: row.rowId, entityId: row.entityId },
+        },
+        { baseRevision: snapshot.revision, baseLogEpoch: snapshot.logEpoch },
+      ),
+    ).toMatchObject({ status: "accepted" });
+    await expect.poll(() => f.started.length).toBe(3);
+    expect(await lastIntent()).toMatchObject({ localCollaboration: collaboration });
+  },
+);
 
 it("停止 ACK、detached 工作和 held 队列都不能冒充 owned work 已结束，已有文件保留", async () => {
   const f = await fixture();

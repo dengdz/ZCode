@@ -283,6 +283,182 @@ async function setup(
   };
 }
 
+it.each([undefined, "omt_readonly"])(
+  "18 显式只读新需求经原 Provider 双向交接保留同一约束且不扩官网来源：%s",
+  async (threadId) => {
+    const f = await setup(threadId);
+    const native = f.native(
+      "pm",
+      "pm",
+      "om_request",
+      "[ZCODE-LOCAL-READONLY]\nRead the existing fixture only",
+    );
+    await f.service.handleProviderCallback("feishu", {
+      ...native,
+      event: {
+        ...native.event,
+        sender: {
+          ...native.event.sender,
+          sender_type: "user",
+          sender_id: { open_id: "ou_owner_pm", union_id: "on_owner" },
+        },
+      },
+    });
+    const accepted = () =>
+      vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.map(([input]) => input);
+    const first = accepted()[0]!;
+    expect(first.projectExecutionScope).toMatchObject({
+      collaboration: { role: "PM", readOnly: true },
+    });
+    const routing = first.projectExecutionScope!.collaboration!;
+    expect(first.source).not.toHaveProperty("localCollaboration");
+    for (const [from, to] of [
+      ["pm", "app"],
+      ["app", "pm"],
+    ] as const) {
+      const receipt = await f.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: `task-${from}`,
+        inputId: accepted().at(-1)!.commandId,
+        toolCallId: `readonly-${from}`,
+        parts: [{ type: "text", text: "Synthetic evidence" }],
+        collaboration:
+          from === "pm"
+            ? { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" }
+            : { kind: "report" },
+      });
+      if (receipt.status !== "sent") throw Error("Synthetic handoff was not sent");
+      await f.service.handleProviderCallback(
+        "feishu",
+        f.native(to, from, receipt.providerMessageId!, "Synthetic evidence"),
+      );
+      expect(accepted().at(-1)!.projectExecutionScope).toMatchObject({
+        collaboration: { ...routing, role: to === "pm" ? "PM" : "executor" },
+      });
+    }
+    expect(
+      await f.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId: accepted().at(-1)!.commandId,
+        toolCallId: "readonly-final",
+        parts: [{ type: "text", text: "Reviewed fixture evidence" }],
+        collaboration: { kind: "final" },
+      }),
+    ).toMatchObject({ status: "sent" });
+    await f.service.handleInboundMessage({
+      ...f.human("pm", "om_readonly_accept"),
+      text: "Accept this result",
+    });
+    expect(
+      await f.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId: accepted().at(-1)!.commandId,
+        toolCallId: "readonly-accept",
+        parts: [{ type: "text", text: "" }],
+        collaboration: { kind: "accept" },
+      }),
+    ).toEqual({ status: "acceptance_recorded" });
+    await f.service.handleInboundMessage({
+      ...f.human("pm", "om_ordinary_after_accept"),
+      text: "New ordinary requirement",
+    });
+    expect(accepted().at(-1)!.projectExecutionScope!.collaboration!.readOnly).toBe(false);
+  },
+);
+
+it("18 话题中的只读验收不能经原准备器先停止现有工作", async () => {
+  const f = await setup("omt_readonly_busy");
+  vi.mocked(f.tasks.getBotGroupTaskBlockReason!).mockResolvedValue("running");
+  vi.mocked(f.tasks.readBotTopicExecution!).mockResolvedValue({ executionId: "existing-work" });
+  vi.mocked(f.tasks.stopBotTopicExecution!).mockImplementation(async () => {
+    vi.mocked(f.tasks.readBotTopicExecution!).mockResolvedValue(undefined);
+  });
+  await f.service
+    .handleInboundMessage({ ...f.human(), text: "[ZCODE-LOCAL-READONLY]\nRead fixture" })
+    .catch(() => undefined);
+  expect(f.tasks.stopBotTopicExecution).not.toHaveBeenCalled();
+  expect(f.tasks.submitBotGroupInput).not.toHaveBeenCalled();
+});
+
+it("18 即使 PID 与原消息相同，未知遗留协调 token 也不能被只读命令自动接管", async () => {
+  const f = await setup();
+  const file = join(f.home, ".zcode/local/v1/collaboration.json");
+  const ledger = JSON.parse(await readFile(file, "utf8"));
+  ledger.admissions.push({
+    provider: "feishu",
+    chatId: "oc_group",
+    id: "unknown-previous-call",
+    ownerPid: process.pid,
+    botId: "pm",
+    messageId: "om_request",
+    revision: 1,
+  });
+  await writeFile(file, JSON.stringify(ledger));
+  await expect(
+    f.service.handleInboundMessage({ ...f.human(), text: "[ZCODE-LOCAL-READONLY]\nRead fixture" }),
+  ).rejects.toThrow("readonly_busy");
+  expect(f.tasks.submitBotGroupInput).not.toHaveBeenCalled();
+  expect(JSON.parse(await readFile(file, "utf8")).admissions).toEqual([
+    expect.objectContaining({ id: "unknown-previous-call" }),
+  ]);
+});
+
+it("18 显式新需求仍要求真人原生提及 PM，不能用普通正文冒充唤醒", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage({...f.human(), mentionedBot: false, text: "[ZCODE-LOCAL-READONLY]\nRead fixture"}).catch(() => undefined);
+  expect(f.tasks.submitBotGroupInput).not.toHaveBeenCalled();
+});
+
+it.each(["running", "unknown"] as const)(
+  "18 显式只读命令在 %s 工作状态拒绝，不创建需求或受理输入",
+  async (state) => {
+    const f = await setup();
+    if (state === "running")
+      vi.mocked(f.tasks.getBotGroupTaskBlockReason!).mockResolvedValue("running");
+    else
+      vi.mocked(f.tasks.readBotCollaborationTask!).mockResolvedValue({
+        ownedWork: "unknown",
+        inputs: [],
+      });
+    await expect(
+      f.service.handleInboundMessage({
+        ...f.human(),
+        text: "[ZCODE-LOCAL-READONLY]\nRead fixture",
+      }),
+    ).rejects.toThrow("readonly_busy");
+    expect(f.tasks.submitBotGroupInput).not.toHaveBeenCalled();
+  },
+);
+
+it("18 正文中引用标记不授予只读命令，同一原生输入不重放，新显式命令创建独立需求", async () => {
+  const f = await setup();
+  await f.service.handleInboundMessage({
+    ...f.human(),
+    text: "Quoted material: [ZCODE-LOCAL-READONLY]\nNot a command",
+  });
+  const calls = () => vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.map(([input]) => input);
+  const old = calls()[0]!.projectExecutionScope!.collaboration!;
+  expect(old.readOnly).toBe(false);
+  const command = {
+    ...f.human("pm", "om_readonly_new"),
+    text: "[ZCODE-LOCAL-READONLY]\nRead fixture",
+  };
+  await f.service.handleInboundMessage(command);
+  const current = calls().at(-1)!.projectExecutionScope!.collaboration!;
+  expect(current.readOnly).toBe(true);
+  expect(current.requirementId).not.toBe(old.requirementId);
+  await f.service.handleInboundMessage(command);
+  expect(calls()).toHaveLength(2);
+  const rebuilt = f.create();
+  await rebuilt.handleInboundMessage({
+    ...f.human("pm", "om_followup"),
+    text: "Continue the same requirement",
+  });
+  expect(calls().at(-1)!.projectExecutionScope!.collaboration).toEqual(current);
+});
+
 it.each([undefined, "omt_receipt_identity"])(
   "18 接收视角 sender ID 不同时按原发送回执完成双向交接并保持原始来源：%s",
   async (threadId) => {

@@ -1,6 +1,36 @@
 import { z } from "zod";
 const id = z.string().trim().min(1).max(250);
 const duty = z.string().trim().min(1).max(500);
+export const LOCAL_READONLY_REQUEST_HEADER = "[ZCODE-LOCAL-READONLY]";
+/** 仅识别显式命令形状；身份、空闲和需求归属仍由 Local owner 核对。 */
+export function hasLocalReadOnlyHeader(text: string): boolean {
+  return text.trimStart().startsWith(LOCAL_READONLY_REQUEST_HEADER);
+}
+/** Host 绑定后的单次输入约束；不写入官网 Bot v3 来源结构。 */
+export const localCollaborationTurnSchema = z
+  .object({
+    requirementId: id,
+    role: z.enum(["PM", "executor"]),
+    readOnly: z.boolean(),
+  })
+  .strict();
+export type LocalCollaborationTurn = z.infer<typeof localCollaborationTurnSchema>;
+export const LOCAL_READONLY_TOOL_NAMES: readonly string[] = [
+  "Read",
+  "Glob",
+  "Grep",
+  "ReplyToChannel",
+];
+/** 白名单只限定模型工具能力；渠道身份及实际发送继续归原 Host owner。 */
+export function isLocalReadOnlyToolAllowed(name: string, input: unknown): boolean {
+  if (!LOCAL_READONLY_TOOL_NAMES.includes(name)) return false;
+  if (name !== "ReplyToChannel") return true;
+  return collaborationReplyIntentSchema.safeParse(
+    input && typeof input === "object"
+      ? (input as Record<string, unknown>).collaboration
+      : undefined,
+  ).success;
+}
 export const collaborationReplyIntentSchema = z.discriminatedUnion("kind", [
   z
     .object({

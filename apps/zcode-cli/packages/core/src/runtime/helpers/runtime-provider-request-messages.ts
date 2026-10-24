@@ -10,6 +10,7 @@ import {
 } from "./provider-request-messages.js";
 
 type RequestRuntime = {
+  readonly activeTurn?: { localCollaboration?: import("@zcode/shared").LocalCollaborationTurn };
   readonly config: Pick<AgentRuntimeConfig, "midConversationSystem" | "toolSearch">;
 };
 
@@ -33,7 +34,10 @@ export function prepareRuntimeProviderRequest(
 ) {
   const exposure = buildToolExposure({
     model: input.model,
-    mode: runtime.config.toolSearch?.mode,
+    // 受限轮只有四个明确工具，直接曝光完整 schema；无需额外发现入口，不改变 Session 设置。
+    mode: runtime.activeTurn?.localCollaboration?.readOnly
+      ? "off"
+      : runtime.config.toolSearch?.mode,
     tools: input.tools,
     registry: input.registry,
     entries: input.entries,

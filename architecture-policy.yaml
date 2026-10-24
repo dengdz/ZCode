@@ -861,6 +861,20 @@ modules:
     layers:
       adapters: .
     owner: local-edition
+  # cli-input-projection：由 architecture:adopt 登记
+  - id: cli-input-projection
+    roots:
+      - apps/zcode-cli/packages/core/src/runtime/input-projection
+    managed: true
+    requires:
+      - shared
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/core/src/runtime/input-projection/index.ts
+      - apps/zcode-cli/packages/core/src/runtime/input-projection/contract.ts
+    layers:
+      app: .
+    owner: local-edition
 
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。

@@ -320,6 +320,7 @@ export interface ConversationEditTarget {
     inputOrigin?: "desktop" | "mobile";
     conversationQuotes?: import("@zcode/contracts").TurnInputIntentMetadata["conversationQuotes"];
     botGroupSource?: CanonicalUserIntentFact["botGroupSource"];
+    localCollaboration?: CanonicalUserIntentFact["localCollaboration"];
     kind: "sendText" | "sendGoalCommand";
     text: string;
     sourceCommandId?: string;
@@ -2182,6 +2183,7 @@ export class ProductProjection {
                 ...(fact.inputOrigin ? { inputOrigin: fact.inputOrigin } : {}),
                 ...(fact.conversationQuotes ? { conversationQuotes: fact.conversationQuotes } : {}),
                 ...(fact.botGroupSource ? { botGroupSource: fact.botGroupSource } : {}),
+                ...(fact.localCollaboration ? { localCollaboration: fact.localCollaboration } : {}),
                 ...(fact.clientId ? { clientId: fact.clientId } : {}),
                 ...(fact.attachments ? { attachments: fact.attachments } : {}),
                 ...(fact.queueItemId ? { queueItemId: fact.queueItemId } : {}),
@@ -3720,6 +3722,9 @@ export class ProductProjection {
       ...((payload.intent?.botGroupSource ?? existing?.botGroupSource)
         ? { botGroupSource: payload.intent?.botGroupSource ?? existing?.botGroupSource }
         : {}),
+      ...((payload.intent?.localCollaboration ?? existing?.localCollaboration)
+        ? { localCollaboration: payload.intent?.localCollaboration ?? existing?.localCollaboration }
+        : {}),
       delivery: {
         requested: requestedDelivery,
         admitted: admittedDelivery,
@@ -3937,6 +3942,9 @@ export class ProductProjection {
                   : {}),
                 ...(item.intent?.botGroupSource
                   ? { botGroupSource: item.intent.botGroupSource }
+                  : {}),
+                ...(item.intent?.localCollaboration
+                  ? { localCollaboration: item.intent.localCollaboration }
                   : {}),
                 ...(item.intent?.clientId ? { clientId: item.intent.clientId } : {}),
                 ...(item.intent?.attachmentRefs ? { attachments: item.intent.attachmentRefs } : {}),

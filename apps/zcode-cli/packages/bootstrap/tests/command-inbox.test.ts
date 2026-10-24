@@ -30,6 +30,39 @@ function envelope(partial: Partial<CommandEnvelope> = {}): CommandEnvelope {
 }
 
 describe("CommandInbox ACK 裁决", () => {
+  it("Local 协作约束缺 Bot 来源或携带未知策略时在 admission 前拒绝", async () => {
+    for (const [index, collaboration] of [
+      { requirementId: "synthetic", role: "PM", readOnly: true },
+      { requirementId: "synthetic", role: "PM", readOnly: true, allowWrite: true },
+      { requirementId: "synthetic", role: "admin", readOnly: false },
+    ].entries()) {
+      const prepareDecision = vi.fn();
+      const inbox = new CommandInbox(makeHost({ prepareDecision }));
+      const outcome = await inbox.handle(
+        envelope({
+          payload: {
+            text: "Read fixture",
+            projectExecutionScope: { projectId: "fixed", workspaceKey: "workspace", collaboration },
+            ...(index
+              ? {
+                  botGroupSource: {
+                    provider: "feishu",
+                    botId: "pm",
+                    chatId: "oc_synthetic",
+                    senderId: "ou_synthetic",
+                    senderName: "User",
+                    messageId: "om_synthetic",
+                  },
+                }
+              : {}),
+          },
+        }),
+      );
+      expect(outcome.kind).toBe("ack");
+      expect(outcome.ack).toMatchObject({ status: "rejected", reasonCode: "proto.invalidPayload" });
+      expect(prepareDecision).not.toHaveBeenCalled();
+    }
+  });
   it("cold preparation runs after deduplication inside session admission", async () => {
     let revision: number | null = null;
     const prepareDecision = vi.fn(async () => {

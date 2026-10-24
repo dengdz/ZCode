@@ -181,7 +181,13 @@ async function startPromptTurnAfterPreflight(
   const projectClaim = await host.acquireProjectExecution?.(
     record,
     params.inputId,
-    params.projectExecutionScope,
+    // 单轮协作约束只随 canonical intent；项目租约只保存稳定项目身份，不能缓存某一需求策略。
+    params.projectExecutionScope
+      ? {
+          projectId: params.projectExecutionScope.projectId,
+          workspaceKey: params.projectExecutionScope.workspaceKey,
+        }
+      : undefined,
   );
   if (projectClaim?.kind === "busy") {
     if (params.requireIdle) throw new ProjectExecutionBusyError();

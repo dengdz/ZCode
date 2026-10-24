@@ -435,6 +435,7 @@ function inputIntentOfMessage(message: MessageWithParts): TurnInputIntentMetadat
       ...(value.inputOrigin ? { inputOrigin: value.inputOrigin } : {}),
       ...(value.conversationQuotes ? { conversationQuotes: value.conversationQuotes } : {}),
       ...(value.botGroupSource ? { botGroupSource: value.botGroupSource } : {}),
+      ...(value.localCollaboration ? { localCollaboration: value.localCollaboration } : {}),
       ...(value.provenance ? { provenance: value.provenance } : {}),
       ...(value.source ? { source: value.source } : {}),
     };

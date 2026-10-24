@@ -44,6 +44,9 @@ function buildCanonicalIntent(
     envelope,
     {
       kind: editTarget.intent.kind,
+      // 编辑/重试不能丢失原 Bot 来源或只读约束，否则冷恢复会把受限输入升级成普通开发权限。
+      botGroupSource: editTarget.intent.botGroupSource,
+      localCollaboration: editTarget.intent.localCollaboration,
       conversationQuotes:
         envelope.type === "editUserQuery"
           ? ((envelope.payload as CommandPayloadMap["editUserQuery"]).conversationQuotes ??

@@ -107,6 +107,7 @@ export const ledgerSchema = z
             unionId: z.string(),
             tenantKey: z.string(),
             name: z.string(),
+            readOnly: z.literal(true).optional(),
             status: z.enum(["active", "awaiting_acceptance", "closed"]).default("active"),
             acceptancePendingInputId: z.string().optional(),
             acceptancePendingDeliveryId: z.string().optional(),

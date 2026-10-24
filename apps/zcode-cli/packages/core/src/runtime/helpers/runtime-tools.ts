@@ -155,6 +155,7 @@ function createRuntimeToolExecutor(
     agentTelemetry: runtime.agentTelemetry.port,
     agentTelemetryActorKind: runtime.agentTelemetry.actorKind,
     registry: runtime.registry,
+    getLocalCollaboration: () => runtime.activeTurn?.localCollaboration,
     permissionService: runtime.permissionService,
     permissionBroker: runtime.permissionBroker,
     emitEvent: async (event) => {

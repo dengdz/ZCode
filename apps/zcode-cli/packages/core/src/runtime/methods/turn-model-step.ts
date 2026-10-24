@@ -1,5 +1,5 @@
 import type { ToolSearchExecutionContext } from "@zcode/contracts";
-import { getTurnTools } from "./turn-tool-visibility.js";
+import { getTurnTools } from "../input-projection/index.js";
 import { isOffPeakUserTakeover, refreshOffPeakTurnAfterTakeover } from "../off-peak/turn.js";
 
 import { beginLocalTurnPreparation } from "@zcode/contracts";

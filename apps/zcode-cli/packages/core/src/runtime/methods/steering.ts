@@ -4,7 +4,7 @@ import {
   recoverPendingPermissionGrant,
 } from "../permission-grant-recovery.js";
 import { runtimeInputMetadata } from "../../agent/runtime-input-presentation.js";
-import { withConversationQuotes } from "../helpers/conversation-quotes.js";
+import { withConversationQuotes } from "../input-projection/index.js";
 import {
   CoreErrorType,
   SessionEventType,
@@ -109,6 +109,10 @@ export async function steerTurn(
     });
   }
 
+  if (activeTurn.localCollaboration || request.intent?.localCollaboration) {
+    // 协作约束属于独立输入，不能在另一需求的模型 step 内合并或解除。
+    return this.enqueueDeferredInput({ ...request, delivery: "queue" });
+  }
   if (!activeTurn.steerable) {
     return await this.rejectTurnSteer("turn_not_steerable", {
       activeTurn,
@@ -1254,6 +1258,7 @@ async function drainPendingInputUnlocked(
           pendingInput.input,
           pendingInput.intent?.conversationQuotes,
           pendingInput.intent?.botGroupSource,
+          pendingInput.intent?.localCollaboration,
         ),
         resolvedAttachments,
       ),

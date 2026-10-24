@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { getTurnTools } from "../src/runtime/methods/turn-tool-visibility.js";
+import { getTurnTools } from "../src/runtime/input-projection/index.js";
 import type { AgentRuntimeInternal } from "../src/runtime/internal.js";
 import { createToolRegistry, registerBuiltInTools } from "../src/tool/index.js";
 import {

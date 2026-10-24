@@ -1,4 +1,5 @@
 import { createSessionRequestedConfigSchema } from "./create-session-config.js";
+import { localCollaborationTurnSchema } from "../local-collaboration/index.js";
 import { localTtftContextSchema, localTtftClockSchema } from "../localTtft.js";
 import { conversationQuotesSchema } from "../conversationSelection.js";
 // Command 层：信封 / ACK / 命令全集 payload。
@@ -97,7 +98,11 @@ export const commandPayloadSchemas = {
       text: z.string(),
       // Local Host 固定项目材料；不进入 intent/Bot v3，冷队列通过运行时 Local 绑定重读。
       projectExecutionScope: z
-        .object({ projectId: z.string().min(1), workspaceKey: z.string().min(1) })
+        .object({
+          projectId: z.string().min(1),
+          workspaceKey: z.string().min(1),
+          collaboration: localCollaborationTurnSchema.optional(),
+        })
         .strict()
         .optional(),
       attachments: z.array(attachmentRefSchema).optional(),
@@ -139,6 +144,12 @@ export const commandPayloadSchemas = {
       toolDisallowlist: z.array(z.string().min(1)).optional(),
     })
     .superRefine((payload, context) => {
+      if (payload.projectExecutionScope?.collaboration && !payload.botGroupSource)
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Local collaboration requires bot source",
+          path: ["botGroupSource"],
+        });
       if (payload.automationId && payload.offPeakTaskId) {
         context.addIssue({
           code: z.ZodIssueCode.custom,

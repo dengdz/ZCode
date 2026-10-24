@@ -27,6 +27,68 @@ import { createToolRegistry } from "../src/tool/registry.js";
 import type { HookRunner } from "../src/hooks/index.js";
 import type { ToolEntry } from "../src/tool/types.js";
 
+it("Local 只读拒绝 Shell、子代理、MCP 同名伪装和 deferred 写入，早于解析及 Hook", async () => {
+  const registry = createToolRegistry();
+  let resolved = 0;
+  let executed = 0;
+  let hooks = 0;
+  for (const name of ["Bash", "Agent", "mcp__synthetic__Read", "Read", "Edit"]) {
+    registry.register(
+      probeEntry({
+        metadata: {
+          ...probeEntry({}).metadata,
+          name,
+          ...(name === "Read"
+            ? { mcpPresentation: { serverName: "synthetic", toolName: "Read" } }
+            : {}),
+        },
+        resolveInput: async (input) => {
+          resolved++;
+          return { input };
+        },
+        handler: async () => {
+          executed++;
+          return {};
+        },
+      }),
+    );
+  }
+  const executor = createToolExecutor({
+    registry,
+    sessionId: createSessionId("readonly-probes"),
+    permissionService: new PermissionService(),
+    mode: "yolo",
+    emitEvent: async () => {},
+    getLocalCollaboration: () => ({ requirementId: "synthetic", role: "PM", readOnly: true }),
+    hookRunner: {
+      run: async () => {
+        hooks++;
+        return { permissionBehavior: "allow", additionalContexts: [] };
+      },
+    },
+  });
+  for (const name of ["Bash", "Agent", "mcp__synthetic__Read", "Read"])
+    expect((await executor.execute({ id: name, name, input: {} })).error?.message).toContain(
+      "Local read-only",
+    );
+  const deferred = await executor.execute(
+    { id: "deferred", name: "DeferredToolCall", input: { name: "Edit", input: {} } },
+    {
+      toolSearch: {
+        enabled: true,
+        mode: "local",
+        catalog: [{ name: "DeferredToolCall" }, { name: "Edit", deferred: true }],
+        discovered: new Set(["Edit"]),
+      } as never,
+    },
+  );
+  expect(deferred.error?.message).toContain("Local read-only");
+  await expect(
+    executor.authorizeAppTool({ id: "app", name: "Read", input: {} }, registry.get("Read")!),
+  ).rejects.toThrow("Local read-only");
+  expect({ resolved, executed, hooks }).toEqual({ resolved: 0, executed: 0, hooks: 0 });
+});
+
 function probeEntry(overrides: Partial<ToolEntry>): ToolEntry {
   return {
     capability: "Echo the execution input back",

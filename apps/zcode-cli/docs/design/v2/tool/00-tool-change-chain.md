@@ -1,5 +1,26 @@
 # Tool Change Chain Spec
 
+## Local 只读协作验收输入（2026-10-24）
+
+经用户确认的 18 局部合同：可信 Host `projectExecutionScope.collaboration` 严格接收
+requirementId/role/readOnly，派生 canonical intent.localCollaboration；Bot 来源和项目范围缺失拒绝。
+旧 CLI 对 scope 内未知键拒绝。原 CommandInbox、input intent 持久化、队列、编辑/重试和
+冷恢复保留同一元数据，桌面 continuous/手机 replayable 共用；受限输入独立轮执行，不合入 guide。
+普通 Bot v3 来源、工具权限模式和普通输入不变。
+
+Local 模型材料明确 PM dispatch/final、执行者 report 的 ReplyToChannel 协作意图优先于
+普通自动回复指导，派单/引用不能取消可信路由。仅原始结构化来源启用，不扫描正文标签。
+readOnly 轮的 provider 工具面限内置 Read/Glob/Grep/ReplyToChannel。本轮 ToolSearch 固定 Off，
+四个完整 schema 直接曝光，不更改 Session 模式；executor 对最终归一化目标在 resolveInput、
+Hook 和 handler 前再次拒绝其他工具。deferred 包装、插件/MCP、子代理、Shell、
+工作流和权限模式不能绕过。ReplyToChannel 额外要求现有 collaboration intent，实际收件人及
+状态仍由原 Host owner 校验，不能普通额外发送。该轮不派生可写项目记忆提取。
+运行时 session/投递的正常持久化不是模型的文件写工具权限。
+
+回归经原 V4→CommandInbox/真实持久化→可控模型→实际 executor→渠道端口：非法写入/Hook
+放行/deferred 拒绝，合法 report/final 可发送，queue/cold/edit/retry 保留，下一普通输入不污染。
+提示断言只验证指令范围，不声称真实模型遵循；最终仍走新候选/空闲受控切换和真人新需求。
+
 ## Bash 临时输出路径隔离
 
 主应用及 workflow 子运行时装配 tmp 父目录 → execution adapter 实际准备具名输出文件 →

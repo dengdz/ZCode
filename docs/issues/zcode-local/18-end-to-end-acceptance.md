@@ -157,3 +157,17 @@ sequenceDiagram
 执行者文档依据独立核对正确，但只发普通正文，没有协作 report；PM 没有后续 final，需求仍 active。两者角色章程均到达模型，通用自动回复指导与协作工具要求并存，PM 派单又禁止执行者调用该工具。另查到本轮 PM 成功 Edit 项目外台账，违反只读边界；项目 Git/文档指纹不变不能掩盖该写入。精确 Edit 预览仅留私有证据，未恢复真实数据或重发需求。
 
 本轮真实断言为受理/执行/文档依据通过，report/final/无文件写入失败。提示适用范围与显式只读执行约束的可审阅方案见[下一步修正边界](../../local-edition/final-acceptance.md#待确认的下一步修正边界)，尚未获批或实现。按根设计缺陷规则先与用户对齐，18 保持 in-progress；不勾选真实群或整体通过。
+
+### 已批准的协作提示与只读执行合同（2026-10-24）
+
+用户已批准上述方案。以下为实施合同，冻结父规格及其矩阵不改；本合同不表示实现或真实验收已通过。
+
+- 新验收通过原渠道、原生提及 PM，由同一授权真人在正文首行单独写 `[ZCODE-LOCAL-READONLY]`，下一行给非空需求。这是显式机器命令，不从“只读”等自然语言、引用、历史或机器人正文推断。Local owner 仅在原运行时证明指定群全部相关工作空闲时创建独立新需求，旧需求保持原状；busy/unknown 拒绝，不抢占、不重放。精确原消息重投沿原 input/requirement 幂等。
+- 新需求的只读标记只由 Local owner 写入独立 Local ledger，所有后续 PM/执行者输入和交接继承，不接受模型覆盖或中途降级。用户明确验收/停止后的下一普通需求不继承。官网 Bot v3、配置和全局工具权限不扩字段。
+- bindInput 一次返回模型章程与结构化 `{requirementId,role,readOnly}`；Bot 服务沿原 `projectExecutionScope.collaboration` 送入 V4 sendText。该 scope 的严格 schema 使旧 CLI 对未知字段拒绝，不能静默执行。Bootstrap 从它派生同一份 canonical intent 的 `localCollaboration`，排队、持久化、重试/编辑和冷恢复保留；缺少合法 Bot/Local 项目范围的结构化协作输入拒绝。桌面 continuous 与手机 replayable 读取同一 input intent。
+- 模型包装按可信结构化标记区分 Local 交接与普通自动回复。Local PM dispatch/final、执行者 report 使用现有 ReplyToChannel collaboration intent；来自派单/历史的“不调用工具”不能取消 Host 路由。普通正文仍不自动变成交接；普通机器人回复指导保持原行为。模型仍判断业务语义，Host 仍验证身份、职责、原回执和阶段。
+- 只读轮在 provider 工具面收窄到内置 Read/Glob/Grep/ReplyToChannel，并在实际 executor 的归一化目标、Hook/resolveInput/handler 之前再次拒绝其他工具，包括 deferred 包装、Shell、插件/MCP、子代理和工作流。允许的渠道工具仍须有协作意图并通过原 owner；不允许借普通额外发送绕过。权限模式、Hook 放行及插件自报 readOnly 不能解除约束。禁止该轮派生可写的项目记忆提取；原 session/投递持久化仍由其 owner 完成。
+- Local 受限输入独立入队，不与普通输入合并为 guide；输入边界恢复同一约束，下一普通输入不被污染。缺失、不支持或无效结构拒绝，不按超时解除。无新增接受队列、身份映射或副作用重试。
+- 只读轮沿原曝光机制发送四个完整工具 schema，本轮 ToolSearch 为 Off，不改 Session 设置；deferred 绕路仍在 executor 按实际目标拒绝。Local ledger 的可选只读字段不保证旧 Local reader 可读；17 的程序回退须对具体当前数据和目标源码形成兼容证据，不能因都标为 v1 就认定兼容。
+- 显式只读命令绕开会自动 stopAndWait 的普通话题准备器，在原群运行时空闲及无其他协调 token 时才受理；话题在准备/等待停止也属于 busy。未启用协作时拒绝该命令，不能降级为普通开发任务。输入模型材料及工具面的只读投影纳入 cli-input-projection 受控模块，不迁移执行 owner。两处原为 5918/2196 行的投影/恢复文件按根已确认存量规则登记精确 max-lines 告警，阈值仍为 800，其他 Lint/架构规则不放宽；原失败保留。
+- 测试 seam 延续已确认的 Provider→真实 Bot/Repo/Local owner→任务 admission、V4→原 CommandInbox/真实持久化→可控模型和实际工具执行、真实渠道投递请求。先证明非法 Edit 能执行/提示冲突的红灯，再逐项验证拒写、合法 dispatch/report/final、错误角色/回执/停止、排队与冷恢复、普通会话隔离。真实群仅在候选核验与空闲切换后，由真人发送新命令；不将合成输出冒充真实模型遵循。

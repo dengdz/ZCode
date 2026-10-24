@@ -1,7 +1,7 @@
 import type { RuntimeInputPresentation } from "@zcode/contracts";
 import { createModelId, createModelProviderId } from "@zcode/contracts";
 import { SessionEventType, createPartId, traceContextToLogContext } from "../deps.js";
-import { withConversationQuotes } from "../helpers/conversation-quotes.js";
+import { withConversationQuotes } from "../input-projection/index.js";
 import type {
   EnvInfo,
   MessageId,
@@ -124,6 +124,7 @@ export async function persistUserPrompt(
         input,
         options?.intent?.conversationQuotes,
         options?.intent?.botGroupSource,
+        options?.intent?.localCollaboration,
       ),
       time: {
         start: created,
