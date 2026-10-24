@@ -2,6 +2,8 @@ import type {
   CollaborationStopTarget,
   CollaborationStopNotice,
 } from "#src/bot-collaboration/contract.js";
+import type { LocalReceiveDiagnostic } from "#src/bot-receive-diagnostic/contract.js";
+import { createLocalReceiveDiagnostic } from "#src/bot-receive-diagnostic/index.js";
 import { replyToBotChannel } from "#src/bots/channelReply.js";
 import { createBotCollaboration, SELECTION_CARD_PREFIX } from "#src/bot-collaboration/index.js";
 import {
@@ -773,6 +775,60 @@ export function createBotsService(
   deps: BotsServiceDeps,
 ): IBotsService & { disposeAll(): void; disposeAllAndWait(): Promise<void> } {
   const runStartupBackgroundTasks = deps.runStartupBackgroundTasks !== false;
+  const receiveDiagnostic = createLocalReceiveDiagnostic(
+    deps.localCollaborationEnabled ?? ZCODE_PRODUCT_FLAVOR === "local",
+  );
+  const diagnoseInbound = (
+    message: BotInboundMessage,
+    observation: Parameters<LocalReceiveDiagnostic["record"]>[1],
+  ) =>
+    receiveDiagnostic.record(
+      {
+        provider: message.actor.provider,
+        botId: message.botId,
+        chatId: message.actor.chatId,
+        messageId: message.actor.providerMessageId,
+        senderId: message.actor.providerUserId,
+      },
+      observation,
+    );
+  function diagnoseNative(
+    stage: "transport" | "native",
+    provider: BotProvider,
+    payload: unknown,
+    botId?: string,
+  ) {
+    const nativeEvent = isRecord(payload) ? (readNestedRecord(payload, "event") ?? payload) : null;
+    const nativeMessage = readNestedRecord(nativeEvent, "message");
+    const nativeSender = readNestedRecord(nativeEvent, "sender");
+    const senderType = readNestedString(nativeSender, "sender_type");
+    const messageType = readNestedString(nativeMessage, "message_type");
+    const diagnosticScope = {
+      provider,
+      botId,
+      chatId: readNestedString(nativeMessage, "chat_id"),
+      messageId: readNestedString(nativeMessage, "message_id"),
+      senderId: readNestedString(readNestedRecord(nativeSender, "sender_id"), "open_id"),
+    };
+    receiveDiagnostic.record(diagnosticScope, {
+      stage,
+      outcome: "received",
+      facts: {
+        senderType:
+          senderType === "user" || senderType === "bot" || senderType === "app"
+            ? senderType
+            : "other",
+        messageType:
+          messageType === "text" || messageType === "post" || messageType === "interactive"
+            ? messageType
+            : "other",
+        senderIdPresent: !!readNestedString(readNestedRecord(nativeSender, "sender_id"), "open_id"),
+        threadPresent: !!readNestedString(nativeMessage, "thread_id"),
+        mentionCount: Array.isArray(nativeMessage?.mentions) ? nativeMessage.mentions.length : 0,
+      },
+    });
+    return { diagnosticScope, nativeMessage, nativeSender };
+  }
   const repo = deps.repo ?? new BotsRepo();
   const bindCodes = new Map<string, BindCodeRecord>();
   const automationDeliveryWarningAtByKey = new Map<string, number>();
@@ -1190,6 +1246,14 @@ export function createBotsService(
     ensureBotStorageMigrated,
     readConfig: () => repo.readConfig(),
     summarizeCallbackPayload,
+    observePayload: (bot, payload) => {
+      diagnoseNative("transport", bot.provider, payload, bot.id);
+    },
+    observeConnection: (bot) =>
+      receiveDiagnostic.record(
+        { provider: bot.provider, botId: bot.id },
+        { stage: "connection", outcome: "ready" },
+      ),
     onConnectionInvalidated: (botId) =>
       botHistoryEpoch.set(botId, (botHistoryEpoch.get(botId) ?? 0) + 1),
     processProviderCallback,
@@ -4147,6 +4211,12 @@ export function createBotsService(
     const locale = await readMessageLocale();
     const config = await repo.readConfig();
     const callbackBot = findCallbackBot(config, provider, payload);
+    const { diagnosticScope, nativeMessage, nativeSender } = diagnoseNative(
+      "native",
+      provider,
+      payload,
+      callbackBot?.id,
+    );
     // 在读取引用附件和处理退群事件之前验证回调，避免未验证事件产生读写副作用。
     if (callbackBot && isFeishuBotProvider(provider) && callbackBot.webhookSecretRef) {
       const expectedToken = await deps.credentialService.load(callbackBot.webhookSecretRef);
@@ -4155,6 +4225,10 @@ export function createBotsService(
         ? (readNestedString(payload, "token") ?? readNestedString(header, "token"))
         : undefined;
       if (!expectedToken || expectedToken !== inboundToken) {
+        receiveDiagnostic.record(diagnosticScope, {
+          stage: "callback-auth",
+          outcome: "invalid-token",
+        });
         return {
           ok: false,
           replies: [],
@@ -4195,6 +4269,7 @@ export function createBotsService(
       isRecord(preparedPayload) &&
       typeof preparedPayload.zcodeCallbackPrepareError === "string"
     ) {
+      receiveDiagnostic.record(diagnosticScope, { stage: "prepare", outcome: "failed" });
       return {
         ok: false,
         replies: [],
@@ -4202,10 +4277,12 @@ export function createBotsService(
         status: 401,
       };
     }
+    receiveDiagnostic.record(diagnosticScope, { stage: "prepare", outcome: "ready" });
     const callbackResponse = callbackBot
       ? await adapter.handleCallbackResponse?.(callbackBot, preparedPayload)
       : null;
     if (callbackResponse?.responseBody !== undefined) {
+      receiveDiagnostic.record(diagnosticScope, { stage: "prepare", outcome: "provider-response" });
       return {
         ok: (callbackResponse.status ?? 200) < 400,
         replies: [],
@@ -4259,7 +4336,39 @@ export function createBotsService(
         if (group?.group) parsePayload = { ...parsePayload, zcodeChatType: "group" };
       }
     }
-    const parsedInboundMessages = adapter.parseCallback(parsePayload);
+    let parsedInboundMessages: BotInboundMessage[];
+    try {
+      parsedInboundMessages = adapter.parseCallback(parsePayload);
+    } catch (error) {
+      receiveDiagnostic.record(diagnosticScope, { stage: "parse", outcome: "failed" });
+      throw error;
+    }
+    const resolvedBotId = readNestedString(
+      isRecord(parsePayload) ? parsePayload : null,
+      "zcodeBotOpenId",
+    );
+    const senderOpenId = readNestedString(readNestedRecord(nativeSender, "sender_id"), "open_id");
+    receiveDiagnostic.record(diagnosticScope, {
+      stage: "parse",
+      outcome: parsedInboundMessages.length ? "parsed" : "empty",
+      facts: {
+        parsedCount: parsedInboundMessages.length,
+        botIdentityResolved: !!resolvedBotId,
+        selfSender: !!resolvedBotId && senderOpenId === resolvedBotId,
+        nativeMentionMatched:
+          !!resolvedBotId &&
+          Array.isArray(nativeMessage?.mentions) &&
+          nativeMessage.mentions.some(
+            (mention) =>
+              readNestedString(
+                readNestedRecord(isRecord(mention) ? mention : null, "id"),
+                "open_id",
+              ) === resolvedBotId,
+          ),
+        ignoredInteraction:
+          isRecord(parsePayload) && parsePayload.zcodeIgnoreInteractionMessage === true,
+      },
+    });
     if (isFeishuBotProvider(provider)) {
       // Bugfix: 飞书 WebSocket connected 只代表长连接已建成，不代表事件订阅已经推到本机。
       // 这里记录入口 payload 摘要和解析数量，方便区分“飞书未推事件”和“payload 形状未被解析”。
@@ -4322,6 +4431,7 @@ export function createBotsService(
         }
       }
       if (!markInboundDelivery(inboundMessage)) {
+        diagnoseInbound(inboundMessage, { stage: "dedupe", outcome: "duplicate" });
         botsLogger.debug(
           undefined,
           `provider callback duplicated provider=${provider} bot=${inboundMessage.botId} user=${inboundMessage.actor.providerUserId} messageId=${inboundMessage.actor.providerMessageId ?? ""}`,
@@ -4357,7 +4467,9 @@ export function createBotsService(
         } else {
           outbound = await service.handleInboundMessage(inboundMessage);
         }
+        diagnoseInbound(inboundMessage, { stage: "complete", outcome: "ready" });
       } catch (error) {
+        diagnoseInbound(inboundMessage, { stage: "complete", outcome: "failed" });
         releaseInboundDelivery(inboundMessage);
         hadBusinessFailure = true;
         inboundBusinessFailure = true;
@@ -7486,6 +7598,10 @@ export function createBotsService(
       workspacePath: context.workspacePath,
       workspaceIdentity: context.workspaceIdentity,
     });
+    diagnoseInbound(message, {
+      stage: "binding",
+      outcome: collaborationContext ? "linked" : "legacy",
+    });
     if (collaborationContext && !context.projectId)
       throw new Error("Local collaboration project identity is missing");
     const isFirstTaskInput = !Object.values(context.group.inputs ?? {}).some(
@@ -7542,12 +7658,16 @@ export function createBotsService(
         },
       });
       if (ack.status !== "accepted" && ack.status !== "duplicate") {
+        diagnoseInbound(message, { stage: "admission", outcome: "rejected" });
         context.group!.inputs![commandId]!.admission = "rejected";
         await writeContext(context, false, context.activeTaskId!);
         throw new Error(ack.message ?? ack.reasonCode ?? "Input rejected");
       }
-      if (ack.result?.type !== "inputAccepted")
+      if (ack.result?.type !== "inputAccepted") {
+        diagnoseInbound(message, { stage: "admission", outcome: "unknown" });
         throw new Error("Input admission outcome is unknown");
+      }
+      diagnoseInbound(message, { stage: "admission", outcome: ack.status });
       adminAttention.clear(message.actor, bot.providerUserId);
       context.group!.inputs![commandId]!.admission = "accepted";
       if (context.group!.threadId) context.group!.topicActive = true;
@@ -7916,11 +8036,18 @@ export function createBotsService(
       message.actor.chatType !== "group" ||
       message.groupCardAction ||
       message.elicitationResponse
-    )
+    ) {
+      diagnoseInbound(message, { stage: "guard", outcome: "scope-exempt" });
       return true;
+    }
     const id = message.actor.providerMessageId;
-    if (!id) return message.senderType !== "app";
+    if (!id) {
+      diagnoseInbound(message, { stage: "guard", outcome: "missing-id" });
+      return message.senderType !== "app";
+    }
     let admitted = false;
+    let guardOutcome: Parameters<LocalReceiveDiagnostic["record"]>[1]["outcome"] = "deny";
+    let guardCount: number | undefined;
     // 普通群仍在停止/准备前原子占用次数并持久去重，准备失败也占一次。
     // Local 的合法交接此前已核对来源与方向；不能再用次数截断，但仍须占用同一去重记录。
     await serializeStateWrite(async () => {
@@ -7929,19 +8056,25 @@ export function createBotsService(
       const group = context?.group;
       if (!group?.enabled) {
         admitted = message.senderType !== "app";
+        guardOutcome = "disabled";
         return;
       }
       const bot = findBot(await repo.readConfig(), message.botId);
-      if (!bot?.enabled || bot.providerUserId !== group.ownerId) return;
+      if (!bot?.enabled || bot.providerUserId !== group.ownerId) {
+        guardOutcome = "owner-mismatch";
+        return;
+      }
       if (
         !group.autoReplyGuard &&
         message.senderType !== "app" &&
         parseBotCommand(message.commandText ?? message.text).type !== "message"
       ) {
         admitted = true;
+        guardOutcome = "scope-exempt";
         return;
       }
       const guard = group.autoReplyGuard ?? { consecutive: 0, messageIds: [] };
+      guardCount = guard.consecutive;
       if (
         guard.messageIds.includes(id) ||
         Object.values(group.inputs ?? {}).some(
@@ -7952,6 +8085,7 @@ export function createBotsService(
       ) {
         // 真人重试仍走原有准备/命令幂等流程，但不能重复恢复机器人额度。
         admitted = message.senderType !== "app";
+        guardOutcome = "duplicate";
         return;
       }
       if (
@@ -7960,8 +8094,13 @@ export function createBotsService(
           (message.actor.threadId
             ? group.topicActive !== true && !collaborationAuthorized
             : message.mentionedBot !== true))
-      )
+      ) {
+        guardOutcome =
+          !collaborationAuthorized && guard.consecutive >= LEGACY_BOT_AUTO_REPLY_LIMIT
+            ? "legacy-limit"
+            : "unmentioned";
         return;
+      }
       group.autoReplyGuard = {
         // 官网 Bot v3 只接受 0–5；计数饱和保留普通群保护，不成为 Local 长链的新额度。
         consecutive:
@@ -7972,7 +8111,9 @@ export function createBotsService(
       };
       await repo.writeState(state);
       admitted = true;
+      guardOutcome = "allow";
     });
+    diagnoseInbound(message, { stage: "guard", outcome: guardOutcome, facts: { guardCount } });
     return admitted;
   }
 
@@ -9440,6 +9581,10 @@ export function createBotsService(
         ];
       }
       const collaborationAdmission = await collaboration?.authorize(message);
+      diagnoseInbound(message, {
+        stage: "authorization",
+        outcome: collaborationAdmission ?? "legacy",
+      });
       if (collaborationAdmission === "redirect" || collaborationAdmission === "deny") {
         if (message.senderType === "app") return [];
         return [
@@ -10669,6 +10814,7 @@ export function createBotsService(
         telegramRuntime.dispose(),
         weixinRuntime.dispose(),
         feishuRuntime.dispose(),
+        receiveDiagnostic.dispose(),
       ]).then(() => undefined);
       return shutdownPromise;
     },

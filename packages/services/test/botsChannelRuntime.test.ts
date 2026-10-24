@@ -658,6 +658,46 @@ describe("feishu channel runtime", () => {
     expect(disposed).toBe(true);
   });
 
+  it("18 observes SDK receipt before business processing without changing ACK on observer failure", async () => {
+    let onPayload: ((payload: unknown) => Promise<unknown>) | undefined;
+    const order: string[] = [];
+    const runtime = createFeishuChannelRuntime({
+      credentialService: f.createCredentialService({ "feishu-secret": "secret" }),
+      logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn() },
+      statusSink: { getRuntimeStatus: vi.fn(), setRuntimeStatus: vi.fn() },
+      ensureBotStorageMigrated: vi.fn(async () => undefined),
+      readConfig: vi.fn(async () => f.feishuConfig),
+      summarizeCallbackPayload: vi.fn(() => "payload"),
+      observePayload: () => {
+        order.push("observed");
+        throw Error("synthetic observer error");
+      },
+      observeConnection: () => {
+        order.push("connected");
+        throw Error("synthetic connection observer error");
+      },
+      processProviderCallback: vi.fn(async () => {
+        order.push("business");
+        return { ok: true, status: 200, replies: [] };
+      }),
+      acquireWebSocketLock: vi.fn(async () => ({ release: vi.fn(async () => undefined) })),
+      startWebSocket: vi.fn(async (params) => {
+        onPayload = params.onPayload;
+        return { close: vi.fn() };
+      }),
+    });
+    try {
+      await runtime.refresh(f.feishuConfig);
+      await vi.waitFor(() => expect(onPayload).toBeTypeOf("function"));
+      await expect(
+        onPayload!({ event: { message: { message_id: "synthetic" } } }),
+      ).resolves.toBeUndefined();
+      expect(order).toEqual(["connected", "observed", "business"]);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it("rejects websocket delivery when the business callback returns ok=false", async () => {
     let onPayload: ((payload: unknown) => Promise<void>) | undefined;
     const runtime = createFeishuChannelRuntime({

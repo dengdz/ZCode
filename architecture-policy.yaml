@@ -849,6 +849,18 @@ modules:
       - apps/zcode-cli/packages/bootstrap/src/project-execution/contract.ts
     layers: { adapters: . }
     owner: conversation
+  # bot-receive-diagnostic：由 architecture:adopt 登记
+  - id: bot-receive-diagnostic
+    roots:
+      - packages/services/src/bot-receive-diagnostic
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - packages/services/src/bot-receive-diagnostic/index.ts
+      - packages/services/src/bot-receive-diagnostic/contract.ts
+    layers:
+      adapters: .
+    owner: local-edition
 
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。

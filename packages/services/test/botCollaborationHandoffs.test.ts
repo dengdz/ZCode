@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { cp, mkdir, mkdtemp, rm, readFile, writeFile, access } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, readFile, writeFile, access, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
@@ -13,6 +13,7 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
   setDataBaseDir(null);
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 async function setup(
   scopeThread?: string,
@@ -281,6 +282,120 @@ async function setup(
     },
   };
 }
+
+it.each([false, true])(
+  "18 最小诊断观察真实接收至受理且不泄露正文、身份或秘密，IO 故障=%s",
+  async (ioFailure) => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "receive-diagnostic-")));
+    cleanups.push(() => rm(root, { recursive: true, force: true }));
+    const request = join(root, "request.json");
+    await writeFile(
+      request,
+      JSON.stringify({
+        schema: 1,
+        botId: "app",
+        chatId: "oc_group",
+        salt: "11".repeat(32),
+        expiresAt: Date.now() + 60_000,
+        maxRecords: 100,
+      }),
+      { mode: 0o600 },
+    );
+    vi.stubEnv("ZCODE_LOCAL_RECEIVE_DIAGNOSTIC_FILE", request);
+    if (ioFailure) await writeFile(join(root, "events.jsonl"), "PRESERVE", { mode: 0o600 });
+    const f = await setup();
+    await f.service.handleInboundMessage(f.human());
+    const receipt = await f.service.replyToChannel!({
+      taskId: "task-pm",
+      workspacePath: "/project",
+      inputId: vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.at(-1)![0].commandId,
+      toolCallId: "diagnostic-dispatch",
+      parts: [{ type: "text", text: "SYNTHETIC-PRIVATE-BODY" }],
+      collaboration: { kind: "dispatch", targetBotId: "app", requiredDuty: "APP" },
+    });
+    if (receipt.status !== "sent") throw Error("Synthetic dispatch missing");
+    const native = f.native("app", "pm", receipt.providerMessageId!, "SYNTHETIC-PRIVATE-BODY");
+    Object.assign(native.header, { token: "SYNTHETIC-SECRET-TOKEN" });
+    await f.service.handleProviderCallback("feishu", native);
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(2);
+    await f.service.disposeAllAndWait();
+    const raw = await readFile(join(root, "events.jsonl"), "utf8");
+    if (ioFailure) {
+      expect(raw).toBe("PRESERVE");
+      return;
+    }
+    const events = raw
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(events.map(({ stage, outcome }) => [stage, outcome])).toEqual(
+      expect.arrayContaining([
+        ["native", "received"],
+        ["prepare", "ready"],
+        ["parse", "parsed"],
+        ["authorization", "allow"],
+        ["guard", "allow"],
+        ["binding", "linked"],
+        ["admission", "accepted"],
+      ]),
+    );
+    for (const secret of [
+      "SYNTHETIC-PRIVATE-BODY",
+      "SYNTHETIC-SECRET-TOKEN",
+      "ou_bot_pm",
+      "ou_bot_app",
+      "oc_group",
+      receipt.providerMessageId!,
+      "/project",
+      "Original owner",
+    ])
+      expect(raw).not.toContain(secret);
+    expect(events.every((event) => /^[a-f0-9]{32}$/.test(event.eventRef))).toBe(true);
+  },
+);
+
+it.each(["authorization", "parse"])(
+  "18 最小诊断区分解析过滤和未关联派单拒绝：%s",
+  async (stage) => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "receive-rejection-")));
+    cleanups.push(() => rm(root, { recursive: true, force: true }));
+    const request = join(root, "request.json");
+    await writeFile(
+      request,
+      JSON.stringify({
+        schema: 1,
+        botId: "app",
+        chatId: "oc_group",
+        salt: "33".repeat(32),
+        expiresAt: Date.now() + 60_000,
+        maxRecords: 100,
+      }),
+      { mode: 0o600 },
+    );
+    vi.stubEnv("ZCODE_LOCAL_RECEIVE_DIAGNOSTIC_FILE", request);
+    const f = await setup();
+    const native = f.native("app", "pm", "om_unlinked", "SENSITIVE-DISPATCH");
+    if (stage === "parse") native.event.message.mentions[0]!.id.open_id = "ou_wrong_bot";
+    await expect(f.service.handleProviderCallback("feishu", native)).resolves.toEqual([]);
+    expect(f.tasks.submitBotGroupInput).not.toHaveBeenCalled();
+    await f.service.disposeAllAndWait();
+    const raw = await readFile(join(root, "events.jsonl"), "utf8");
+    const events = raw
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          stage,
+          outcome: stage === "parse" ? "empty" : "deny",
+        }),
+      ]),
+    );
+    expect(events.some((event) => event.stage === "admission")).toBe(false);
+    expect(raw).not.toMatch(/SENSITIVE|ou_wrong_bot|om_unlinked/u);
+  },
+);
 
 it("12 重建先核对原 commandId；丢 ACK 的已受理输入不重跑且能继续原需求回报", async () => {
   const f = await setup();

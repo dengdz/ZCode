@@ -28,6 +28,8 @@ interface FeishuChannelRuntimeDeps {
   ensureBotStorageMigrated(): Promise<void>;
   readConfig(): Promise<BotsConfigFile>;
   summarizeCallbackPayload(payload: unknown): string;
+  observePayload?(bot: BotConfig, payload: unknown): void;
+  observeConnection?(bot: BotConfig): void;
   processProviderCallback(
     provider: BotProvider,
     payload: unknown,
@@ -129,6 +131,12 @@ export function createFeishuChannelRuntime(deps: FeishuChannelRuntimeDeps) {
             if (signal.aborted) {
               return;
             }
+            // 一次诊断只旁观 SDK 收件；观察器失败不能改变既有 ACK 或业务回调。
+            try {
+              deps.observePayload?.(bot, payload);
+            } catch {
+              /* observation only */
+            }
             deps.logger.debug(
               undefined,
               `feishu websocket payload bot=${bot.id} ${deps.summarizeCallbackPayload(payload)}`,
@@ -138,6 +146,11 @@ export function createFeishuChannelRuntime(deps: FeishuChannelRuntimeDeps) {
             return callbackResult.replies[0];
           },
         });
+        try {
+          deps.observeConnection?.(bot);
+        } catch {
+          /* observation only */
+        }
         deps.statusSink.setRuntimeStatus({
           botId: bot.id,
           provider: bot.provider,
