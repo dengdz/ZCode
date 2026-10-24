@@ -4,7 +4,7 @@ Status: in-progress
 
 对应[18 工单](../issues/zcode-local/18-end-to-end-acceptance.md)。父规格 [T01–T36](spec.md#验收场景矩阵) 为唯一验收矩阵；本报告只定位证据，不重写场景定义。当前不代表用户已验收。
 
-当前落点：真实诊断确认新派单在解析成功后因 sender ID 直接比较而授权拒绝，用户已批准改为原发送回执绑定来源。修正源码 `aca671101531717575635a6dc1a46e88e5952525` 完成回归与两轴复审；包含修正的 `71e8ae055174a2bf371a4f5de4412a1bb3301028` / local.3 已构建、独立核验并受控切换，观察器 connection/ready。当前等待真人新的只读验证，修正后的真实闭环尚未证明，18 未完成。
+当前落点：`71e8ae055174a2bf371a4f5de4412a1bb3301028` / local.3 已通过新的真人需求确认回执绑定修正生效：执行者实际受理原 PM sent 派单并完成文档读取，原生 sender 与保存的 PM openId 仍不同。本轮没有形成执行者协作 report 或 PM final，且 PM 成功 Edit 项目外台账，违反只读约束。因此真实群整体验收失败，18 保持 in-progress；下一步修正方案待用户确认，未重发需求或恢复真实数据。
 
 ## 基线与范围
 
@@ -188,3 +188,46 @@ Status: in-progress
 切换前备份和新真人输入前的协作 ledger 字节一致：1 个需求、4 个输入、3 个交接、0 个在途协调记录。原已拒派单没有自动重放。当前私有清单指针更新为 candidate-4，旧指针另行留存，不改写历史 candidate-2/3 清单。新应用的有限观察器已独占领取私有请求，0600 输出 connection/ready；仅证明既有连接及观察器就绪。已记录新的项目 Git/目标文档只读基线，等待真人原生发送新的只读需求，再检查授权/受理、执行者回报、PM 审核及用户验收。
 
 私有证据：`receipt-candidate-build.log`、`candidate-4/candidate.json`、`receipt-candidate-verify.json`、`receipt-builder-cache-reuse.json`、`receipt-install.private.json`、`receipt-installed-verify.json`、`receipt-postswitch-ledger-summary.json`、`receipt-readonly-before.private.json`。之前回归和 Main 维护契约的失败仍保留，不因这次实际安装成功改写历史结果。
+
+## 修正版真实受理通过，回报与只读验收失败（2026-10-24）
+
+新的真人原生需求由 PM 受理，PM 的实际 sent 派单在执行者侧绑定为同一回执；原始 sender 与保存的 PM openId 不同，但执行者已 accepted、promoted 并完成 Read。这证明此前修正跨过了真实授权断点，不再以旧守卫或未确认的接收权限解释本轮无回报。诊断窗口在本次入站前已过期，只有 connection/ready；本结论来自原 Bot/Local ledger、原投递回执及只读 CLI 持久化查询，不声称观察到了新的 authorization/allow 诊断记录。
+
+执行者普通回答中的标题、开发命令及行号与实际文件独立核对一致；项目 HEAD/status/diff 指纹和目标文档 hash 前后一致。但 PM 本轮还成功调用 Edit 修改项目外台账；不能将项目指纹不变推广为全局只读通过。该次精确 Edit 输入预览保存在本机私有材料，未回滚或覆盖真实台账。执行者本轮观察到的工具只有 Read。
+
+执行者普通自动投递为 sent，没有原生提及，也没有 ReplyToChannel 协作 report 或执行者发出的新 handoff；PM 尚未收到对应协作输入，需求仍 active，没有 final/awaiting_acceptance。普通正文不按既有合同自动转成 report，也没有因此自动重试、重放、补发或宣布验收完成。
+
+只读核对实际 promoted 输入与模型可见用户消息后确认：两名机器人的 Local 角色章程均在，要求通过 ReplyToChannel 的协作意图完成交接。同时，CLI 通用消息包装为所有 bot 来源附加普通回复自动投递及不要调用消息工具的指导，PM 的派单正文又明确禁止执行者调用 ReplyToChannel。可以确认这几层指导并存且本轮模型选择了普通回复；尚不能仅凭共现证明某一句话必然导致模型行为，也未确认 PM 产生该禁令的历史原因。
+
+当前 Bot 群输入公开入口没有显式只读工具策略。已有 session 工具 allowlist 和部分 turn denylist 能力不能直接等同于该入口的只读保证；Plan 还会阻止必要的网络协作工具，不能直接替换。上述结果不扩张为所有权限路径或模型的审计结论。
+
+私有命令 `python3 evaluate-readonly-round.py` 对选定本轮的真实捕获作断言，退出 1：原发送回执受理、执行完成、文件依据正确三项通过；协作 report、PM final 和无文件写入三项失败。它只读取原状态及选定捕获，不重放消息、不调用模型、不改变业务状态。原项目命令核对曾因将带行尾注释的整行与裸命令作相等比较而误判，已改为独立核对命令及行号；原误判保留。较早观察脚本也曾将含相同标记的执行者输入覆盖真人输入索引，最终判定按配置中的角色分别核对，两条输入均明确存在。
+
+私有证据：`receipt-case-c-acceptance-evaluation.json`、`receipt-cli-input-rules-final.json`、`receipt-case-c-deliveries.private.json`、`receipt-case-c-tool-metadata.private.json`、`receipt-case-c-edit-preview.private.json`、`receipt-readonly-verification-final.json`。公开材料不包含真实正文、文档标题/命令、身份、消息 ID、台账路径或变更内容。
+
+### 待确认的下一步修正边界
+
+此处是可审阅方案，尚未批准或实现；不是对当前运行应用能力的说明。
+
+- 明确可信 Local 路由指导与通用自动回复指导的适用范围：PM 派单、执行者 report 和 PM final 使用已有协作意图，普通最终正文不代替交接；业务派单不能禁止必要的 Host 协作动作。普通机器人对话仍沿原自动投递语义。保留模型判断业务内容、Host 校验身份/职责/回执/状态的分工，不从正文推断或伪造 report。
+- 为下一次验收增加用户显式启用、限定到新验收需求的只读执行约束。Local owner 持有唯一约束并向 PM、执行者及后续交接传递，CLI 沿原 CommandInbox 受理和恢复边界保存并执行。工具面仅开放 Read/Glob/Grep 及经过原 owner 授权的 ReplyToChannel；文件写入、Shell、可变 MCP/插件、子代理及其他工具入口均不能绕过。不能从自然语言、超时或机器人自报推断/解除约束，未知或旧协议不支持时拒绝执行；不更改全局权限或普通开发需求。
+- 先补对应局部 spec/严格协议与工具变更链，覆盖普通回复与协作回报分离、错误角色/回执/停止拒绝，以及只读约束的排队、重启恢复、默认模式/插件/子代理绕过和相邻普通输入不被污染。实际工具执行边界需证明写入被拒而合法 report/final 可发送；提示词断言不能替代这一回归。
+- 验证及固定端点复审后准备下一 Local 修订，只在实际空闲时经原备份/验签/受控切换入口更新，再由真人发送一个新的有限需求。旧需求不重放，现有台账不自动恢复。最终真实模型闭环及用户明确验收仍是独立门禁。
+
+```mermaid
+sequenceDiagram
+    participant U as 授权用户
+    participant H as Local owner
+    participant Q as 原受理队列
+    participant T as CLI 工具边界
+    participant P as 原投递 owner
+    U->>H: 显式启用新验收需求的只读约束
+    H->>Q: 原输入与唯一约束一同受理
+    Q->>T: 提升输入并恢复同一约束
+    T-->>T: 拒绝文件写入与其他未开放工具
+    T->>P: 已授权的 dispatch / report / final
+    P-->>H: 原发送回执与需求阶段
+    H-->>U: 待用户明确验收
+```
+
+依据根 [AGENTS.md](../../AGENTS.md)「发现设计缺陷时先与用户对齐」，上述提示指导与执行约束超出此前仅修正回执绑定的授权，须确认后再实施；当前仅归档调查结果，18 不记完成。

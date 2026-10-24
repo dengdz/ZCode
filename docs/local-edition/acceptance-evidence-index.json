@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-receipt-binding-fix-local3-running-awaiting-new-real-native-validation",
+  "overall": "in-progress-real-receipt-binding-pass-report-and-readonly-failed",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -436,7 +436,7 @@
       "specFindings": 0,
       "realApplicationContainsFix": true,
       "limits": [
-        "Initial test assertion failures retained. Prior unchanged Main starting/ready failure remains disclosed. New candidate and real fixed business round trip pending; no full suite run."
+        "Initial test assertion failures retained. Prior unchanged Main starting/ready failure remains disclosed. Real corrected admission passed, but report/final and read-only acceptance failed. No full suite run."
       ]
     },
     "receipt-fixed-candidate": {
@@ -484,17 +484,57 @@
       "oldDispatchReplayed": false,
       "dataRestored": false,
       "limits": [
-        "Native input from the authorized human is required for a new real readonly probe. Corrected executor/PM/user round trip remains unproven."
+        "The subsequent native round confirmed executor admission. Complete round trip and read-only behavior failed; see receipt-fixed-real-round."
+      ]
+    },
+    "receipt-fixed-real-round": {
+      "source": "71e8ae055174a2bf371a4f5de4412a1bb3301028",
+      "version": "3.16.2-local.3",
+      "status": "receipt-admission-pass-report-final-and-readonly-failed",
+      "evidence": [
+        "receipt-case-c-acceptance-evaluation.json",
+        "receipt-cli-input-rules-final.json",
+        "receipt-case-c-deliveries.private.json",
+        "receipt-case-c-tool-metadata.private.json",
+        "receipt-case-c-edit-preview.private.json",
+        "receipt-readonly-verification-final.json"
+      ],
+      "command": ["python3", "evaluate-readonly-round.py"],
+      "exitCode": 1,
+      "executorAcceptedOriginalSentDispatch": true,
+      "nativeSenderEqualsStoredPmOpenId": false,
+      "executorCompleted": true,
+      "reportedFileFactsCorrect": true,
+      "executorSentCollaborationReport": false,
+      "pmSentFinalForAcceptance": false,
+      "noObservedFileWrite": false,
+      "roleContextsReachedModel": true,
+      "genericAutoReplyInstructionAlsoPresent": true,
+      "pmDispatchForbidsReplyTool": true,
+      "projectFingerprintsUnchanged": true,
+      "pmExternalLedgerEditCompleted": true,
+      "dataRestored": false,
+      "oldDispatchReplayed": false,
+      "limits": [
+        "Diagnostic window expired before native input; no authorization/allow diagnostic observed. Admission is established by original receipt and runtime facts.",
+        "Concurrent instructions are confirmed; a deterministic claim that one sentence caused model behavior is not established.",
+        "Unchanged project fingerprints do not establish global read-only behavior. Actual external ledger Edit is retained privately without restoration.",
+        "Prompt and explicit execution-constraint proposal awaits user alignment. Complete real chain, anomaly cases and final acceptance remain incomplete."
       ]
     }
   },
   "scenarios": {
     "T01": {
       "issues": ["../issues/zcode-local/04-group-collaboration-settings.md"],
-      "currentEvidence": ["root-related", "live-native-configuration", "live-demand-chain"],
-      "status": "native-configuration-pass-pm-dispatch-sent-executor-inbound-unobserved",
+      "currentEvidence": [
+        "root-related",
+        "live-native-configuration",
+        "live-demand-chain",
+        "receipt-fixed-real-round"
+      ],
+      "status": "native-configuration-and-real-executor-admission-pass",
       "limits": [
-        "Native identity/configuration and human-to-PM input verified; PM dispatch sent with native executor mention. Executor inbound and complete model compliance remain unproven."
+        "Both configured native identities, human input and executor admission verified. Model round trip failed at report and read-only compliance; configuration success alone does not establish complete acceptance."
       ]
     },
     "T02": {
@@ -515,11 +555,12 @@
         "live-loop-guard-diagnosis",
         "live-receive-evidence-correction",
         "receive-authorization-diagnosis",
-        "receipt-binding-fix"
+        "receipt-binding-fix",
+        "receipt-fixed-real-round"
       ],
-      "status": "mechanism-pass-real-pm-dispatch-partial",
+      "status": "mechanism-and-real-original-receipt-admission-pass",
       "limits": [
-        "Real PM dispatch recorded sent with matching native executor mention; no corresponding executor input/admission observed. Effective include_bot scopes not independently verified; root cause unconfirmed."
+        "Real executor accepted the exact original sent PM dispatch despite differing raw sender and stored PM IDs. Executor did not create a report handoff; complete round trip failed."
       ]
     },
     "T04": {
@@ -652,18 +693,18 @@
     },
     "T19": {
       "issues": ["../issues/zcode-local/13-pm-review-acceptance.md"],
-      "currentEvidence": ["root-related"],
-      "status": "limited-real-model-pending",
+      "currentEvidence": ["root-related", "receipt-fixed-real-round"],
+      "status": "real-model-partial-report-and-readonly-failed",
       "limits": [
-        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+        "Real PM/executor input and read completed. No executor collaboration report or PM final followed; PM also completed an external ledger Edit. Full model judgment and acceptance behavior remain unproven."
       ]
     },
     "T20": {
       "issues": ["../issues/zcode-local/13-pm-review-acceptance.md"],
-      "currentEvidence": ["root-related"],
-      "status": "limited-real-model-pending",
+      "currentEvidence": ["root-related", "receipt-fixed-real-round"],
+      "status": "real-model-partial-report-and-readonly-failed",
       "limits": [
-        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+        "Real PM/executor input and read completed. No executor collaboration report or PM final followed; PM also completed an external ledger Edit. Full model judgment and acceptance behavior remain unproven."
       ]
     },
     "T21": {
@@ -684,10 +725,10 @@
     },
     "T23": {
       "issues": ["../issues/zcode-local/13-pm-review-acceptance.md"],
-      "currentEvidence": ["root-related", "cli-core"],
-      "status": "limited-real-model-pending",
+      "currentEvidence": ["root-related", "cli-core", "receipt-fixed-real-round"],
+      "status": "real-model-partial-report-and-readonly-failed",
       "limits": [
-        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+        "Real PM/executor input and read completed. No executor collaboration report or PM final followed; PM also completed an external ledger Edit. Full model judgment and acceptance behavior remain unproven."
       ]
     },
     "T24": {
@@ -838,11 +879,12 @@
         "receive-controlled-switch",
         "receive-authorization-diagnosis",
         "receipt-binding-fix",
-        "receipt-fixed-switch"
+        "receipt-fixed-switch",
+        "receipt-fixed-real-round"
       ],
-      "status": "local3-receipt-binding-fix-running-awaiting-new-real-native-validation",
+      "status": "real-receipt-admission-pass-report-final-and-readonly-failed",
       "limits": [
-        "Two native identities and configuration revision verified. Real human input accepted and PM native dispatch sent/visible; executor input/report not observed. Earlier interpretation of a provider receive-event report was withdrawn after user clarification. Native event absent and production service debug disabled; complete real chain, anomalies and final acceptance remain pending."
+        "New native input confirmed the receipt-binding repair. Correct file facts and stable project fingerprints do not negate the external ledger write. Executor report, PM final, anomaly scenarios and explicit final user acceptance remain incomplete. No replay or data restoration performed."
       ]
     }
   },
