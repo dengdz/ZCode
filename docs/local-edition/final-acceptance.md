@@ -4,7 +4,7 @@ Status: in-progress
 
 对应[18 工单](../issues/zcode-local/18-end-to-end-acceptance.md)。父规格 [T01–T36](spec.md#验收场景矩阵) 为唯一验收矩阵；本报告只定位证据，不重写场景定义。当前不代表用户已验收。
 
-当前落点：已批准的插件链接补正通过 85 项进程回归、必需检查与独立两轴复审；实际启动前备份及独立 verify 成功，Local 已受控启动并 ready，配置前 11 个相关任务引用均 idle。两名机器人已获绑定真人原生核验，协作配置已保存为 revision 1。真人只读需求已受理，PM 原生提及派单已发送；执行者尚未形成对应入站记录，正在核对接收机器人消息的已生效权限，根因未确认。18 尚未完成。
+当前落点：已批准的插件链接补正通过 85 项进程回归、必需检查与独立两轴复审；实际启动前备份及独立 verify 成功，Local 已受控启动并 ready，配置前 11 个相关任务引用均 idle。两名机器人已获绑定真人原生核验，协作配置已保存为 revision 1。真人只读需求已受理，PM 原生提及派单已发送；执行者尚未形成对应入站记录，正在核对原生接收事件及相关门禁，根因未确认。18 尚未完成。
 
 ## 基线与范围
 
@@ -123,10 +123,20 @@ Status: in-progress
 
 ## 真人需求已受理，执行者入站待核对（2026-10-24）
 
-用户确认已通过同一真人账号在指定群原生提及 PM 发出既定只读需求。随后实际 Local 记录为 1 个 active 需求、1 个输入、1 个可信交接关联、0 个执行 admission；PM 的 dispatch 阶段为 settled。原投递记录为 sent 且有 Provider message ID，原生 channelMention 的 bot/open_id 目标与已核验执行者身份一致。该结果只证明真人入站及 PM 派单发送，不能证明执行者收件、执行或回报，更不代表 PM 已审核或用户已验收。
+用户确认已通过同一真人账号在指定群原生提及 PM 发出既定只读需求。随后实际 Local 记录为 1 个 active 需求、1 个输入、1 个可信交接关联、0 个在途入站协调记录；PM 的 dispatch 阶段为 settled。原投递记录为 sent 且有 Provider message ID，原生 channelMention 的 bot/open_id 目标与已核验执行者身份一致。该结果只证明真人入站及 PM 派单发送，不能证明执行者收件、执行或回报，更不代表 PM 已审核或用户已验收。
 
 截至本次观察，尚无执行者对应输入；既有机器人运行状态为 connected，不能由此推断事件已送达。项目 Git HEAD/status/diff 在派单后的核对中与请求前指纹一致；此检查不扩大为全部文件内容审计。未重发派单、伪造入站或清理 active 需求；Local 保持运行。
 
 仓库[飞书接入契约](../bots-feishu-group-collaboration.md#接入隔离与退出)及[官方接收消息事件文档](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/events/receive)要求接收机器人原生提及需已生效的 `im:message.group_at_msg.include_bot:readonly`，或覆盖该场景的 `im:message.group_msg.include_bot:read`。普通真人消息权限与原生身份核验不能证明上述权限已开通。本轮未提取凭据检查权限，也未获取应用后台的已发布授权证据；正在请用户只读核对当前生效权限，缺少权限仅为待验证假设，不记为已确认根因。不擅自扩权或发布应用配置。
 
 脱敏计数与观察边界保存于私有证据根 `live-demand-chain-summary.json`；实际投递、原生提及及项目指纹保留在对应 private 文件。后续须根据权限与实际事件证据继续排查，不能按等待时长判断旧派单可以安全重发。真实闭环、关键异常与最终用户验收仍未通过，18 保持 in-progress。
+
+## 旧循环守卫核对（2026-10-24）
+
+用户反馈过去 PM 与执行者互发达到旧循环上限后，需要真人原生提及才能恢复。本轮将其作为明确的排查线索；没有据此直接将当前派单记为发送失败。对指定群主聊天的原持久状态只读核对：PM consecutive=0，执行者 consecutive=4，上限为 5；revision 1 协作仍启用。当前派单消息 ID 不在执行者的 guard 去重记录或输入中，尚无第二个 Local 输入。计数尚未达到截断值，且缺少真实接收事件，不能确认本次被旧守卫拦截，也不能由未持久化反推平台从未推送。
+
+当前源码的 `admitAutoReplyTurn` 只在非可信协作时按五条截断；协作 authorize 的 allow 继续保留消息去重，计数饱和。沿已有 Provider 回调/真实服务/持久化/可控任务边界，单独复跑原长链及 legacy 守卫用例：`pnpm exec vitest run packages/services/test/botCollaborationHandoffs.test.ts -t '可信协作长链超过|Local 宿主未启用协作的群仍保留'`，5 通过、127 未选中跳过，退出 0；隔离 HOME，Node 24.14.0 / pnpm 10.33.2，源码 `878bbe2e`。这是合成回归，不是重放真实入站，也不能证明当前真实事件获 allow。
+
+对当前存储交接逐项核对：来源任务仍对应、原输入 accepted/done、投递 sent、授权及 sourceCommandId 匹配、当前版本和职责匹配、需求 active。没有获得执行者实际收到的 native sender/mention/thread 事件，因此不把这些已满足的存储前提扩大为实际授权成功。用户随后反馈在应用后台查到了该派单消息 ID 的接收事件；这是用户提供的平台侧证据，当前无可读取后台标签页，尚未独立检查事件元数据或确认由本 Local 连接处理。排查重心转到 Provider 解析、sender/原生提及/线程及协作受理条件；正在请求不含正文、header 或凭据的最小事件结构用于核对。此前权限缺失仅为假设，不能把它作为已确认原因或继续要求扩权。
+
+私有证据为 `live-auto-reply-guard-summary.json`、`live-handoff-prerequisites-summary.json` 及 `guard-diagnosis.json/.log`。未修改业务源码、重置计数、手动伪造提及、重发派单或改变需求状态。真实闭环继续待核对。

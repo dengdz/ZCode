@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-human-demand-pm-dispatch-sent-executor-inbound-unobserved",
+  "overall": "in-progress-pm-dispatch-sent-receiver-event-user-reported-inbound-unobserved",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -284,7 +284,6 @@
       "requirements": 1,
       "inputs": 1,
       "handoffs": 1,
-      "admissions": 0,
       "requirementStatus": "active",
       "pmDispatchRecordedSent": true,
       "nativeBotMentionTargetVerified": true,
@@ -292,7 +291,29 @@
       "projectGitFingerprintUnchanged": true,
       "effectiveIncludeBotScopes": "not-independently-verified",
       "rootCause": "unconfirmed",
-      "endToEndPassed": false
+      "endToEndPassed": false,
+      "inFlightInboundCoordinationRecords": 0
+    },
+    "live-loop-guard-diagnosis": {
+      "evidence": [
+        "live-auto-reply-guard-summary.json",
+        "live-handoff-prerequisites-summary.json",
+        "guard-diagnosis.json",
+        "guard-diagnosis.log"
+      ],
+      "scope": "read-only-selected-group-state-and-isolated-existing-regressions",
+      "source": "878bbe2e1458fe5c33aab9188920a5a66dcf157b",
+      "pmConsecutive": 0,
+      "executorConsecutive": 4,
+      "legacyLimit": 5,
+      "regressionPassed": 5,
+      "unselectedSkipped": 127,
+      "regressionExitCode": 0,
+      "actualReceiverEventAvailable": false,
+      "loopLimitRootCauseConfirmed": false,
+      "persistentStateModified": false,
+      "receiverEventReportedByUser": true,
+      "receiverEventIndependentlyInspected": false
     }
   },
   "scenarios": {
@@ -315,7 +336,12 @@
     },
     "T03": {
       "issues": ["../issues/zcode-local/05-trusted-handoffs.md"],
-      "currentEvidence": ["root-related", "cli-core", "live-demand-chain"],
+      "currentEvidence": [
+        "root-related",
+        "cli-core",
+        "live-demand-chain",
+        "live-loop-guard-diagnosis"
+      ],
       "status": "mechanism-pass-real-pm-dispatch-partial",
       "limits": [
         "Real PM dispatch recorded sent with matching native executor mention; no corresponding executor input/admission observed. Effective include_bot scopes not independently verified; root cause unconfirmed."
@@ -376,10 +402,10 @@
     },
     "T11": {
       "issues": ["../issues/zcode-local/10-collaboration-chain-admission.md"],
-      "currentEvidence": ["root-related"],
+      "currentEvidence": ["root-related", "live-loop-guard-diagnosis"],
       "status": "mechanism-pass",
       "limits": [
-        "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
+        "Existing trusted-chain/legacy guard regression rerun passed 5 cases with 127 unselected. Current real selected-group counters PM=0/executor=4 below legacy limit 5. User reports the matching provider receive event; native metadata and actual Local handling remain unverified."
       ]
     },
     "T12": {
@@ -611,11 +637,12 @@
         "live-runtime",
         "live-group-preflight",
         "live-native-configuration",
-        "live-demand-chain"
+        "live-demand-chain",
+        "live-loop-guard-diagnosis"
       ],
       "status": "real-human-demand-pm-dispatch-partial-executor-inbound-unobserved",
       "limits": [
-        "Two native identities and configuration revision verified. Real human input accepted and PM native dispatch sent; executor input/admission not observed. Effective bot-message permissions still require confirmation; complete real chain, anomalies and final acceptance remain pending."
+        "Two native identities and configuration revision verified. Real human input accepted and PM native dispatch sent; executor input/admission not observed. User reports matching provider receive event, but native metadata is not independently inspected. Complete real chain, anomalies and final acceptance remain pending."
       ]
     }
   },
