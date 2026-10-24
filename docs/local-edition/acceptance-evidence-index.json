@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-pm-dispatch-sent-receiver-event-user-reported-inbound-unobserved",
+  "overall": "in-progress-pm-dispatch-visible-executor-receive-event-unproven",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -312,8 +312,21 @@
       "actualReceiverEventAvailable": false,
       "loopLimitRootCauseConfirmed": false,
       "persistentStateModified": false,
-      "receiverEventReportedByUser": true,
-      "receiverEventIndependentlyInspected": false
+      "receiverEventReportedByUser": false,
+      "receiverEventIndependentlyInspected": false,
+      "receiverEventReportRetractedAfterClarification": true,
+      "screenshotProvesReceiverEvent": false
+    },
+    "live-receive-evidence-correction": {
+      "evidence": "live-receive-evidence-correction.json",
+      "scope": "user-clarification-group-screenshot-and-known-log-marker-counts",
+      "groupDispatchVisible": true,
+      "executorReportVisible": false,
+      "nativeReceiverEventAvailable": false,
+      "productionServiceDebugDisabled": true,
+      "knownReceiveOrFailureMarkers": 0,
+      "markerEvidence": "live-receive-log-markers-summary.json",
+      "rootCause": "unconfirmed"
     }
   },
   "scenarios": {
@@ -340,7 +353,8 @@
         "root-related",
         "cli-core",
         "live-demand-chain",
-        "live-loop-guard-diagnosis"
+        "live-loop-guard-diagnosis",
+        "live-receive-evidence-correction"
       ],
       "status": "mechanism-pass-real-pm-dispatch-partial",
       "limits": [
@@ -402,10 +416,14 @@
     },
     "T11": {
       "issues": ["../issues/zcode-local/10-collaboration-chain-admission.md"],
-      "currentEvidence": ["root-related", "live-loop-guard-diagnosis"],
+      "currentEvidence": [
+        "root-related",
+        "live-loop-guard-diagnosis",
+        "live-receive-evidence-correction"
+      ],
       "status": "mechanism-pass",
       "limits": [
-        "Existing trusted-chain/legacy guard regression rerun passed 5 cases with 127 unselected. Current real selected-group counters PM=0/executor=4 below legacy limit 5. User reports the matching provider receive event; native metadata and actual Local handling remain unverified."
+        "Existing trusted-chain/legacy guard regression rerun passed 5 cases with 127 unselected. Current real selected-group counters PM=0/executor=4 below legacy limit 5. User clarified only group messages were visible, not provider receive events; current real chain and cause remain unproven."
       ]
     },
     "T12": {
@@ -638,11 +656,12 @@
         "live-group-preflight",
         "live-native-configuration",
         "live-demand-chain",
-        "live-loop-guard-diagnosis"
+        "live-loop-guard-diagnosis",
+        "live-receive-evidence-correction"
       ],
       "status": "real-human-demand-pm-dispatch-partial-executor-inbound-unobserved",
       "limits": [
-        "Two native identities and configuration revision verified. Real human input accepted and PM native dispatch sent; executor input/admission not observed. User reports matching provider receive event, but native metadata is not independently inspected. Complete real chain, anomalies and final acceptance remain pending."
+        "Two native identities and configuration revision verified. Real human input accepted and PM native dispatch sent/visible; executor input/report not observed. Earlier interpretation of a provider receive-event report was withdrawn after user clarification. Native event absent and production service debug disabled; complete real chain, anomalies and final acceptance remain pending."
       ]
     }
   },
