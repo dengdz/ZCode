@@ -266,6 +266,9 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
           message.senderType !== "app" &&
           message.botId === config.pm.botId &&
           hasLocalReadOnlyHeader(command);
+        // 活跃话题允许无 @ 的真人后续消息；新验收命令仍须在 owner 核对原生唤醒，不能借旧话题授权启用。
+        if (explicitReadOnly && message.mentionedBot !== true)
+          fail("readonly_native_mention_required");
         if (
           explicitReadOnly &&
           !/^\r?\n\s*\S/u.test(command.slice(LOCAL_READONLY_REQUEST_HEADER.length))

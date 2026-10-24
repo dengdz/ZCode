@@ -524,7 +524,7 @@
     },
     "readonly-routing-fix": {
       "sourceBase": "d7b0f8ee0b062e05837732688bb92cf069e7399b",
-      "status": "implemented-isolated-validation-review-and-candidate-pending",
+      "status": "implemented-initial-spec-finding-fixed-final-review-and-candidate-pending",
       "evidence": [
         "readonly-prompt-red.json",
         "readonly-write-red-2.json",
@@ -537,10 +537,16 @@
         "readonly-cli-typecheck-final.json",
         "readonly-root-lint-source-final.json",
         "readonly-cli-lint-2.json",
-        "readonly-architecture-source-final.json"
+        "readonly-architecture-source-final.json",
+        "readonly-review-initial.json",
+        "readonly-active-topic-native-red.json",
+        "readonly-active-topic-native-green.json",
+        "readonly-root-reviewed.json",
+        "readonly-typecheck-reviewed.json",
+        "readonly-lint-reviewed.json"
       ],
       "rootFiles": 17,
-      "rootPassed": 502,
+      "rootPassed": 503,
       "rootSkipped": 1,
       "coreFiles": 10,
       "corePassed": 114,
@@ -558,7 +564,15 @@
       "limits": [
         "Original failures retained. CLI line-count warnings explicitly registered for two existing oversized files; threshold remains 800. Architecture module ownership added without baseline relaxation.",
         "Fixed source review, next candidate and real native validation remain pending. Dependency-refreshed verification passed. No old message replay or real data restoration."
-      ]
+      ],
+      "initialReview": {
+        "head": "0b309623de84af7b3a2fd6a21d96d50a2be8c40c",
+        "standardsFindings": 0,
+        "specFindings": 1,
+        "priority": "P2",
+        "problem": "Active topic unmentioned human follow-up could enable an explicit new requirement",
+        "status": "fixed-with-red-green-final-review-pending"
+      }
     }
   },
   "scenarios": {

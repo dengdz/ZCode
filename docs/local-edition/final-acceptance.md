@@ -250,3 +250,9 @@ sequenceDiagram
 本节是合成接口、真实持久化和实际工具机制证据，不能证明真实 PM 会遵守提示、审核依据或等待用户。当前日常数据未启用新命令；运行应用仍是旧 local.3，下一修订须复审、原标准构建/独立核验及空闲受控切换后，再由真人提交新的只读验收。原 C 失败结论及其他历史失败继续有效，18 未完成。
 
 私有证据：`readonly-prompt-red.json`、`readonly-write-red-2.json`、`readonly-topic-idle-red.json`、`readonly-root-source-final.json`、`readonly-core-final.json`、`readonly-projection-contract.json`、`readonly-bootstrap-refreshed.json`、`readonly-typecheck-source-final.json`、`readonly-cli-typecheck-final.json`、`readonly-root-lint-source-final.json`、`readonly-cli-lint.json`、`readonly-cli-lint-2.json`、`readonly-preexisting-lines.json`、`readonly-architecture-source-final.json`。最终源码端点、复审及候选结果后续追加，不回填为已经完成。
+
+### 固定端点初审与活跃话题修正
+
+固定 `d7b0f8ee...0b309623de84af7b3a2fd6a21d96d50a2be8c40c` 两轴独立复审：Standards 0；Spec 1 项 P2，新增只读命令在已激活话题可沿允许无 @ 后续消息的旧路径启用。主群原有过滤使最初无 @ 测试通过，但不能代表话题。新增实际服务回归明确复现 SDK 从预期 1 次变为 2 次；Local owner 现对显式命令且 `mentionedBot !== true` 明确拒绝，不降级为普通任务。
+
+修正后定向原生主群/话题、未知协调 token 和该反例 4 项通过，17 文件完整复验 503 通过/1 跳过；根类型与 Lint 0 errors/97 warnings 再次通过。CLI 代码未因该修正变化，之前类型/Lint及相关回归结果不重复累加。新端点仍须两轴复核后准备候选，18 的真实闭环和用户验收仍未完成。原发现及红绿证据保存在 `readonly-review-initial.json`、`readonly-active-topic-native-red.json`、`readonly-active-topic-native-green.json`、`readonly-root-reviewed.json`、`readonly-typecheck-reviewed.json`、`readonly-lint-reviewed.json`。

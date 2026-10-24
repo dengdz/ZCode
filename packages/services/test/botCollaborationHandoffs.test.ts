@@ -407,8 +407,32 @@ it("18 即使 PID 与原消息相同，未知遗留协调 token 也不能被只�
 
 it("18 显式新需求仍要求真人原生提及 PM，不能用普通正文冒充唤醒", async () => {
   const f = await setup();
-  await f.service.handleInboundMessage({...f.human(), mentionedBot: false, text: "[ZCODE-LOCAL-READONLY]\nRead fixture"}).catch(() => undefined);
+  await f.service
+    .handleInboundMessage({
+      ...f.human(),
+      mentionedBot: false,
+      text: "[ZCODE-LOCAL-READONLY]\nRead fixture",
+    })
+    .catch(() => undefined);
   expect(f.tasks.submitBotGroupInput).not.toHaveBeenCalled();
+});
+
+it("18 已激活话题的无原生 @ 后续消息不能开启独立只读验收", async () => {
+  const f = await setup("omt_readonly_native_required");
+  await f.service.handleInboundMessage(f.human());
+  await vi.waitFor(async () =>
+    expect((await f.service.getCollaborationSettings!()).groups[0]!.busy).toBe(false),
+  );
+  const before = vi.mocked(f.tasks.submitBotGroupInput!).mock.calls.length;
+  expect(before).toBe(1);
+  await f.service
+    .handleInboundMessage({
+      ...f.human("pm", "om_unmentioned_readonly"),
+      mentionedBot: false,
+      text: "[ZCODE-LOCAL-READONLY]\nRead fixture",
+    })
+    .catch(() => undefined);
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledTimes(before);
 });
 
 it.each(["running", "unknown"] as const)(
