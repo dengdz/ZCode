@@ -4,7 +4,7 @@ Status: in-progress
 
 对应[18 工单](../issues/zcode-local/18-end-to-end-acceptance.md)。父规格 [T01–T36](spec.md#验收场景矩阵) 为唯一验收矩阵；本报告只定位证据，不重写场景定义。当前不代表用户已验收。
 
-当前落点：local.2 已受控切换并完成最小诊断；新真人只读需求的事件到达执行者、原生提及匹配、解析成功，但被协作授权拒绝。消息指纹与 PM sent 回执相同，原生 sender open_id 与配置 PM openId 不同，旧比较构成已确认的拒绝条件；ID 差异的 Provider 原因尚未确认。用户已批准按原发送回执绑定来源，修正源码 `aca671101531717575635a6dc1a46e88e5952525` 完成回归与两轴复审，正准备 local.3 候选；当前运行仍为 b35fa82f / local.2，真实闭环未通过，18 尚未完成。
+当前落点：真实诊断确认新派单在解析成功后因 sender ID 直接比较而授权拒绝，用户已批准改为原发送回执绑定来源。修正源码 `aca671101531717575635a6dc1a46e88e5952525` 完成回归与两轴复审；包含修正的 `71e8ae055174a2bf371a4f5de4412a1bb3301028` / local.3 已构建、独立核验并受控切换，观察器 connection/ready。当前等待真人新的只读验证，修正后的真实闭环尚未证明，18 未完成。
 
 ## 基线与范围
 
@@ -173,6 +173,18 @@ Status: in-progress
 
 最终相关回归 17 文件 / 494 通过、1 专用入口跳过；根类型通过，Lint 0 errors/97 存量 warnings，架构 0 新违规和变更格式通过。固定 `6d68c7fb...aca67110` 独立复审 Standards 0、Spec 0。普通源分支推送的官方 affected 选择 109/2064，1821 通过/2 跳过，schema 8、架构工具 36、Lint/架构通过；不是全量，不覆盖此前 Main starting/ready 的未修改失败。
 
-为遵守原版本严格更新门禁，下一候选使用 `3.16.2-local.3` 及同名集成分支。当前 local.2 保持运行；待候选独立核验后，仅在原维护入口明确空闲时受控切换，再以新的真人只读需求验证修正。已拒绝的旧派单不自动重放，没有清理租约/计数或恢复覆盖数据。最终用户验收继续待完成。
+为遵守原版本严格更新门禁，下一候选使用 `3.16.2-local.3` 及同名集成分支。该源码复审结束时仍运行 local.2，后续候选核验及空闲切换结果见下节；仍须以新的真人只读需求验证修正。已拒绝的旧派单不自动重放，没有清理租约/计数或恢复覆盖数据。最终用户验收继续待完成。
 
 私有证据：`receive-authorization-findings.json`、`receive-authorize-check.private.json`、`repro-sender-boundary.log` / `repro-sender-boundary-green.log`、`receipt-fix-red.json`、`receipt-fix-green-2.json`、`receipt-fix-handoffs.json`、`receipt-fix-boundaries.json`、`receipt-fix-related.json`、`receipt-fix-typecheck-final.json`、`receipt-fix-lint.json`、`receipt-fix-architecture.json`、`receipt-fix-review.json`、`receipt-fix-source-push.log`。
+
+## local.3 已受控切换，等待修正后的真实闭环（2026-10-24）
+
+标准维护入口从 `71e8ae055174a2bf371a4f5de4412a1bb3301028` 生成 local.3 ready 候选，私有清单 `candidate-4/candidate.json`。构建的类型/Lint/架构、维护测试 50/50、准备/桌面/打包与完整产物核对通过；affected 官方全选 2064 后按仓库合同跳过，不是全量执行。新分支首推按明确官方基线执行原 hook 后成功，GitHub API 独立核对相同源码；没有创建或发布标签。
+
+随后独立重新核对完整应用树/源码/ASAR 元数据、deep/strict 签名、ZIP 全成员、归档 hash 和只读 DMG 内容。应用树 SHA-256 为 `dc34c63335ac6ff3829741d9c502e3f0c0860fc8c855a0978b0c5e60642c54d3`，DMG 为 `b2869bc29faea8818c447c85af2ef4302a3f771121c231d21d5c7d1df4bb7eab`，ZIP 为 `577939ea9c3795f49aefb36da88bba2d07f222990f2fd4d68c159104f12f2f62`。复用此前完整验证的公共 DMG 工具缓存，762 个文件逐一 hash 相同，未替代原构建或验签流程。
+
+切换前只读确认无在途入站协调记录和项目执行租约、当前 owner/runtime 对应；实际空闲仍由原安装入口再次核对。其返回 accepted/runningTaskCount=0，旧 local.2 正常退出；本次 15 备份及独立 verify 后原子替换、启动 local.3，返回 installed。另独立核对安装目标的完整应用树、元数据/签名、存活 launcher/应用、owner/runtime/PID/token/版本 ready 和切换门已释放。官网未运行且包未替换，无强杀、计数/租约重置或真实数据恢复。
+
+切换前备份和新真人输入前的协作 ledger 字节一致：1 个需求、4 个输入、3 个交接、0 个在途协调记录。原已拒派单没有自动重放。当前私有清单指针更新为 candidate-4，旧指针另行留存，不改写历史 candidate-2/3 清单。新应用的有限观察器已独占领取私有请求，0600 输出 connection/ready；仅证明既有连接及观察器就绪。已记录新的项目 Git/目标文档只读基线，等待真人原生发送新的只读需求，再检查授权/受理、执行者回报、PM 审核及用户验收。
+
+私有证据：`receipt-candidate-build.log`、`candidate-4/candidate.json`、`receipt-candidate-verify.json`、`receipt-builder-cache-reuse.json`、`receipt-install.private.json`、`receipt-installed-verify.json`、`receipt-postswitch-ledger-summary.json`、`receipt-readonly-before.private.json`。之前回归和 Main 维护契约的失败仍保留，不因这次实际安装成功改写历史结果。

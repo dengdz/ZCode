@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-executor-native-parsed-authorization-denied-receipt-binding-fix-pending-real-validation",
+  "overall": "in-progress-receipt-binding-fix-local3-running-awaiting-new-real-native-validation",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -434,9 +434,57 @@
       "sourcePushSkipped": 2,
       "standardsFindings": 0,
       "specFindings": 0,
-      "realApplicationContainsFix": false,
+      "realApplicationContainsFix": true,
       "limits": [
         "Initial test assertion failures retained. Prior unchanged Main starting/ready failure remains disclosed. New candidate and real fixed business round trip pending; no full suite run."
+      ]
+    },
+    "receipt-fixed-candidate": {
+      "source": "71e8ae055174a2bf371a4f5de4412a1bb3301028",
+      "version": "3.16.2-local.3",
+      "evidence": [
+        "receipt-candidate-build.log",
+        "candidate-4/candidate.json",
+        "receipt-candidate-verify.json",
+        "receipt-builder-cache-reuse.json",
+        "receipt-candidate-source-push.log",
+        "receipt-candidate-source-api-head.txt"
+      ],
+      "status": "ready-and-independently-verified",
+      "maintenancePassed": 50,
+      "affected": "2064/2064 selected then skipped under repository contract",
+      "applicationTreeSha256": "dc34c63335ac6ff3829741d9c502e3f0c0860fc8c855a0978b0c5e60642c54d3",
+      "artifacts": [
+        {
+          "file": "artifacts/ZCode Local-3.16.2-local.3-mac-arm64.dmg",
+          "sha256": "b2869bc29faea8818c447c85af2ef4302a3f771121c231d21d5c7d1df4bb7eab"
+        },
+        {
+          "file": "artifacts/ZCode Local-3.16.2-local.3-mac-arm64.zip",
+          "sha256": "577939ea9c3795f49aefb36da88bba2d07f222990f2fd4d68c159104f12f2f62"
+        }
+      ],
+      "tagCreated": false
+    },
+    "receipt-fixed-switch": {
+      "source": "71e8ae055174a2bf371a4f5de4412a1bb3301028",
+      "evidence": [
+        "receipt-install.private.json",
+        "receipt-installed-verify.json",
+        "receipt-postswitch-ledger-summary.json",
+        "receipt-readonly-before.private.json"
+      ],
+      "status": "installed-and-independently-verified",
+      "maintenanceAcceptedRunningTaskCount": 0,
+      "ownerRuntimePidTokenVersionMatched": true,
+      "hostReady": true,
+      "gateReleased": true,
+      "diagnosticConnectionReady": true,
+      "ledgerBytesUnchangedBeforeNewNativeInput": true,
+      "oldDispatchReplayed": false,
+      "dataRestored": false,
+      "limits": [
+        "Native input from the authorized human is required for a new real readonly probe. Corrected executor/PM/user round trip remains unproven."
       ]
     }
   },
@@ -680,7 +728,8 @@
         "live-group-preflight",
         "live-native-configuration",
         "live-demand-chain",
-        "receive-controlled-switch"
+        "receive-controlled-switch",
+        "receipt-fixed-switch"
       ],
       "status": "limited-current-credentials-pending",
       "limits": [
@@ -689,7 +738,7 @@
     },
     "T28": {
       "issues": ["../issues/zcode-local/02-local-app.md"],
-      "currentEvidence": ["root-related", "receive-candidate"],
+      "currentEvidence": ["root-related", "receive-candidate", "receipt-fixed-candidate"],
       "status": "mechanism-pass",
       "limits": []
     },
@@ -698,7 +747,7 @@
         "../issues/zcode-local/01-baseline-candidate.md",
         "../issues/zcode-local/14-versioned-candidates.md"
       ],
-      "currentEvidence": ["candidate-build", "receive-candidate"],
+      "currentEvidence": ["candidate-build", "receive-candidate", "receipt-fixed-candidate"],
       "status": "current-source-and-capability-review",
       "limits": [
         "Current official main was independently observed through GitHub API; accepted first-edition capability gap remains disclosed."
@@ -734,7 +783,8 @@
         "plugin-maintenance-all",
         "live-backup",
         "live-verify",
-        "receive-controlled-switch"
+        "receive-controlled-switch",
+        "receipt-fixed-switch"
       ],
       "status": "real-backup-and-independent-verify-pass-recovery-fixtures-pass",
       "limits": [
@@ -768,7 +818,8 @@
         "logging-source-review",
         "receive-diagnostic-regression",
         "receive-authorization-diagnosis",
-        "receipt-binding-fix"
+        "receipt-binding-fix",
+        "receipt-fixed-candidate"
       ],
       "status": "source-audit",
       "limits": [
@@ -786,9 +837,10 @@
         "live-receive-evidence-correction",
         "receive-controlled-switch",
         "receive-authorization-diagnosis",
-        "receipt-binding-fix"
+        "receipt-binding-fix",
+        "receipt-fixed-switch"
       ],
-      "status": "new-real-demand-executor-native-parsed-authorization-denied-fix-pending-real-validation",
+      "status": "local3-receipt-binding-fix-running-awaiting-new-real-native-validation",
       "limits": [
         "Two native identities and configuration revision verified. Real human input accepted and PM native dispatch sent/visible; executor input/report not observed. Earlier interpretation of a provider receive-event report was withdrawn after user clarification. Native event absent and production service debug disabled; complete real chain, anomalies and final acceptance remain pending."
       ]
@@ -796,6 +848,6 @@
   },
   "maintenanceSource": "8c752d581e8880db2533df11b5dc5018a5a2d837",
   "diagnosticSource": "19059fb36abebbcdb9daf19268ca636110cc5cad",
-  "currentApplicationSource": "b35fa82f561e17e0f4c03077d75e561b022327e2",
+  "currentApplicationSource": "71e8ae055174a2bf371a4f5de4412a1bb3301028",
   "receiptBindingFixSource": "aca671101531717575635a6dc1a46e88e5952525"
 }
