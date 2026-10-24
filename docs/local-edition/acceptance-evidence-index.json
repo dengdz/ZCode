@@ -327,6 +327,71 @@
       "knownReceiveOrFailureMarkers": 0,
       "markerEvidence": "live-receive-log-markers-summary.json",
       "rootCause": "unconfirmed"
+    },
+    "receive-diagnostic-regression": {
+      "source": "19059fb36abebbcdb9daf19268ca636110cc5cad",
+      "evidence": [
+        "receive-diagnostic-contract-final.json",
+        "receive-diagnostic-root-serial.json",
+        "receive-launch-contract-rerun.json",
+        "receive-diagnostic-typecheck-final.json",
+        "receive-diagnostic-lint-final.json",
+        "receive-diagnostic-review.json",
+        "receive-source-push.log"
+      ],
+      "contractPassed": 12,
+      "relatedSerialPassed": 684,
+      "relatedSerialFailed": 1,
+      "relatedSerialSkipped": 1,
+      "isolatedMaintenanceContractPassed": 8,
+      "sourcePushAffectedSelected": "109/2064",
+      "sourcePushPassed": 1822,
+      "sourcePushSkipped": 2,
+      "reviewStandardsFindings": 0,
+      "reviewSpecFindings": 0,
+      "limits": [
+        "Unchanged Main maintenance contract observed starting after markHostReady; isolated rerun passed. Cause not attributed to diagnostic changes. No full root suite run."
+      ]
+    },
+    "receive-candidate": {
+      "source": "b35fa82f561e17e0f4c03077d75e561b022327e2",
+      "version": "3.16.2-local.2",
+      "evidence": [
+        "receive-candidate-build.log",
+        "receive-candidate-build-2.log",
+        "candidate-3/candidate.json",
+        "receive-candidate-verify.json"
+      ],
+      "status": "ready-and-independently-verified",
+      "maintenancePassed": 50,
+      "affected": "2064/2064 selected then skipped under repository contract",
+      "applicationTreeSha256": "de80caa75fc5e360b65cb10b5f4f83b723154a429020ca9c2055d0ff95d7d2dc",
+      "tagCreated": false
+    },
+    "receive-controlled-switch": {
+      "source": "b35fa82f561e17e0f4c03077d75e561b022327e2",
+      "evidence": [
+        "busy-investigation-summary.json",
+        "receive-install.private.json",
+        "receive-installed-verify.json",
+        "receive-postswitch-ledger-summary.json"
+      ],
+      "installation": "installed",
+      "independentVerification": "verified",
+      "preSwitchOwnedWorkBusy": 5,
+      "nextObservationOwnedWorkIdle": 11,
+      "specificBusyOwner": "unconfirmed",
+      "maintenanceAcceptedRunningTaskCount": 0,
+      "ownerRuntimePidTokenVersionMatched": true,
+      "hostReady": true,
+      "gateReleased": true,
+      "diagnosticConnectionReady": true,
+      "ledgerBytesUnchanged": true,
+      "businessMessagesReplayed": false,
+      "dataRestored": false,
+      "limits": [
+        "Connection/ready is observer and WebSocket readiness, not a model or business round trip. New real native demand and executor receive/reply remain pending."
+      ]
     }
   },
   "scenarios": {
@@ -561,7 +626,8 @@
         "live-runtime",
         "live-group-preflight",
         "live-native-configuration",
-        "live-demand-chain"
+        "live-demand-chain",
+        "receive-controlled-switch"
       ],
       "status": "limited-current-credentials-pending",
       "limits": [
@@ -570,7 +636,7 @@
     },
     "T28": {
       "issues": ["../issues/zcode-local/02-local-app.md"],
-      "currentEvidence": ["root-related"],
+      "currentEvidence": ["root-related", "receive-candidate"],
       "status": "mechanism-pass",
       "limits": []
     },
@@ -579,7 +645,7 @@
         "../issues/zcode-local/01-baseline-candidate.md",
         "../issues/zcode-local/14-versioned-candidates.md"
       ],
-      "currentEvidence": ["candidate-build"],
+      "currentEvidence": ["candidate-build", "receive-candidate"],
       "status": "current-source-and-capability-review",
       "limits": [
         "Current official main was independently observed through GitHub API; accepted first-edition capability gap remains disclosed."
@@ -614,7 +680,8 @@
         "live-prelaunch-backup",
         "plugin-maintenance-all",
         "live-backup",
-        "live-verify"
+        "live-verify",
+        "receive-controlled-switch"
       ],
       "status": "real-backup-and-independent-verify-pass-recovery-fixtures-pass",
       "limits": [
@@ -643,7 +710,11 @@
         "../issues/zcode-local/08-recipient-selection.md",
         "../issues/zcode-local/14-versioned-candidates.md"
       ],
-      "currentEvidence": ["candidate-public-content-check", "logging-source-review"],
+      "currentEvidence": [
+        "candidate-public-content-check",
+        "logging-source-review",
+        "receive-diagnostic-regression"
+      ],
       "status": "source-audit",
       "limits": [
         "Static/history scan and scoped semantic review do not prove all future runtime logs safe; no daily logs collected."
@@ -657,7 +728,8 @@
         "live-native-configuration",
         "live-demand-chain",
         "live-loop-guard-diagnosis",
-        "live-receive-evidence-correction"
+        "live-receive-evidence-correction",
+        "receive-controlled-switch"
       ],
       "status": "real-human-demand-pm-dispatch-partial-executor-inbound-unobserved",
       "limits": [
@@ -665,5 +737,7 @@
       ]
     }
   },
-  "maintenanceSource": "8c752d581e8880db2533df11b5dc5018a5a2d837"
+  "maintenanceSource": "8c752d581e8880db2533df11b5dc5018a5a2d837",
+  "diagnosticSource": "19059fb36abebbcdb9daf19268ca636110cc5cad",
+  "currentApplicationSource": "b35fa82f561e17e0f4c03077d75e561b022327e2"
 }

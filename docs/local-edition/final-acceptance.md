@@ -4,11 +4,11 @@ Status: in-progress
 
 对应[18 工单](../issues/zcode-local/18-end-to-end-acceptance.md)。父规格 [T01–T36](spec.md#验收场景矩阵) 为唯一验收矩阵；本报告只定位证据，不重写场景定义。当前不代表用户已验收。
 
-当前落点：已批准的插件链接补正通过 85 项进程回归、必需检查与独立两轴复审；实际启动前备份及独立 verify 成功，Local 已受控启动并 ready，配置前 11 个相关任务引用均 idle。两名机器人已获绑定真人原生核验，协作配置已保存为 revision 1。真人只读需求已受理，PM 原生提及派单已发送；执行者尚未形成对应入站记录，正在核对原生接收事件及相关门禁，根因未确认。18 尚未完成。
+当前落点：用户批准的最小接收诊断已实现并复审，`3.16.2-local.2` 候选构建、独立核验及受控切换通过。当前应用源码为 `b35fa82f561e17e0f4c03077d75e561b022327e2`，新 owner/runtime/PID/token/版本和 Host ready 对应，指定执行者的诊断记录 connection/ready。原只读需求已到 PM 派单，执行者入站仍未证明；等待真人发送新的有限只读诊断需求。busy 的具体后台来源及无回应根因均未确认，18 尚未完成。
 
 ## 基线与范围
 
-业务源码固定于 `f2dfa97ff78e28abe48918d2348a3ce43ee25efe`，最终 17 源码为 `ca707b5f600c1924c14fb9d07ebe1aecdefde4b3`；业务实现不变；真实启动前备份暴露的插件链接边界已获用户确认，维护脚本补正源码为 `8c752d581e8880db2533df11b5dc5018a5a2d837`。父规格冻结 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 保持不变。
+初始回归业务源码固定于 `f2dfa97ff78e28abe48918d2348a3ce43ee25efe`，最终 17 源码为 `ca707b5f600c1924c14fb9d07ebe1aecdefde4b3`。真实启动前备份暴露的插件链接边界已获用户确认，维护脚本补正源码为 `8c752d581e8880db2533df11b5dc5018a5a2d837`；后续接收观察能力及候选端点见本报告末节，不改变原业务路由。父规格冻结 blob `25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387` 保持不变。
 
 本机私有证据根为 `~/.local/share/zcode-local/research/issue-18/`。新测试使用隔离 HOME、合成身份和业务数据；测试入口、命令、时间、源码与退出码保存在各检查 JSON/日志中。根全量单测未执行，affected 的全选/跳过也不视为全量通过。
 
@@ -30,9 +30,9 @@ Status: in-progress
 
 真实维护 check 通过 GitHub API 再次观察官方 main=`3c5b2276`、版本 3.16.2、latest release=`v3.14.3`。公开历史扫描检查 540 个本地新增/修改 blob，上游精确等价补丁为空、blockers 为空；这不替代语义审阅。Local 诊断调用与适配器的审阅确认：路由仅写 scope/动作/结果和 input/delivery/requirement/revision 元信息，经 createServiceLogger 的 debug 输出；停止/恢复警告写阶段、原因及 error 类型。未在已审阅新增路径发现正文采集或新增上传目的地，不扩大为全部既有日志审计。候选准备阶段未读取日常日志或提取凭据；启动后诊断仅计数匹配的已知告警，不收集消息正文。
 
-## 当前可核对候选
+## 首次真实运行候选（历史）
 
-当前 ready 候选位于本机私有 `${HOME}/.local/share/zcode-local/research/issue-18/candidate-2/candidate.json`，完整源码 `cd6bc0f23b0bc18ec8f6b7a50f6c5e3ee3370e36`，展示/分支版本 `3.16.2-local.1`。相对 f2dfa97f 仅增加 18 初始验收文档，无业务代码变化。
+首次真实运行的 ready 候选清单位于本机私有 `${HOME}/.local/share/zcode-local/research/issue-18/candidate-2/candidate.json`，完整源码 `cd6bc0f23b0bc18ec8f6b7a50f6c5e3ee3370e36`，展示/分支版本 `3.16.2-local.1`。相对 f2dfa97f 仅增加 18 初始验收文档，无业务代码变化。该应用路径已由后述原安装入口切换为 local.2；旧清单保留为历史，不能再用它验证该路径的现有应用。
 
 - 应用：`artifacts/mac-arm64/ZCode Local.app`；身份 dev.zcode.app.local，平台短版本 3.16.2 / 内部版本 3.16.2001，维护协议 1。
 - 标准维护入口完成 ASAR/package/build-meta、源码、完整应用树、deep/strict 签名、完整 ZIP 成员与只读 DMG 内容核对；随后独立重新核对源码/元数据、签名、完整应用树和两个归档 hash。
@@ -146,3 +146,19 @@ Status: in-progress
 用户提供的群截图显示真人需求、PM 对执行者的原生提及派单，以及 PM 对原需求用户的派单说明；截图内未见执行者回报。它不包含飞书后台事件记录或 native payload。此前将用户选择回答记作“后台查到接收事件”的推断已撤回，不能据此排除平台未推送。截图含真实身份、正文及项目路径，只留私有材料，不入公开仓库。
 
 继续只读核对受控启动日志中已有的接收摘要、解析、回调失败、WebSocket 失败和卡片准备失败等已知标记，均未命中；仅保存计数，不保存原始行。生产构建按现有策略禁用服务 debug，因此缺少这些摘要不能证明没有收件。旧派单也没有可用的原生事件供离线复现。未开启原始 payload 日志或新增生产诊断，没有通过业务回调伪造/重放原派单；本次无法仅据现存证据定位丢弃阶段，保持未确认。
+
+## 最小接收诊断、候选与受控切换（2026-10-24）
+
+用户明确允许默认关闭的有限本机观察及空闲后的受控切换。局部合同先行，诊断源码固定于 `19059fb36abebbcdb9daf19268ca636110cc5cad`，只旁路观察原 SDK/Provider/授权/守卫/受理结果，不改变路由或重放业务消息。固定 `a240e91d...19059fb3` 的独立 Standards / Spec 两轴均为 0 项。新增观察 owner 契约 12/12 通过；根类型、Lint 0 errors/97 存量 warnings、架构和变更格式通过。源码推送的 affected 选择 109/2064，1822 通过/2 跳过，不是全量。
+
+29 个指定根文件最终串行回归为 684 通过/1 失败/1 跳过。未修改的 Main 维护契约在 markHostReady 后读到 starting；独立复跑该文件 8/8 通过。源码可见初始 starting 与 ready 发布的异步写顺序风险，但没有确认诊断变更为引入原因；未在本次范围静默修改。原失败及全仓格式失败继续保留，不将本组写成全绿。
+
+原安装规则要求版本严格更新，下一本地修订为 `3.16.2-local.2`，候选源码 `b35fa82f561e17e0f4c03077d75e561b022327e2`，清单为私有 `candidate-3/candidate.json`。标准构建入口的类型、Lint、架构及维护检查 50/50 通过；affected 全选 2064 后按仓库合同跳过。完整应用、ASAR 元数据、deep/strict 签名、ZIP 全成员和只读 DMG 均经原入口及独立核验。应用树 SHA-256 为 `de80caa75fc5e360b65cb10b5f4f83b723154a429020ca9c2055d0ff95d7d2dc`。首次构建尝试因 GitHub API 传输失败停止，后以命令级 HTTP/1.1 重试成功；没有修改远端、全局网络配置或关闭校验。分支正常推送，没有创建或发布 tag。
+
+切换前只读查询再次出现 11 个列表已完成、无前台阻塞的任务中 5 个 ownedWork=busy；下一轮为 11/11 idle，active turn、待确认请求及快照后台任务均为 0。首次附加旧快照读取使用 messageLimit=0 被协议拒绝，改为正数后读取成功，原失败保留。没有停止任务、清理租约或计数；不能把两轮之间的变化归因为某项具体后台工作。指定群配置另读为 busy=false、revision 1，随后原安装入口再次取得 idle 与 accepted/runningTaskCount=0。
+
+切换前 15 备份和独立 verify 成功；原入口正常退出旧应用、原子替换并启动 local.2，安装返回 installed。另独立核对安装目标的完整应用树/源码/签名、存活 launcher 和应用、owner/runtime/PID/token/版本、Host ready，以及切换门已释放。成功后旧 previous 临时应用由原入口清理；旧应用与数据保存在有效切换前备份，旧候选归档保留。未替换官网包、执行数据恢复或伪造用户输入。当前清单指针另存私有 `live-current-local.private.json`，不改写历史 candidate-2 清单。
+
+指定执行者观察器已独占领取一次私有请求，0600 输出目前记录 connection/ready，facts 为空；这证明观察器及既有 WebSocket 连接就绪，不证明真实模型或业务收件成功。切换前备份与切换后的协作 ledger 字节相同：1 个需求、3 个输入、2 个交接、0 个在途入站协调记录，新增记录不是本次切换重放产生。等待新的真人原生需求，在有限窗口内观察 SDK 收件至受理阶段；旧派单不自动重发。根因及完整闭环继续未确认。
+
+私有证据定位：`receive-diagnostic-review.json`、`receive-diagnostic-contract-final.json`、`receive-diagnostic-root-serial.json`、`receive-source-push.log`、`receive-candidate-build-2.log`、`receive-candidate-verify.json`、`busy-investigation-summary.json`、`receive-install.private.json`、`receive-installed-verify.json`、`receive-postswitch-ledger-summary.json`。真实身份、消息标识、请求 salt、路径和正文不进入公开材料。
