@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-local8-installed-verified-new-h-human-closure-pending",
+  "overall": "in-progress-local8-real-accept-control-success-target-label-mismatch-H-open",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -882,7 +882,7 @@
     "acceptance-provider-install": {
       "source": "757082860a17817a0f3ce89e08d9dfec6f743f59",
       "version": "3.16.2-local.8",
-      "status": "installed-independently-verified-human-closure-pending",
+      "status": "installed-real-accept-control-success-original-H-not-closed",
       "originalRunningAppTwoPhaseExit": true,
       "requestCommitAcceptedMatchedPriorOwner": true,
       "maintenanceTestsPassed": 50,
@@ -897,7 +897,7 @@
       "historicalTypesMigrated": false,
       "oldInputsReplayed": false,
       "realDataRestored": false,
-      "realAcceptanceControlProven": false,
+      "realAcceptanceControlProven": true,
       "evidence": [
         "acceptance-provider-review-candidate-source.json",
         "acceptance-provider-candidate-build.json",
@@ -909,6 +909,32 @@
         "acceptance-provider-installed-host-check.json",
         "acceptance-provider-postswitch-ledger-summary.json",
         "readonly-h-after-switch.private.json"
+      ],
+      "realAcceptanceControlScope": "later-new-F-requirement-not-original-H"
+    },
+    "post-local8-acceptance-scope": {
+      "source": "757082860a17817a0f3ce89e08d9dfec6f743f59",
+      "status": "real-control-success-user-target-mismatch-under-investigation",
+      "newRequirementMarker": "F",
+      "humanApprovalMarker": "H",
+      "sameAuthorizedHuman": true,
+      "humanTypeNormalized": true,
+      "acceptResult": "acceptance_recorded",
+      "laterFClosed": true,
+      "originalHClosed": false,
+      "originalHInputs": 4,
+      "currentTaskPriorRequirementBinding": true,
+      "newFSourceInPreSwitchBotSnapshot": false,
+      "newFOriginConfirmedByHuman": false,
+      "allNewCanonicalInputsReadOnly": true,
+      "selectedFingerprintsUnchanged": true,
+      "realLedgerManuallyModified": false,
+      "additionalCodeChanged": false,
+      "applicationSwitchedAgain": false,
+      "evidence": [
+        "readonly-postlocal8-f-acceptance-scope.private.json",
+        "readonly-h-after-new-f-control.private.json",
+        "verify-h-closed.py"
       ]
     }
   },
@@ -1291,11 +1317,12 @@
         "report-arguments-install",
         "readonly-h-real",
         "acceptance-provider-fix",
-        "acceptance-provider-install"
+        "acceptance-provider-install",
+        "post-local8-acceptance-scope"
       ],
-      "status": "real-h-awaiting-acceptance-local8-installed-new-human-closure-pending",
+      "status": "real-accept-control-success-latest-F-closed-original-H-still-open",
       "limits": [
-        "H reached awaiting_acceptance on local.7 with a fresh PM read and verified native report/final; later original human approval was admitted but accept was blocked by optional senderType handling. Reviewed local.8 repair installed and independently verified; historical records unchanged, new human closure input pending. Other real anomaly scenarios and overall user acceptance remain incomplete. Historical external ledger write remains a failure. No replay or data restoration performed."
+        "local.8 normalized a new authorized human input and accept returned acceptance_recorded, closing a later F requirement. Approval text named H; latest-task binding associated it to F, so H remains awaiting_acceptance and this is not H or overall acceptance. New F origin and user target require clarification. Historical external ledger write remains a failure. No manual state change, replay, data restoration or new code change performed."
       ]
     }
   },

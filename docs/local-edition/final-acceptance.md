@@ -437,3 +437,17 @@ Core 相关 4 文件 41/41；根相关 6 文件 218 通过/1 专用入口跳过�
 有限 PM 观察器 connection/ready、0600 输出，仅证明本机观察就绪；Host-ready 不证明真实验收关闭。H 仍 awaiting_acceptance，原真人确认及被拒的 accept 保留，均不自动重放。已请求同一真人另发仅关闭 H 的确认，不重跑原需求；真实关闭、其他关键真实异常与 18 整体验收仍未完成，18 保持 in-progress。
 
 私有证据：`acceptance-provider-review-candidate-source.json`、`acceptance-provider-version-push.json`、`acceptance-provider-candidate-build.json`、`candidate-9/candidate.json`、`acceptance-provider-candidate-verify.json`、`acceptance-provider-candidate-host-check.json`、`acceptance-provider-exit-proof.private.json`、`acceptance-provider-install.private.json`、`acceptance-provider-installed-verify.json`、`acceptance-provider-installed-host-check.json`、`acceptance-provider-postswitch-ledger-summary.json`、`readonly-h-after-switch.private.json`。
+
+### local.8 真人验收控制成功，但本次确认关联到后来的 F
+
+北京时间 2026-10-25 18:15 的真人确认已实际受理，新的 Local 输入明确保存 user，CLI 只读需求及 PM 角色匹配，合法 accept 返回 acceptance_recorded，关联需求进入 closed。类型修正已在真实运行中生效；但这条输入不属于原 H，不能记为 H 关闭或整体验收通过。
+
+切换后 16:59:56 另出现一条带显式只读首行及 F 标记的需求，同一 PM 任务据此创建独立需求。执行者 Read/report、PM 本轮 Read/final 均完成，17:01:44 的回报输入已进入该需求。18:15 的确认文字明确写 H 且要求不重跑，仍按同一 PM 任务最近输入的规则关联到后来这条 F，PM 随后 accept 关闭了 F。原 H 始终是 4 个输入、awaiting_acceptance。相同授权真人无误，错误不再是 senderType、原生入站缺失或验收工具失败。
+
+源码 bindInput 仅按重放/可信交接/同任务最近需求绑定；显式只读命令创建独立新需求。它不把正文中的 H 标签作为目标选择，accept 只能操作已绑定需求；当前真实记录符合这条机制，但 PM 没有对齐用户文字与当前需求的语义。这不能冒充用户验收了 F。新增 F 的原生消息 ID 及正文未见于切换前 Bot 备份，未发现从该备份恢复旧输入的证据；这些比较不足以证明原生消息发送时间或排除未入库的平台延迟事件，已向用户核对是否重新发送过 F，原因归属保持待确认。
+
+四个新输入均完成并带匹配只读约束，只观察到 Read/ReplyToChannel；读取均指向指定 README，未重跑原 H。两次报告后的额外 silent 被拒，不记作纯确认静默通过。项目 HEAD/status/diff、README 和已知外部台账 hash 仍与 H 前一致。当前 ledger 为 4 个需求、16 个输入、9 个交接、0 在途协调记录。只做只读调查与文档归档，未修改代码、回填记录、手工关闭 H、重放消息、恢复真实数据或再次切换应用。
+
+`verify-h-closed.py` 已实际运行并退出 1，明确检查原 H closed 与 acceptedByInput，而非把任意需求 closed 当通过。后续先核对新增 F 的来源及用户验收目标；没有要求用户继续盲目重发。历史需求显式定位或新的产品行为尚未获批准，不在本次调查中实现。18 保持 in-progress，真实异常及整体验收未完成。
+
+私有证据：`readonly-postlocal8-f-acceptance-scope.private.json`、`readonly-h-after-new-f-control.private.json`、`verify-h-closed.py`。真实消息正文、身份、原生消息 ID、数据库和备份副本不入库。
