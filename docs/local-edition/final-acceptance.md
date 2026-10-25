@@ -463,3 +463,5 @@ Core 相关 4 文件 41/41；根相关 6 文件 218 通过/1 专用入口跳过�
 相关 5 文件 328 通过/1 专用入口跳过，另实际群组回归 112/112，根类型、Lint 0 errors/97 既有 warnings、架构 0 新违规通过。首轮相关命令的群组文件名写成单数，Vitest 实际只运行其余 5 文件；随后用实际 plural 文件入口补跑 112 项，不把不存在的文件算作通过。当前仅交付源码修正与隔离证据，固定复审/下一候选另行记录；运行中仍 local.8，真实旧 F/H 不手工修复、不重放，18 未完成。
 
 私有证据：`readonly-postlocal8-f-origin-user-denial.private.json`、`readonly-postlocal8-f-receive-provenance.private.json`、`readonly-redelivery-red.json`、`readonly-redelivery-green.json`、`readonly-redelivery-related.json`、`readonly-redelivery-groups.json`、`readonly-redelivery-types.json`、`readonly-redelivery-lint.json`、`readonly-redelivery-architecture.json`。
+
+固定 `ce08aefd...6f4ca8680641c4745aaedd1e6ab0a2db658d6bc7` 的 Standards/Spec 各 0 项问题。源码普通 fork 推送的 pre-push 通过，官方 affected 选择 108/2064 个根文件，1849 通过/2 跳过，非全量；GitHub API 独立核对一致。官方基线仍 3c5b2276。按原严格安装版本门，集成分支和根版本进入 local.9；当前仅准备候选，运行中仍 local.8，历史 H/F 不改，18 仍未完成。私有证据：`readonly-redelivery-review-final.json`、`readonly-redelivery-source-push.json`。
