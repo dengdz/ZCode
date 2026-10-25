@@ -204,3 +204,9 @@ flowchart LR
 ### local.5 已受控安装（2026-10-25）
 
 行为源码 `461020e3` 固定端点两轴复审 0/0，版本增量 `cf7f4664` 复核 0/0。原维护入口生成 local.5 / candidate-6，50/50 维护测试通过，独立完整树/源码/签名及 DMG/ZIP 核对通过；affected 全选按合同跳过，不记全量。原运行中 local.4 经 idle→commit→accepted 正常退出，原 install 完成备份及独立 verify、替换、takeover 与 Host-ready。安装后独立核对 owner/runtime/PID/token/版本及完整应用一致，launcher/应用存活，gate 已释放。新真人输入前 ledger 字节不变，旧消息未重放。有限诊断 connection/ready 和文件指纹基线已准备；真实新需求、旧事件具体拒绝分支及最终用户验收仍未完成。详见[安装记录](../../local-edition/final-acceptance.md#local5-已运行等待新的真人只读需求)。
+
+### 冷加载检查会启动初始化工作，方案待对齐
+
+local.5 新真实需求仍被 busy 拒绝，未进入 ledger/CLI，选定项目及已知外部台账指纹不变。有限诊断早期记录 owned_work_busy；截图时已到期，不能拼成同一事件的完整证据。原 CLI 日志显示拒绝前恢复旧任务并启动 MCP。真实 Bootstrap/Core 的隔离最小对照连续两次各 1 通过/1 失败：没有运行、队列、交互或新模型调用，冷订阅所启动的 MCP 初始化仍使 inspectOwnedWork 返回 busy；仅释放该初始化即 idle。
+
+待对齐：CLI 单一 owner 的纯核对不启动执行服务，真实执行初始化仍走原入口；既有工作、冷遗留租约和未知继续拒绝，不放宽 blocking work、不删除历史引用、不固定等待或人工预热。实施前按根设计缺陷规则对齐，再补 adapter→冷订阅→CLI 纵向及两种订阅模式回归。当前应用存活但 launcher 已结束，原因未知；保留 owner，后续遵守 17 人工边界。详见[诊断和待对齐方案](../../local-edition/final-acceptance.md#local5-真实拒绝及冷加载初始化反馈环2026-10-25)。18 仍 in-progress。

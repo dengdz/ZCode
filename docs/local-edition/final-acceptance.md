@@ -314,3 +314,32 @@ sequenceDiagram
 新真人输入前，协作 ledger 与切换前字节一致，仍为 1 个需求、6 个输入、4 个交接、0 个在途协调记录，项目执行租约为 0。新的 PM 有限诊断只记录 connection/ready，输出权限 0600；这不证明模型或协作业务闭环。项目 HEAD/status/diff、目标文档及已知项目外台账指纹已保存。旧拒绝消息未重放，下一轮使用新的显式只读需求。旧真实事件的具体 busy 分支仍未追溯，18 与最终用户验收保持未完成。
 
 私有证据：`idle-proof-candidate-build.json`、`candidate-6/candidate.json`、`idle-proof-review-candidate-source.json`、`idle-proof-candidate-verify.json`、`idle-proof-install.private.json`、`idle-proof-installed-verify.json`、`idle-proof-postswitch-ledger-summary.json`、`readonly-f-before.private.json`。
+
+### local.5 真实拒绝及冷加载初始化反馈环（2026-10-25）
+
+用户发送新的正确格式只读需求后仍收到 readonly_busy。需求没有进入 Local ledger 或 CLI；仍为 1 个需求、6 个输入、4 个交接、0 个 admission。前后核对项目 HEAD/status/diff、目标文档和已知项目外台账 hash 均相同；这只证明这些选定指纹未变，不扩张为任意外部资源的全局证明。18 未通过，不将上一节安装成功或草稿回归通过写成真实闭环成功。
+
+有限观察器捕获北京时间 09:22:53 的 idleness/deny，静态原因为 owned_work_busy，检查计数为 3；解析、原生提及和授权均已通过，guard 记录 duplicate/0 后仍进入空闲检查。观察器在截图对应的 09:54 已过期，且未找到这条早期诊断与需求的持久输入关联；不能把它直接当作 09:54 的完整事件证据，也不能仅凭两次错误归因为平台重投。原始业务日志分别在 09:54:34.061、09:54:51.920 记录 busy。
+
+同一 CLI 日志与 session trace 关联显示：09:22:53.095 恢复一个未纳入当前协作配置、但仍在该群历史状态中的任务，09:22:53.102 拒绝时 MCP 初始化尚未完成；对应初始化在 09:23:07.805 完成。09:54 两次错误前又分别恢复两个旧任务，第一次恢复在 09:54:34.051、初始化在 09:54:38.755 完成；第二次恢复在 09:54:51.908。后两个时点没有有限原因记录，日志支持同类路径，但不声称已直接读取其每项 owned-work 分量。
+
+源码路径为 BotsService 空闲核对 → 原任务 adapter → 临时 conversation 订阅 → 冷恢复 runtime → 启动 MCP → inspectOwnedWork。后者复用 residency blocking work，包含该检查自己刚启动的 MCP 初始化。隔离真实 Bootstrap/Core/SQLite/订阅命令反馈环，仅把 MCP 端口替换为合成可释放 Promise：已完成的任务冷订阅后，activeWorks/queue/pendingInteractions 均为 0，没有新增模型调用，但 inspectOwnedWork 返回 busy；释放这一个初始化 Promise 后返回 idle。最小对照连续两次各 1 通过/1 失败，失败均为预期 idle、实际 busy。初次夹具缺 MCP 方法、随后未持久化 draft 的失败保留，均不算根因红灯。没有改真实应用、业务数据、配置、计数或守卫。
+
+另复核当前 local.5：应用仍存活，owner/runtime token/PID/版本匹配，但 launcher 已结束；退出原因未知。安装时及稍后存活的证据仍成立，不扩张为持续存活。保留现场，后续切换仍须遵守 17 的人工边界，不因 PID 消失或超时接管。
+
+**待对齐方案，尚未实现：**让 CLI 单一 owner 提供不会为纯空闲核对启动执行服务的检查路径；已存在的运行、队列、交互、后台副作用、finalization 和项目租约继续沿原权威核对，未知仍拒绝。冷检查与真实执行初始化显式分离，真实执行沿原入口初始化，不能全局关闭 MCP、删掉 blocking work、等待固定时间或让用户逐个预热。所有群历史引用继续作为待核对候选，不仅检查当前两个配置成员；不清旧状态、不重放输入。先补真实 adapter/冷订阅/CLI 的纵向回归及两种订阅模式，再复审、准备下一修订。该方案涉及初始化和核对的职责分离，按根 AGENTS.md 的设计缺陷规则先与用户对齐。
+
+```mermaid
+sequenceDiagram
+    participant B as 协作空闲检查
+    participant C as CLI 单一 owner
+    participant R as 原 runtime 与租约
+    B->>C: 核对原任务引用
+    C->>R: 读取已有执行和 owned-work 事实
+    Note over C,R: 待对齐：纯检查不启动执行服务
+    R-->>C: idle / busy / unknown
+    C-->>B: 原权威结果，未知拒绝
+    Note over B,C: 实际受理后才沿原执行入口初始化
+```
+
+私有证据：`readonly-f-initial-triage.private.json`、`readonly-f-after.private.json`、`readonly-cold-mcp-red-3.json`、`readonly-cold-mcp-minimized-1.json`、`readonly-cold-mcp-minimized-2.json`；反馈环命令及隔离 HOME 均在同名 JSON，合成 MCP 不连接外部服务。
