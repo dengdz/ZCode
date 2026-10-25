@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-old-readonly-redelivery-fix-reviewed-local9-candidate-pending",
+  "overall": "in-progress-local9-installed-verified-fresh-I-real-round-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -944,7 +944,7 @@
       "initialNonAdmissionReasonConfirmed": false
     },
     "readonly-redelivery-fix": {
-      "status": "isolated-pass-reviewed-local9-candidate-pending",
+      "status": "isolated-pass-reviewed-local9-installed-fresh-real-round-pending",
       "relatedFilesPassed": 5,
       "relatedPassed": 328,
       "relatedSkipped": 1,
@@ -974,6 +974,40 @@
       "sourcePushAffectedSelected": "108/2064",
       "sourcePushAffectedPassed": 1849,
       "sourcePushAffectedSkipped": 2
+    },
+    "readonly-redelivery-install": {
+      "source": "7d8d4012aba28bb3d3caedd98e035fb0f8de9046",
+      "version": "3.16.2-local.9",
+      "status": "installed-independently-verified-fresh-I-round-pending",
+      "originalRunningAppTwoPhaseExit": true,
+      "requestCommitAcceptedMatchedPreviousOwner": true,
+      "maintenanceTestsPassed": 50,
+      "candidateArchivesAndInstalledTreeVerified": true,
+      "installedHostBytesMatchCandidate": true,
+      "localReadOnlyDuplicateGuardPresent": true,
+      "newInputNormalizationAndStrictAcceptanceGuardPresent": true,
+      "ownerRuntimeMatched": true,
+      "launcherAndApplicationAliveAtVerification": true,
+      "switchGateAbsent": true,
+      "connectionCheck": "local-host-ready",
+      "ledgerBytesUnchangedBeforeNewInput": true,
+      "historicalRecordsMigrated": false,
+      "oldInputsReplayedByAgent": false,
+      "realDataRestored": false,
+      "newRealRoundProven": false,
+      "evidence": [
+        "readonly-redelivery-review-candidate-source.json",
+        "readonly-redelivery-candidate-build.json",
+        "readonly-redelivery-candidate-verify.json",
+        "readonly-redelivery-candidate-host-check.json",
+        "readonly-redelivery-exit-proof.private.json",
+        "readonly-redelivery-install.private.json",
+        "readonly-redelivery-installed-verify.json",
+        "readonly-redelivery-installed-host-check.json",
+        "readonly-redelivery-postswitch-ledger-summary.json",
+        "readonly-redelivery-pre-switch-proof-digests.private.json",
+        "readonly-i-before.private.json"
+      ]
     }
   },
   "scenarios": {
@@ -1357,16 +1391,17 @@
         "acceptance-provider-fix",
         "acceptance-provider-install",
         "post-local8-acceptance-scope",
-        "readonly-redelivery-fix"
+        "readonly-redelivery-fix",
+        "readonly-redelivery-install"
       ],
-      "status": "old-F-native-redelivery-confirmed-no-replay-fix-isolated-pass",
+      "status": "local9-no-old-readonly-replay-fix-installed-fresh-I-round-pending",
       "limits": [
-        "The human did not resend F. Its exact native ID existed in the pre-switch persistent guard, and later transport/native plus guard duplicate and admission accepted prove the replay gap for a previously non-admitted readonly command. Local.8 accept succeeded for that F, not H; H remains awaiting_acceptance. Scoped source repair passes isolated regressions; reviewed new candidate, clean fresh real round, other anomalies and overall user acceptance remain pending. No real ledger migration, manual closure or data restore."
+        "Old F native redelivery and wrong H-labelled acceptance remain recorded failures; historical H is still awaiting_acceptance. Scoped no-replay repair passed isolated regressions and fixed reviews, local.9 installed through the original controlled path and independently verified. No old record migration or replay; fresh real I, other real anomaly scenarios and overall user acceptance remain pending. Host-ready is not business acceptance."
       ]
     }
   },
   "maintenanceSource": "8c752d581e8880db2533df11b5dc5018a5a2d837",
   "diagnosticSource": "19059fb36abebbcdb9daf19268ca636110cc5cad",
-  "currentApplicationSource": "757082860a17817a0f3ce89e08d9dfec6f743f59",
+  "currentApplicationSource": "7d8d4012aba28bb3d3caedd98e035fb0f8de9046",
   "receiptBindingFixSource": "aca671101531717575635a6dc1a46e88e5952525"
 }

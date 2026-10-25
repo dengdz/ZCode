@@ -465,3 +465,15 @@ Core 相关 4 文件 41/41；根相关 6 文件 218 通过/1 专用入口跳过�
 私有证据：`readonly-postlocal8-f-origin-user-denial.private.json`、`readonly-postlocal8-f-receive-provenance.private.json`、`readonly-redelivery-red.json`、`readonly-redelivery-green.json`、`readonly-redelivery-related.json`、`readonly-redelivery-groups.json`、`readonly-redelivery-types.json`、`readonly-redelivery-lint.json`、`readonly-redelivery-architecture.json`。
 
 固定 `ce08aefd...6f4ca8680641c4745aaedd1e6ab0a2db658d6bc7` 的 Standards/Spec 各 0 项问题。源码普通 fork 推送的 pre-push 通过，官方 affected 选择 108/2064 个根文件，1849 通过/2 跳过，非全量；GitHub API 独立核对一致。官方基线仍 3c5b2276。按原严格安装版本门，集成分支和根版本进入 local.9；当前仅准备候选，运行中仍 local.8，历史 H/F 不改，18 仍未完成。私有证据：`readonly-redelivery-review-final.json`、`readonly-redelivery-source-push.json`。
+
+### local.9 已受控安装，新的 I 只读验证待执行
+
+版本及文档增量 `7d8d4012aba28bb3d3caedd98e035fb0f8de9046` 两轴复核均 0 项，原维护入口生成 local.9 / candidate-10。类型、Lint、架构及维护/备份 50/50 通过，affected 全选按合同跳过，不称全量。只复用逐文件校验的公共 dmg-builder 缓存；没有手工 ready 清单或替代打包路径。独立核对完整应用树、源码、深度签名、归档大小/hash、ZIP 全成员/CRC 及只读 DMG 树/签名，挂载解除。
+
+旧 local.8 的 owner/runtime 正常，原安装入口核对空闲，完成 idle→commit→accepted 正常退出。独立保存的 request/commit/accepted 回执匹配原 owner，旧应用及 launcher 均已结束；随后原备份与独立 verify、原子替换、takeover 和 Host-ready 返回 installed。没有强杀、手工清理 owner、恢复真实数据或发布 tag；官网应用未修改。安装后重新核对实际完整树/签名/来源，local.9 的 launcher/应用存活，owner/runtime/PID/token 匹配，gate 释放。当前清单为 candidate-10，历史 v8 指针保留。
+
+实际安装全部 Host JS 与候选逐字节一致；原明确真人类型记录、显式 user 验收门与新的 Local 只读 duplicate 拦截均存在。新真人输入前 ledger 与切换前逐字节相同，仍为 4 个需求、16 个输入、9 个交接、0 在途协调记录，项目租约 0；旧 H/F 未改。切换前原生 ID 的守卫证明另存摘要及原备份 hash，不复制原始身份/消息 ID 入公开产物。
+
+新的 I 需求的项目/README/已知外部台账基线已在本机保存，PM 有限观察器 connection/ready、0600 输出；这些不代表真实模型或业务闭环成功。已请求真人发送全新 I 显式只读需求，强调本轮读取/审核及只验收本轮，不再重发 H/F。H 仍待验收、错误重投 F 的关闭仍作为历史失败保留。真实 I、其他关键异常及用户整体验收尚未完成，18 保持 in-progress。
+
+私有证据：`readonly-redelivery-review-candidate-source.json`、`readonly-redelivery-version-push.json`、`readonly-redelivery-candidate-build.json`、`candidate-10/candidate.json`、`readonly-redelivery-candidate-verify.json`、`readonly-redelivery-candidate-host-check.json`、`readonly-redelivery-exit-proof.private.json`、`readonly-redelivery-install.private.json`、`readonly-redelivery-installed-verify.json`、`readonly-redelivery-installed-host-check.json`、`readonly-redelivery-postswitch-ledger-summary.json`、`readonly-redelivery-pre-switch-proof-digests.private.json`、`readonly-i-before.private.json`。
