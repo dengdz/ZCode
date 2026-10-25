@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-real-dispatch-pass-report-arguments-fix-reviewed-next-candidate-pending",
+  "overall": "in-progress-report-arguments-local7-installed-new-human-round-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -798,6 +798,32 @@
         "report-arguments-root-related.json",
         "report-arguments-review-final.json",
         "report-arguments-source-push.log"
+      ]
+    },
+    "report-arguments-install": {
+      "source": "11ca7b1530280f41d394c2c4af195d734620af1b",
+      "version": "3.16.2-local.7",
+      "status": "installed-independently-verified-real-new-round-pending",
+      "originalRunningAppTwoPhaseExit": true,
+      "maintenanceTestsPassed": 50,
+      "candidateArchiveAndInstalledTreeVerified": true,
+      "installedCliBytesAndCorrectedInstructionsVerified": true,
+      "ownerRuntimeMatched": true,
+      "launcherAndApplicationAliveAtVerification": true,
+      "switchGateAbsent": true,
+      "connectionCheck": "local-host-ready",
+      "ledgerBytesUnchangedBeforeNewInput": true,
+      "oldInputsReplayed": false,
+      "realDataRestored": false,
+      "businessRoundTripProven": false,
+      "evidence": [
+        "report-arguments-candidate-build.json",
+        "report-arguments-candidate-verify.json",
+        "report-arguments-install.private.json",
+        "report-arguments-installed-verify.json",
+        "report-arguments-packaged-cli-check.json",
+        "report-arguments-postswitch-ledger-summary.json",
+        "readonly-h-before.private.json"
       ]
     }
   },

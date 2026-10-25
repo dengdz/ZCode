@@ -393,3 +393,13 @@ Core 相关 4 文件 41/41；根相关 6 文件 218 通过/1 专用入口跳过�
 私有证据：`readonly-g-evaluation.private.json`、`readonly-g-after.private.json`、`report-arguments-core-red.json`、`report-arguments-core-final.json`、`report-arguments-root-related.json`、`report-arguments-root-types.json`、`report-arguments-cli-types.json`、`report-arguments-root-lint.json`、`report-arguments-cli-lint.json`。
 
 固定 `27e562b9...b9f2144d3c75019e9d06e94e39c417ee03e8b3d5` 的 Standards/Spec 各 0 项发现。源码普通 fork 推送的 pre-push 通过；affected 选择 0/2064，没有执行根 UT，CLI 验证仍以前述显式命令为准。GitHub API 独立核对一致，官方基线仍 3c5b2276。严格版本门要求下一修订，分支及根版本进入 `3.16.2-local.7`；当前只准备下一候选，运行中仍 local.6，旧输入不重放，18 与最终验收未完成。证据：`report-arguments-review-final.json`、`report-arguments-source-push.log`。
+
+### local.7 已受控安装，新真人回报验证待执行
+
+版本增量 `11ca7b1530280f41d394c2c4af195d734620af1b` 两轴复核 0/0，原维护构建生成 local.7 / candidate-8。类型、Lint、架构和 50/50 维护测试通过；affected 全选按合同跳过，不算全量。独立核对完整应用树、源码和签名、两份归档大小/hash、ZIP 全成员/CRC 及只读 DMG 内完整树/签名，挂载已解除，无 tag 发布。
+
+本次旧 local.6 的 launcher/应用与 owner/runtime 均正常，原 install 实际走运行中应用的 idle→commit→accepted 正常退出、当前备份及独立 verify、staging/原子替换、takeover 与 Host-ready。没有人工解除 owner、强杀、清计数或恢复真实数据。安装后独立重验目标签名、完整树和来源，local.7 的 launcher/应用存活，owner/runtime/PID/token 匹配，gate 已释放，当前清单指针为 candidate-8，历史 v6 指针保留。
+
+额外只读核对候选与实际安装的 CLI bundle 字节一致：存在新参数错误及正确字段说明，旧矛盾说明已移除；不把源码通过冒充已打包生效。新真人输入前 ledger 字节不变，仍为 2 个需求、8 个输入、5 个交接、0 个在途协调记录，项目租约为 0。有限 PM 观察器 connection/ready，输出权限 0600；项目及已知外部台账指纹基线已保存。未重放 G 或旧消息，下一轮由真人发送新的只读需求；真实 report→PM 审核→待验收与其他真实场景/最终用户验收仍未完成，18 保持 in-progress。
+
+私有证据：`report-arguments-review-candidate-source.json`、`report-arguments-candidate-build.json`、`candidate-8/candidate.json`、`report-arguments-candidate-verify.json`、`report-arguments-install.private.json`、`report-arguments-installed-verify.json`、`report-arguments-packaged-cli-check.json`、`report-arguments-postswitch-ledger-summary.json`、`readonly-h-before.private.json`。
