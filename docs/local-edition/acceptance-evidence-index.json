@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-cold-inspection-local6-installed-new-human-round-pending",
+  "overall": "in-progress-real-dispatch-pass-report-arguments-fix-reviewed-next-candidate-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -766,6 +766,38 @@
         "cold-inspection-installed-verify.json",
         "cold-inspection-postswitch-ledger-summary.json",
         "readonly-g-before.private.json"
+      ]
+    },
+    "readonly-round-g": {
+      "applicationSource": "0bd94d671206bd666df12743d458e317423fe690",
+      "status": "dispatch-and-read-pass-report-argument-rejected",
+      "humanInputAccepted": true,
+      "executorInputAccepted": true,
+      "readOnlyPolicyMatchedForBothRoles": true,
+      "reportAccepted": false,
+      "finalReportSent": false,
+      "requirementStatus": "active",
+      "selectedFileFingerprintsUnchanged": true,
+      "diagnosticExpired": true,
+      "evidence": ["readonly-g-evaluation.private.json", "readonly-g-after.private.json"]
+    },
+    "report-arguments-fix": {
+      "source": "b9f2144d3c75019e9d06e94e39c417ee03e8b3d5",
+      "status": "isolated-pass-reviewed-new-real-round-pending",
+      "corePassed": 41,
+      "rootPassed": 218,
+      "rootSkipped": 1,
+      "standardsFindings": 0,
+      "specFindings": 0,
+      "sourcePushAffectedSelected": "0/2064",
+      "newCapabilityAllowed": false,
+      "realOldInputReplayed": false,
+      "evidence": [
+        "report-arguments-core-red.json",
+        "report-arguments-core-final.json",
+        "report-arguments-root-related.json",
+        "report-arguments-review-final.json",
+        "report-arguments-source-push.log"
       ]
     }
   },

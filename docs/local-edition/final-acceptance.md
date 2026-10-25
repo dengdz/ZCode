@@ -391,3 +391,5 @@ Local 适配先读工作证明再读 blocker；证据适配先发纯检查避免
 Core 相关 4 文件 41/41；根相关 6 文件 218 通过/1 专用入口跳过。根 typecheck、CLI 32/32 类型（24 缓存）、根 Lint 0 errors/97 存量 warnings、CLI 0 errors/72 warnings/11 原样上游行数诊断通过，架构 0 新违规，变更范围格式通过。未执行完整根/CLI UT。当前只交付源码，尚待固定两轴复审和下一候选；运行中仍 local.6，旧输入不重放，18 未完成。
 
 私有证据：`readonly-g-evaluation.private.json`、`readonly-g-after.private.json`、`report-arguments-core-red.json`、`report-arguments-core-final.json`、`report-arguments-root-related.json`、`report-arguments-root-types.json`、`report-arguments-cli-types.json`、`report-arguments-root-lint.json`、`report-arguments-cli-lint.json`。
+
+固定 `27e562b9...b9f2144d3c75019e9d06e94e39c417ee03e8b3d5` 的 Standards/Spec 各 0 项发现。源码普通 fork 推送的 pre-push 通过；affected 选择 0/2064，没有执行根 UT，CLI 验证仍以前述显式命令为准。GitHub API 独立核对一致，官方基线仍 3c5b2276。严格版本门要求下一修订，分支及根版本进入 `3.16.2-local.7`；当前只准备下一候选，运行中仍 local.6，旧输入不重放，18 与最终验收未完成。证据：`report-arguments-review-final.json`、`report-arguments-source-push.log`。
