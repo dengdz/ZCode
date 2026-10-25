@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-readonly-fixed-local4-running-new-real-round-pending",
+  "overall": "in-progress-real-readonly-entry-rejected-idle-proof-fix-review-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -644,6 +644,44 @@
       "limits": [
         "Cold no-owner route after audited manual owner archival; no running-app idle/commit/accepted handshake claimed. Host-ready and diagnostic connection/ready do not establish model or business round trip. Known external ledger hash recorded; this is not an all-filesystem audit."
       ]
+    },
+    "readonly-idle-proof-fix": {
+      "sourceBase": "8369f19e9501fd9c5c6a916bb6335e930f88b48d",
+      "status": "isolated-red-green-review-and-next-candidate-pending",
+      "rootFiles": 17,
+      "rootPassed": 518,
+      "rootSkipped": 1,
+      "cliRuntimePassed": 20,
+      "cliTypecheckTasks": 32,
+      "rootLintErrors": 0,
+      "rootLintWarnings": 97,
+      "cliLintErrors": 0,
+      "cliLintWarnings": 72,
+      "cliPristineLineDiagnostics": 11,
+      "architectureNewViolations": 0,
+      "realApplicationContainsFix": false,
+      "evidence": [
+        "readonly-case-d-format-rejection.json",
+        "readonly-busy-draft-minimized-1.json",
+        "readonly-busy-draft-minimized-2.json",
+        "readonly-draft-owned-work.json",
+        "readonly-main-idle-probe.json",
+        "readonly-busy-root-red.json",
+        "readonly-busy-diagnostic-red.json",
+        "readonly-busy-original-repro-green.json",
+        "readonly-busy-root-final.json",
+        "readonly-busy-bootstrap.json",
+        "readonly-busy-root-types-serial.json",
+        "readonly-busy-cli-typecheck.json",
+        "readonly-busy-lint-final.json",
+        "readonly-busy-cli-lint.json",
+        "readonly-busy-architecture.json"
+      ],
+      "limits": [
+        "Real command rejected before new requirement or CLI input; existing ledger unchanged. Old observer expired before this event; no real idleness-reason trace claimed.",
+        "Confirmed isolated defect: active draft reference is not proof of actual work. Exact real busy branch remains unconfirmed; terminal persistence, adjacent zero counters and later Main idle query do not replace per-session authoritative proof.",
+        "Active index semantics and unknown/busy guards retained; no state reset, model call or native replay by the agent. Current app remains f2ef20bf/local.4 pending new candidate."
+      ]
     }
   },
   "scenarios": {
@@ -653,7 +691,8 @@
         "root-related",
         "live-native-configuration",
         "live-demand-chain",
-        "receipt-fixed-real-round"
+        "receipt-fixed-real-round",
+        "readonly-idle-proof-fix"
       ],
       "status": "native-configuration-and-real-executor-admission-pass",
       "limits": [
@@ -1018,9 +1057,10 @@
         "receipt-fixed-switch",
         "receipt-fixed-real-round",
         "readonly-routing-fix",
-        "readonly-controlled-switch"
+        "readonly-controlled-switch",
+        "readonly-idle-proof-fix"
       ],
-      "status": "previous-real-round-failed-readonly-fixed-local4-running-new-round-pending",
+      "status": "real-new-readonly-command-rejected-idle-proof-fix-review-pending",
       "limits": [
         "New native input confirmed the receipt-binding repair. Correct file facts and stable project fingerprints do not negate the external ledger write. Executor report, PM final, anomaly scenarios and explicit final user acceptance remain incomplete. No replay or data restoration performed."
       ]

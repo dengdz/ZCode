@@ -2,7 +2,10 @@ import type {
   CollaborationStopTarget,
   CollaborationStopNotice,
 } from "#src/bot-collaboration/contract.js";
-import type { LocalReceiveDiagnostic } from "#src/bot-receive-diagnostic/contract.js";
+import type {
+  LocalReceiveDiagnostic,
+  ReceiveDiagnosticFacts,
+} from "#src/bot-receive-diagnostic/contract.js";
 import { createLocalReceiveDiagnostic } from "#src/bot-receive-diagnostic/index.js";
 import { replyToBotChannel } from "#src/bots/channelReply.js";
 import { createBotCollaboration, SELECTION_CARD_PREFIX } from "#src/bot-collaboration/index.js";
@@ -1062,7 +1065,71 @@ export function createBotsService(
             }
             return unavailable ? "unavailable" : stopping ? "stopping" : "stopped";
           },
-          isIdle: async (scope, current) => {
+          isIdle: async (scope, current, observation) => {
+            let checkedTaskCount = 0;
+            const observe = (
+              outcome: "allow" | "deny",
+              idlenessReason?: ReceiveDiagnosticFacts["idlenessReason"],
+            ) => {
+              if (observation)
+                receiveDiagnostic.record(
+                  { ...scope, ...observation },
+                  {
+                    stage: "idleness",
+                    outcome,
+                    facts: { idlenessReason, checkedTaskCount },
+                  },
+                );
+            };
+            const deny = (reason: NonNullable<ReceiveDiagnosticFacts["idlenessReason"]>) => {
+              observe("deny", reason);
+              return false;
+            };
+            const taskIdle = async (
+              tasks: IZCodeTaskService,
+              target: {
+                workspacePath: string;
+                workspaceIdentity?: string;
+                remoteSessionId?: string;
+              },
+              taskId: string,
+              inputIds: string[],
+            ) => {
+              checkedTaskCount++;
+              if (runningTasks.has(taskId)) return deny("task_running");
+              if (!tasks.getBotGroupTaskBlockReason || !tasks.readBotCollaborationTask)
+                return deny("runtime_unavailable");
+              try {
+                const workspace = {
+                  workspacePath: target.workspacePath,
+                  ...(target.workspaceIdentity
+                    ? { workspaceIdentity: target.workspaceIdentity }
+                    : {}),
+                  ...(target.remoteSessionId ? { remoteSessionId: target.remoteSessionId } : {}),
+                };
+                const reason = await tasks.getBotGroupTaskBlockReason({ ...workspace, taskId });
+                if (reason)
+                  return deny(
+                    reason === "queued"
+                      ? "task_queued"
+                      : reason === "interaction"
+                        ? "task_interaction"
+                        : reason === "running"
+                          ? "task_running"
+                          : "task_state_unknown",
+                  );
+                const evidence = collaborationTaskEvidenceSchema.parse(
+                  await tasks.readBotCollaborationTask({ ...workspace, taskId, inputIds }),
+                );
+                if (evidence.ownedWork !== "idle")
+                  return deny(
+                    evidence.ownedWork === "busy" ? "owned_work_busy" : "owned_work_unknown",
+                  );
+                return true;
+              } catch {
+                return deny("runtime_unavailable");
+              }
+            };
             const config = await repo.readConfig();
             const states = Object.entries((await repo.readState()).bots).filter(
               ([, context]) =>
@@ -1078,8 +1145,8 @@ export function createBotsService(
                   .snapshot(conversationKey)
                   .some((entry) => entry.status !== "failed")
               )
-                return false;
-              if (!(await isRemoteWorkspaceConnected(context))) return false;
+                return deny("topic_pending");
+              if (!(await isRemoteWorkspaceConnected(context))) return deny("remote_disconnected");
               if (
                 Object.values(context.group?.deliveries ?? {}).some(
                   (item) =>
@@ -1090,7 +1157,7 @@ export function createBotsService(
                       item.authorizationId === context.group?.authorizationId),
                 )
               )
-                return false;
+                return deny("delivery_unconfirmed");
               const taskIds = new Set(
                 [
                   context.activeTaskId,
@@ -1098,35 +1165,36 @@ export function createBotsService(
                 ].filter((id): id is string => Boolean(id)),
               );
               for (const taskId of taskIds) {
-                if (runningTasks.has(taskId)) return false;
                 const target = context.group?.taskWorkspaces?.[taskId] ?? context;
                 const tasks = await resolveZCodeTaskServiceForContext({ ...context, ...target });
                 if (
-                  !tasks.getBotGroupTaskBlockReason ||
-                  (await tasks.getBotGroupTaskBlockReason({ ...target, taskId }))
-                )
-                  return false;
-                if (!tasks.readBotCollaborationTask) return false;
-                const evidence = collaborationTaskEvidenceSchema.parse(
-                  await tasks.readBotCollaborationTask({
+                  !(await taskIdle(
+                    tasks,
+                    target,
                     taskId,
-                    workspacePath: target.workspacePath,
-                    ...(target.workspaceIdentity
-                      ? { workspaceIdentity: target.workspaceIdentity }
-                      : {}),
-                    inputIds: Object.entries(context.group?.inputs ?? {})
+                    Object.entries(context.group?.inputs ?? {})
                       .filter(([, input]) => input.taskId === taskId)
                       .map(([id]) => id),
-                  }),
-                );
-                if (evidence.ownedWork !== "idle") return false;
+                  ))
+                )
+                  return false;
               }
             }
             if (current) {
-              if (!deps.zcodeTaskService.listActiveTaskIds) return false;
+              if (!deps.zcodeTaskService.listActiveTaskIds) return deny("workspace_unavailable");
               const active = await deps.zcodeTaskService.listActiveTaskIds(current.workspace);
-              if (!Array.isArray(active) || active.length) return false;
+              if (
+                !Array.isArray(active) ||
+                active.some((id) => typeof id !== "string" || !id.trim())
+              )
+                return deny("workspace_unavailable");
+              // 活动索引包含未提交 draft，非空不等于实际在办；沿原 SDK 逐项证明空闲。
+              // 不删除引用或豁免 draft，运行/排队/交互、后台工作及未知依然拒绝。
+              for (const taskId of new Set(active))
+                if (!(await taskIdle(deps.zcodeTaskService, current.workspace, taskId, [])))
+                  return false;
             }
+            observe("allow");
             return true;
           },
         })

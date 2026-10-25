@@ -286,3 +286,17 @@ sequenceDiagram
 新真人输入前 ledger 与切换前字节一致：1 个需求、6 个输入、4 个交接、0 个在途协调记录。PM 范围的有限诊断已独占领取私有请求，0600 输出 connection/ready；仅证明观察器与既有连接就绪。项目 HEAD/status/diff、目标文档及已知项目外台账 hash 基线已保存。下一轮由同一真人原生提及 PM，以显式只读首行创建新的有限需求，验证 report、PM final/待验收及文件依据。需求不设过期时间；诊断仍按原独立时限/额度停止，不因观察到期重放或重启。旧 C 失败、其他关键真实异常与最终用户验收仍未完成，18 保持 in-progress。
 
 私有证据：`readonly-candidate-build.json`、`candidate-5/candidate.json`、`readonly-candidate-verify.json`、`readonly-review-candidate-source.json`、`readonly-orphan-preflight/audit.private.json`、`readonly-cold-copy-mode-confirmed.json`、`readonly-cold-owner-recovery-2/result.json`、`readonly-install.private.json`、`readonly-installed-verify.json`、`readonly-postswitch-ledger-summary.json`、`readonly-d-before.private.json`。
+
+## 真实入口拒绝与实际空闲核对修正（2026-10-25）
+
+后续命令先因首行没有独立换行被 readonly_invalid_command 拒绝；纠正格式后进入 readonly_busy。两次都没有建立新需求或 CLI 输入，原 ledger 保持不变。旧有限观察窗口已到期，只有此前 connection/ready，不能宣称记录了这次的具体 busy 分支。所选时间窗两次错误来自同一 Host；Main 转发的日志不另算一次回调。原生事件标识未被该诊断捕获，不能仅凭两条错误把平台重投认定为原因，亦未自动重发或清理业务状态。
+
+用户确认只剩空白页或已完成任务。所选项目持久化状态均为终态、admission/项目租约为 0；相邻内存采样的运行与待交互计数为 0。另仅执行原维护握手第一步，收到 idle/runningTaskCount=0，没有创建 commit 或请求退出。上述时点证据不代替所有会话的即时 owned-work 证明。
+
+隔离反馈环复现了确定的误判路径：真实 sessions-index syncer/任务 adapter 保留纯内存 draft，listActiveTaskIds 因而非空；原协作空闲实现直接按列表非空拒绝。只增一个未提交 draft 的对照连续两次报同一 readonly_busy，无 draft 则通过。真实 CLI 的 draft 快照和 inspectOwnedWork 返回 idle，且模型启动数为 0。本机错误与该条件一致，但旧观察未记录分支，不将此隔离结果直接写成该条真实事件的唯一根因。
+
+按 18 局部合同恢复实际空闲判据：活动引用用于发现候选，群内原任务与绑定 workspace 的候选均沿原 blocker 和 owned-work 查询核对。全局活动索引不改，不直接豁免 draft。实际运行、排队、交互、后台 busy/unknown、查询失败或能力缺失仍拒绝；同路径远程 identity 与其他 workspace 不污染本地判断。原有限诊断增加静态拒绝枚举和有界计数，依旧默认关闭、scope/HMAC 关联、限时限量，不记录原任务标识、正文、路径或异常文本，不参与业务判断。
+
+最终指定根回归 17 文件 518 通过/1 专用入口跳过；原最小对照 2/2 变绿。CLI 原实际执行边界文件 20/20，通过未提交 draft 的 owned-work 证明与既有停止/后台工作/冷 lease 等反例。根类型和 CLI 类型 32/32（28 缓存）通过；根 Lint 0 errors/97 存量 warnings，CLI 0 errors/72 warnings/11 原样上游行数诊断；架构 0 新违规。初次私有夹具缺少 workspace alias 的导入失败保留，随后真正红灯为同一 readonly_busy；不是用导入失败充当回归红灯。源码复审、下一修订及真实验证仍待完成，当前运行应用还是 f2ef20bf / local.4。
+
+私有证据：`readonly-case-d-format-rejection.json`、`readonly-busy-draft-minimized-1.json`、`readonly-busy-draft-minimized-2.json`、`readonly-draft-owned-work.json`、`readonly-main-idle-probe.json`、`readonly-busy-root-red.json`、`readonly-busy-diagnostic-red.json`、`readonly-busy-original-repro-green.json`、`readonly-busy-root-final.json`、`readonly-busy-bootstrap.json`、`readonly-busy-root-types-serial.json`、`readonly-busy-cli-typecheck.json`、`readonly-busy-lint-final.json`、`readonly-busy-cli-lint.json`、`readonly-busy-architecture.json`。18 不标 done，原 C 失败及其他真实场景/最终验收门禁保留。

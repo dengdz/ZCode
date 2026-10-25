@@ -3,10 +3,15 @@ import { cp, mkdir, mkdtemp, rm, readFile, writeFile, access, realpath } from "n
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import type { BotInboundMessage, ZCodeStreamEvent } from "@zcode/shared";
+import {
+  buildRemoteWorkspaceIdentity,
+  type BotInboundMessage,
+  type ZCodeStreamEvent,
+} from "@zcode/shared";
 import { BotsRepo } from "../src/bots/repo.js";
 import { setDataBaseDir } from "../src/paths.js";
 import * as f from "./botsService.fixtures.js";
+import { workspaceDraftFixture } from "./helpers/localCollaborationRuntimeFixture.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -282,6 +287,160 @@ async function setup(
     },
   };
 }
+
+async function setupWithWorkspaceDraft(workspacePath = "/project", workspaceIdentity?: string) {
+  const f = await setup();
+  const index = await workspaceDraftFixture({ workspacePath, workspaceIdentity });
+  cleanups.push(async () => index.dispose());
+  expect(await index.service.listActiveTaskIds({ workspacePath, workspaceIdentity })).toEqual([
+    "untouched-draft",
+  ]);
+  f.tasks.listActiveTaskIds = index.service.listActiveTaskIds.bind(index.service);
+  return f;
+}
+
+it("18 真实活动索引中的未提交草稿必须取得实际 idle 证明，不能直接当作在办工作", async () => {
+  const f = await setupWithWorkspaceDraft();
+  await f.service.handleInboundMessage({
+    ...f.human(),
+    text: "[ZCODE-LOCAL-READONLY]\nRead synthetic fixture only",
+  });
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledOnce();
+  expect(
+    vi
+      .mocked(f.tasks.readBotCollaborationTask!)
+      .mock.calls.some(([input]) => input.taskId === "untouched-draft"),
+  ).toBe(true);
+});
+
+it.each([
+  "running",
+  "queued",
+  "interaction",
+  "owned-busy",
+  "owned-unknown",
+  "probe-error",
+  "owned-error",
+] as const)("18 索引中的草稿在实际工作证据为 %s 时不能豁免", async (state) => {
+  const f = await setupWithWorkspaceDraft();
+  vi.mocked(f.tasks.getBotGroupTaskBlockReason!).mockImplementation(async ({ taskId }) => {
+    if (taskId !== "untouched-draft") return null;
+    if (state === "probe-error") throw new Error("Synthetic runtime unavailable");
+    return ["running", "queued", "interaction"].includes(state)
+      ? (state as "running" | "queued" | "interaction")
+      : null;
+  });
+  vi.mocked(f.tasks.readBotCollaborationTask!).mockImplementation(async ({ taskId, inputIds }) => {
+    if (taskId === "untouched-draft" && state === "owned-error")
+      throw new Error("Synthetic evidence unavailable");
+    return {
+      ownedWork:
+        taskId === "untouched-draft" && state === "owned-busy"
+          ? "busy"
+          : taskId === "untouched-draft" && state === "owned-unknown"
+            ? "unknown"
+            : "idle",
+      inputs: inputIds.map((inputId) => ({ inputId, admission: "unknown" })),
+    };
+  });
+  await expect(
+    f.service.handleInboundMessage({ ...f.human(), text: "[ZCODE-LOCAL-READONLY]\nRead fixture" }),
+  ).rejects.toThrow("readonly_busy");
+  expect(f.tasks.submitBotGroupInput).not.toHaveBeenCalled();
+  expect(
+    JSON.parse(await readFile(join(f.home, ".zcode/local/v1/collaboration.json"), "utf8"))
+      .admissions,
+  ).toEqual([]);
+});
+
+it.each(["missing-evidence", "missing-blocker", "invalid-reference"] as const)(
+  "18 实际空闲能力 %s 不可确认时仍拒绝",
+  async (state) => {
+    const f = await setupWithWorkspaceDraft();
+    if (state === "missing-evidence") f.tasks.readBotCollaborationTask = undefined;
+    if (state === "missing-blocker") f.tasks.getBotGroupTaskBlockReason = undefined;
+    if (state === "invalid-reference")
+      f.tasks.listActiveTaskIds = vi.fn(async () => [null] as never);
+    await expect(
+      f.service.handleInboundMessage({
+        ...f.human(),
+        text: "[ZCODE-LOCAL-READONLY]\nRead fixture",
+      }),
+    ).rejects.toThrow("readonly_busy");
+    expect(f.tasks.submitBotGroupInput).not.toHaveBeenCalled();
+  },
+);
+
+it("18 其他 workspace 的实际活动引用不会污染绑定项目的空闲判定", async () => {
+  const f = await setupWithWorkspaceDraft("/other-project");
+  await f.service.handleInboundMessage({
+    ...f.human(),
+    text: "[ZCODE-LOCAL-READONLY]\nRead fixture",
+  });
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledOnce();
+  expect(
+    vi
+      .mocked(f.tasks.readBotCollaborationTask!)
+      .mock.calls.some(([input]) => input.taskId === "untouched-draft"),
+  ).toBe(false);
+});
+
+it("18 同路径的远程 identity 活动引用不污染本地绑定", async () => {
+  const identity = buildRemoteWorkspaceIdentity("/project", {
+    kind: "ssh",
+    host: "fixture-host",
+    username: "fixture-user",
+  });
+  const f = await setupWithWorkspaceDraft("/project", identity);
+  await f.service.handleInboundMessage({
+    ...f.human(),
+    text: "[ZCODE-LOCAL-READONLY]\nRead fixture",
+  });
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledOnce();
+  expect(
+    vi
+      .mocked(f.tasks.readBotCollaborationTask!)
+      .mock.calls.some(([input]) => input.taskId === "untouched-draft"),
+  ).toBe(false);
+});
+
+it("18 实际拒绝分支沿原有限诊断输出静态原因，不落原身份或任务引用", async () => {
+  const diagnosticRoot = await realpath(await mkdtemp(join(tmpdir(), "idle-diagnostic-")));
+  cleanups.push(() => rm(diagnosticRoot, { recursive: true, force: true }));
+  const request = join(diagnosticRoot, "request.json");
+  await writeFile(
+    request,
+    JSON.stringify({
+      schema: 1,
+      botId: "pm",
+      chatId: "oc_group",
+      salt: "44".repeat(32),
+      expiresAt: Date.now() + 60_000,
+      maxRecords: 200,
+    }),
+    { mode: 0o600 },
+  );
+  vi.stubEnv("ZCODE_LOCAL_RECEIVE_DIAGNOSTIC_FILE", request);
+  const f = await setupWithWorkspaceDraft();
+  vi.mocked(f.tasks.getBotGroupTaskBlockReason!).mockImplementation(async ({ taskId }) =>
+    taskId === "untouched-draft" ? "queued" : null,
+  );
+  await expect(
+    f.service.handleInboundMessage({ ...f.human(), text: "[ZCODE-LOCAL-READONLY]\nRead fixture" }),
+  ).rejects.toThrow("readonly_busy");
+  await f.service.disposeAllAndWait();
+  const raw = await readFile(join(diagnosticRoot, "events.jsonl"), "utf8");
+  const rows = raw
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  expect(rows.find((row) => row.stage === "idleness")).toMatchObject({
+    outcome: "deny",
+    facts: { idlenessReason: "task_queued", checkedTaskCount: 4 },
+  });
+  expect(raw).not.toMatch(/untouched-draft|oc_group|ou_owner|Read fixture/);
+  expect(f.tasks.submitBotGroupInput).not.toHaveBeenCalled();
+});
 
 it.each([undefined, "omt_readonly"])(
   "18 显式只读新需求经原 Provider 双向交接保留同一约束且不扩官网来源：%s",

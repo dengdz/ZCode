@@ -1,5 +1,7 @@
 # bot-collaboration
 
+空闲核对补正：workspace 活动引用仅用于发现候选，逐项沿原 SDK blocker 与 owned-work 证据核对；不能因非终态列表包含纯内存 draft 就判忙，也不能直接豁免 draft。实际工作、未知、异常或缺失能力均拒绝，全局活动索引不改。isIdle 的可选观察上下文仅含当前机器人/消息/发送者标识，供原有限诊断作 scope/HMAC 关联，不参与判断、不持久化正文或工作状态。
+
 每 Provider/群的配置只有此模块写入，保存到实际数据根 .zcode/local/v1/collaboration.json，version 1。复用 shared 短锁和私有原子写入；未知版本/坏文件不覆盖。官网配置、任务索引格式不扩字段。
 
 readSettings 统一读取界面概览或指定群的权威绑定；save 严格校验选项、身份、职责、实际空闲和 expectedRevision，成功变更才递增 revision。beginVerification 产生绑定群、机器人、应用和既有用户的限时一次命令；observeInbound 仅由 Bot Provider 入站调用，校验原生提及、应用、当前绑定用户、租户与 union_id，不是设置 RPC。

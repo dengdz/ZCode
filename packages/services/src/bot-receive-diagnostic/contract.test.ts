@@ -95,6 +95,34 @@ it("18 指定 WebSocket owner 的无消息连接记录证明观察器已就绪",
   }
 });
 
+it("18 空闲诊断只保留静态原因和有界计数，不序列化未知原因或任务原文", async () => {
+  const f = await diagnosticRequest({ maxRecords: 3 });
+  try {
+    const diagnostic = createLocalReceiveDiagnostic(true);
+    diagnostic.record(f.scope, {
+      stage: "idleness",
+      outcome: "deny",
+      facts: { idlenessReason: "owned_work_unknown", checkedTaskCount: 999 },
+    });
+    diagnostic.record(f.scope, {
+      stage: "idleness",
+      outcome: "deny",
+      facts: { idlenessReason: "SENSITIVE-TASK-PATH", checkedTaskCount: -1 } as never,
+    });
+    await diagnostic.dispose();
+    const raw = await readFile(join(f.root, "events.jsonl"), "utf8");
+    const rows = raw
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(rows[0].facts).toEqual({ idlenessReason: "owned_work_unknown", checkedTaskCount: 100 });
+    expect(rows[1].facts).toEqual({});
+    expect(raw).not.toContain("SENSITIVE");
+  } finally {
+    await rm(f.root, { recursive: true, force: true });
+  }
+});
+
 it("18 诊断公开入口默认关闭、官网禁用且不生成输出", async () => {
   const f = await diagnosticRequest();
   try {

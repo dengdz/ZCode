@@ -9,6 +9,7 @@ export const receiveDiagnosticStages = [
   "authorization",
   "guard",
   "binding",
+  "idleness",
   "admission",
   "complete",
 ] as const;
@@ -36,7 +37,22 @@ export const receiveDiagnosticOutcomes = [
   "rejected",
   "unknown",
 ] as const;
+export const receiveDiagnosticIdlenessReasons = [
+  "topic_pending",
+  "remote_disconnected",
+  "delivery_unconfirmed",
+  "task_running",
+  "task_queued",
+  "task_interaction",
+  "task_state_unknown",
+  "owned_work_busy",
+  "owned_work_unknown",
+  "workspace_unavailable",
+  "runtime_unavailable",
+] as const;
 export interface ReceiveDiagnosticFacts {
+  idlenessReason?: (typeof receiveDiagnosticIdlenessReasons)[number];
+  checkedTaskCount?: number;
   senderType?: "user" | "bot" | "app" | "other";
   messageType?: "text" | "post" | "interactive" | "other";
   senderIdPresent?: boolean;

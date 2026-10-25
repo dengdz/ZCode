@@ -62,5 +62,9 @@ export interface BotCollaborationPort {
   listWorkspaces(): Promise<BotWorkspaceRef[]>;
   canUseWorkspace(bot: BotConfig, workspaceId: string): boolean;
   /** 向实际运行时核对；状态不可确认须返回 false 或抛出，不能按历史 status 推断。 */
-  isIdle(scope: CollaborationScope, current: CollaborationConfig | undefined): Promise<boolean>;
+  isIdle(
+    scope: CollaborationScope,
+    current: CollaborationConfig | undefined,
+    observation?: { botId: string; messageId?: string; senderId?: string },
+  ): Promise<boolean>;
 }

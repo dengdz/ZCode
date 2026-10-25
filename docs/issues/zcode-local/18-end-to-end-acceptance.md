@@ -181,3 +181,22 @@ sequenceDiagram
 f2ef20bf / local.4 的原维护构建、50 项维护测试、完整产物及独立验签通过，最后版本增量两轴复核 0/0。旧 launcher 遗留先按 17 归档并等待用户正常退出；确认全部相关进程结束、无打开句柄/admission/项目租约后，在原 owner 锁内调用 15 公开实现备份、独立核验并逐项比对，再归档精确 owner。首轮 umask 导致链接模式差异的失败保留，未放宽校验。
 
 原 install 冷态路径完成自己的备份/独立 verify、原子替换及启动；独立核对新 owner/runtime/PID/token/版本/Host-ready 和完整应用，gate 已释放。新输入前 ledger 字节未变，无重放；PM 有限观察器 connection/ready 不代表业务闭环。项目及已知外部台账只读基线已保存，等待真人提交带显式首行的新需求。旧 C 失败、其他真实异常及最终用户验收未完成，18 不标 done。详见[本轮现场与核验](../../local-edition/final-acceptance.md#local4-已运行新的只读真实轮待执行2026-10-25)。
+
+### 活动索引与实际空闲核对补正（2026-10-25）
+
+新的真实命令已跨过格式校验，但返回 readonly_busy，未创建需求或提交 CLI。原有限观察窗口已到期，不能声称观察到了本次拒绝分支。隔离的真实 Provider、协作 owner、sessions-index syncer 与任务适配器复现：仅增加一个没有提交输入的 draft，活动引用列表即非空，入口误报 busy；无 draft 的对照通过。真实 CLI 的 draft 快照及 inspectOwnedWork 均证明可保持 idle。该缺陷已确认；本机此次是否恰因 draft 拒绝仍待运行时分支证据，不用持久化终态或维护计数 0 替代逐任务证据。
+
+- 活动引用只用于发现待核对任务。群内既有任务及当前绑定 workspace 的其他活动引用，均沿原 getBotGroupTaskBlockReason、readBotCollaborationTask / inspectOwnedWork 核对；只有可证实无运行、排队、交互且 ownedWork=idle 才通过。未知、接口缺失、查询异常、冷遗留 lease、实际后台工作继续拒绝。不能直接豁免 draft、删除引用或清理计数。
+- 复用现有运行时和 Local owner，不引入 accepted 队列或第二份工作状态。全局 activeTaskRefs / listActiveTaskIds 的非终态语义保留，自动归档和其他调用方不改；本次修正空闲检查对该列表的使用方式。本地路径 fallback、远程 identity、原生身份、唯一入站 token、原命令幂等和停止边界继续保留。
+- 默认关闭的原有限诊断增加静态空闲拒绝枚举及受限计数；只沿当前调用传递观察上下文，不保存正文或增加业务判断来源。原 scope/HMAC、0700/0600、30 分钟/200 条及失败不影响业务的边界保持，不因观察到期要求重发或重启。
+- 先补真实 syncer/adapter→原受理入口的空白 draft 对照，及运行/排队/交互、owned-work busy/unknown、异常/缺接口、相邻 workspace 与远程身份反例。复审与下一修订构建后，仅在实际空闲时受控切换；旧拒绝消息不自动重放，18 未完成。
+
+```mermaid
+flowchart LR
+    A[群内原任务引用] --> C[原 SDK 快照与 owned-work 证据]
+    B[绑定 workspace 活动引用] --> C
+    C --> D{全部实际 idle?}
+    D -->|否或未知| E[保留状态并拒绝]
+    D -->|是| F[Local owner 按原 token 受理]
+    C -.有限旁路元信息.-> G[原私有诊断 owner]
+```

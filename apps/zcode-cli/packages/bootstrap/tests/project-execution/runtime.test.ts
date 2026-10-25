@@ -4,6 +4,17 @@ import { expect, it } from "vitest";
 import { SessionEventType } from "@zcode/contracts";
 import { fixture } from "./fixtures.js";
 
+it("18 未提交 draft 可以沿实际命令入口证明 owned work idle，且不启动模型", async () => {
+  const f = await fixture();
+  const session = await f.create();
+  expect((await f.snapshot(session)).control.phase).toBe("draft");
+  expect(await f.command(session, "inspectOwnedWork", {})).toMatchObject({
+    status: "accepted",
+    result: { type: "ownedWorkState", state: "idle" },
+  });
+  expect(f.started).toHaveLength(0);
+});
+
 it.each(["editUserQuery", "retryTurn"] as const)(
   "18 Local 只读约束经过原队列提升、SQLite 冷恢复和 %s 仍进入实际 Turn",
   async (command) => {

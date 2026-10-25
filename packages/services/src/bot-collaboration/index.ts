@@ -283,7 +283,11 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
             admissions[0]!.ownerPid !== process.pid ||
             admissions[0]!.botId !== message.botId ||
             admissions[0]!.messageId !== message.actor.providerMessageId ||
-            !(await port.isIdle(scope, config))
+            !(await port.isIdle(scope, config, {
+              botId: message.botId,
+              messageId: message.actor.providerMessageId,
+              senderId: message.actor.providerUserId,
+            }))
           )
             fail("readonly_busy");
         }

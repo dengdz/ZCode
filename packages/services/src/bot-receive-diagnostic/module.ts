@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   receiveDiagnosticOutcomes,
   receiveDiagnosticStages,
+  receiveDiagnosticIdlenessReasons,
   type LocalReceiveDiagnostic,
   type ReceiveDiagnosticFacts,
 } from "./contract.js";
@@ -37,11 +38,13 @@ function sanitizeFacts(value: ReceiveDiagnosticFacts | undefined): ReceiveDiagno
   ] as const) {
     if (typeof value[key] === "boolean") facts[key] = value[key];
   }
-  for (const key of ["mentionCount", "parsedCount", "guardCount"] as const) {
+  for (const key of ["mentionCount", "parsedCount", "guardCount", "checkedTaskCount"] as const) {
     const count = value[key];
     if (typeof count === "number" && Number.isSafeInteger(count) && count >= 0)
       facts[key] = Math.min(count, key === "guardCount" ? 5 : 100);
   }
+  if (value.idlenessReason && receiveDiagnosticIdlenessReasons.includes(value.idlenessReason))
+    facts.idlenessReason = value.idlenessReason;
   if (["user", "bot", "app", "other"].includes(value.senderType ?? ""))
     facts.senderType = value.senderType;
   if (["text", "post", "interactive", "other"].includes(value.messageType ?? ""))
