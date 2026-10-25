@@ -20,7 +20,7 @@ import type {
   ToolExecutorDeps,
   ToolExecutorOptions,
 } from "./types.js";
-import { validateInput } from "./validation.js";
+import { localReadOnlyCollaborationInputError, validateInput } from "./validation.js";
 import { isLocalReadOnlyToolAllowed } from "@zcode/shared";
 
 export class ToolExecutorImpl implements ToolExecutor {
@@ -109,7 +109,10 @@ export class ToolExecutorImpl implements ToolExecutor {
       (entry.metadata.mcpPresentation ||
         !isLocalReadOnlyToolAllowed(entry.metadata.name, toolCall.input))
     )
-      throw new Error("Local read-only requirement denies this tool");
+      throw (
+        localReadOnlyCollaborationInputError(toolCall.input, entry) ??
+        new Error("Local read-only requirement denies this tool")
+      );
     const trace =
       options?.traceContext ??
       this.deps.traceContext ??

@@ -236,3 +236,13 @@ sequenceDiagram
     G->>R: 真实执行进入 initializeMcp
     R->>R: 原幂等初始化完成后执行
 ```
+
+### 原协作参数合同与只读错误的校正
+
+local.6 新需求已受理、派单、执行者读取；report 多带 targetBotId 被原严格 schema 拒绝，未进入 PM 回报或待验收。工具说明却把 dispatch/report/question/final 都写成可带 configured targetBotId，与原共享合同矛盾。本次校正原合同的提示和错误，不改变允许的参数或授权规则。
+
+report/final/accept/silent/stop 的 collaboration 对象只能有 kind；targetBotId/requiredDuty 仅用于原 dispatch/question 形状，实际收件人继续由 Host 根据原输入和配置确定。Provider schema 保持原 flat 对象兼容边界，不暴露 anyOf，也不因模型多带字段就删除字段或放行。
+
+只读 guard 继续在工具准备、Hook、权限和 handler 前拒绝。只有原生 ReplyToChannel 提供了存在但不合法的 collaboration 参数时，将这次拒绝作为可修正的参数错误，返回固定格式说明；不调用 Host、不产生发送或降级普通回复。缺失协作意图、其他工具和 MCP 同名仍为权限拒绝。模型修正为原合法形状后，重新完整走原校验和 Host 授权，不自动重试或代填参数。
+
+回归 seam：真实 Core executor（含 app-tool authorize）→原 ReplyToChannel handler/Host 端口；无效 report/final 额外字段在只读/YOLO 下不发送，错误可定位参数；合法修正才发送一次；普通额外发送、MCP 同名、写工具等原拒绝仍保留。真实旧需求不重放，新候选后另由真人输入验证。

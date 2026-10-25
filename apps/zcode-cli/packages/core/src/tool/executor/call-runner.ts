@@ -61,7 +61,12 @@ import {
 } from "./turn-control.js";
 import { mergeToolExecutionTelemetry, readToolExecutionTelemetry } from "../handlers/tool-perf.js";
 import type { ToolExecuteOptions, ToolExecutorDeps } from "./types.js";
-import { validateInitialModelToolInput, validateInput, validateOutput } from "./validation.js";
+import {
+  localReadOnlyCollaborationInputError,
+  validateInitialModelToolInput,
+  validateInput,
+  validateOutput,
+} from "./validation.js";
 import type { ExecutableToolCall } from "../types.js";
 import { resolveEmbeddedSearchBranchCapability } from "../../embedded-search/capability.js";
 import { resolveToolEntryModelContract } from "../model-contract.js";
@@ -194,11 +199,15 @@ async function executeToolCallImpl(
     (entry.metadata.mcpPresentation ||
       !isLocalReadOnlyToolAllowed(canonicalToolCall.name, canonicalToolCall.input))
   ) {
-    const result = createPermissionErrorResult(
-      canonicalToolCall,
-      "Local read-only requirement denies this tool",
-      { ruleId: "local.readOnly" },
-    );
+    // 合法协作能力仍保留：多带目标属于严格参数错误，不能误报为用户撤销发送权限。
+    const invalid = localReadOnlyCollaborationInputError(canonicalToolCall.input, entry);
+    const result = invalid
+      ? createErrorResult(canonicalToolCall, invalid)
+      : createPermissionErrorResult(
+          canonicalToolCall,
+          "Local read-only requirement denies this tool",
+          { ruleId: "local.readOnly" },
+        );
     await emitToolCallError(
       deps,
       canonicalToolCall.id,
@@ -208,7 +217,11 @@ async function executeToolCallImpl(
       undefined,
       pluginId,
     );
-    telemetry?.finishFailed("permission", "permission", result.error);
+    telemetry?.finishFailed(
+      invalid ? "validation" : "permission",
+      invalid ? "parse" : "permission",
+      result.error,
+    );
     return result;
   }
   let lifetime: ReturnType<NonNullable<ToolEntry["retainExecution"]>> | undefined;

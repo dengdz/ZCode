@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createToolExecutor } from "../src/tool/executor.js";
 import { createToolRegistry } from "../src/tool/registry.js";
 import { PermissionService } from "../src/permission/service.js";
+import { CoreErrorType } from "@zcode/contracts";
 import {
   replyToChannelHandler,
   replyToChannelToolEntry,
@@ -68,6 +69,65 @@ const input = {
   ],
 };
 describe("ReplyToChannel", () => {
+  it.each(["report", "final"] as const)(
+    "18 只读 %s 多带目标时返回可修正参数错误，修正后才进入原发送端口",
+    async (kind) => {
+      const f = fixture();
+      const registry = createToolRegistry();
+      registry.register(replyToChannelToolEntry);
+      const hooks = vi.fn(async () => ({
+        permissionBehavior: "allow" as const,
+        additionalContexts: [],
+      }));
+      const executor = createToolExecutor({
+        registry,
+        sessionId: f.context.sessionId,
+        mode: "yolo",
+        permissionService: new PermissionService(),
+        emitEvent: async () => {},
+        sessionStore: { ...f.context.sessionStore!, getSession: async () => null },
+        topicResourcePort: f.context.topicResourcePort,
+        hookRunner: { run: hooks },
+        getLocalCollaboration: () => ({
+          requirementId: "synthetic",
+          role: kind === "report" ? "executor" : "PM",
+          readOnly: true,
+        }),
+      });
+      const invalid = {
+        parts: [{ type: "text", text: "Evidence" }],
+        collaboration: { kind, targetBotId: "configured-pm" },
+      };
+      const rejected = await executor.execute({
+        id: "call",
+        name: "ReplyToChannel",
+        input: invalid,
+      });
+      expect(rejected.success).toBe(false);
+      expect(rejected.error?.type).toBe(CoreErrorType.ToolExecutionFailed);
+      expect(rejected.error?.message).toContain("targetBotId");
+      expect(f.reply).not.toHaveBeenCalled();
+      expect(hooks).not.toHaveBeenCalled();
+      await expect(
+        executor.authorizeAppTool(
+          { id: "call", name: "ReplyToChannel", input: invalid },
+          replyToChannelToolEntry,
+        ),
+      ).rejects.toMatchObject({ type: CoreErrorType.ToolExecutionFailed });
+      expect(f.reply).not.toHaveBeenCalled();
+      expect(hooks).not.toHaveBeenCalled();
+      const repaired = await executor.execute({
+        id: "call",
+        name: "ReplyToChannel",
+        input: {
+          parts: [{ type: "text", text: "Evidence" }],
+          collaboration: { kind },
+        },
+      });
+      expect(repaired.success, repaired.error?.message).toBe(true);
+      expect(f.reply).toHaveBeenCalledOnce();
+    },
+  );
   it.each(["report", "final"] as const)(
     "Local 只读 executor 允许真实渠道 %s 工具，拒绝普通额外发送",
     async (kind) => {

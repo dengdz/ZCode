@@ -379,3 +379,15 @@ Local 适配先读工作证明再读 blocker；证据适配先发纯检查避免
 新的真人输入前 ledger 与切换前字节一致，仍为 1 个需求、6 个输入、4 个交接、0 个在途协调记录，项目租约为 0。有限 PM 诊断 connection/ready，0600 输出，不能当作模型或群闭环证明。项目 HEAD/status/diff、目标文档及已知项目外台账指纹已保存。下一轮使用新的显式只读需求；不重放旧消息、不因独立观察窗口到期要求重发或重启。18、原 C 失败、其他真实场景及最终用户验收保持未完成。
 
 私有证据：`cold-inspection-owner-recovery/result.json`、`cold-inspection-install.private.json`、`cold-inspection-installed-verify.json`、`cold-inspection-postswitch-ledger-summary.json`、`readonly-g-before.private.json`。
+
+### local.6 真实派单通过，回报参数提示与错误校正
+
+新的真人只读需求通过 Local 受理，PM 的 Read 和 collaboration/dispatch 工具完成，投递 settled，执行者入站 accepted 并完成 Read。两个实际 CLI canonical input 均带匹配需求及角色的 readOnly 约束。需求仍 active，执行者随后使用 report 多传 targetBotId；该值匹配当前 PM，但原 report 严格形状只有 kind，Core 只读 guard 因而拒绝。没有 report handoff、PM 回报输入或最终汇报，不能记作整体验收通过。选定项目 HEAD/status/diff、README 和已知外部台账 hash 前后均不变。有限观察窗口在本次入站前已过期，以上来自原 ledger、Bot v3 和 CLI 工具事实，不冒充完整逐阶段诊断，也没有因窗口到期重发。
+
+源码中 ReplyToChannel 的工具说明把 dispatch/report/question/final 都写为使用 configured targetBotId，与共享严格 union 矛盾。实际调用与这条错误提示一致，但不把单句提示认定为模型选择的唯一决定因素。现按原已批准合同校正描述：仅 dispatch/question 可含目标/职责，report/final/accept/silent/stop 的 collaboration 只含 kind。Provider flat schema 兼容边界保持，未放宽 runtime schema 或 Host 目标绑定。
+
+原 guard 仍先于准备、Hook、权限和 handler 拒绝；仅将原生协作工具已提供但不合法的意图分类为可修正参数错误，提供固定格式说明，不回显原文/目标、不裁字段、不执行发送。缺少意图、普通额外发送、MCP 同名、写工具仍按权限拒绝。模型需自行提交新的合法调用，重新走完整授权，程序不自动重试。Core 实际 executor/app-tool 回归先复现 permission_denied 与参数错误的区别，再验证无效不触发 Hook/Host、合法修正才发送。
+
+Core 相关 4 文件 41/41；根相关 6 文件 218 通过/1 专用入口跳过。根 typecheck、CLI 32/32 类型（24 缓存）、根 Lint 0 errors/97 存量 warnings、CLI 0 errors/72 warnings/11 原样上游行数诊断通过，架构 0 新违规，变更范围格式通过。未执行完整根/CLI UT。当前只交付源码，尚待固定两轴复审和下一候选；运行中仍 local.6，旧输入不重放，18 未完成。
+
+私有证据：`readonly-g-evaluation.private.json`、`readonly-g-after.private.json`、`report-arguments-core-red.json`、`report-arguments-core-final.json`、`report-arguments-root-related.json`、`report-arguments-root-types.json`、`report-arguments-cli-types.json`、`report-arguments-root-lint.json`、`report-arguments-cli-lint.json`。

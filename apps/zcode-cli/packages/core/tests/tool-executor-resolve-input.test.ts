@@ -12,6 +12,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  CoreErrorType,
   HookEventName,
   SessionEventType,
   createRootTraceContext,
@@ -32,14 +33,14 @@ it("Local 只读拒绝 Shell、子代理、MCP 同名伪装和 deferred 写入�
   let resolved = 0;
   let executed = 0;
   let hooks = 0;
-  for (const name of ["Bash", "Agent", "mcp__synthetic__Read", "Read", "Edit"]) {
+  for (const name of ["Bash", "Agent", "mcp__synthetic__Read", "Read", "ReplyToChannel", "Edit"]) {
     registry.register(
       probeEntry({
         metadata: {
           ...probeEntry({}).metadata,
           name,
-          ...(name === "Read"
-            ? { mcpPresentation: { serverName: "synthetic", toolName: "Read" } }
+          ...(name === "Read" || name === "ReplyToChannel"
+            ? { mcpPresentation: { serverName: "synthetic", toolName: name } }
             : {}),
         },
         resolveInput: async (input) => {
@@ -71,6 +72,15 @@ it("Local 只读拒绝 Shell、子代理、MCP 同名伪装和 deferred 写入�
     expect((await executor.execute({ id: name, name, input: {} })).error?.message).toContain(
       "Local read-only",
     );
+  expect(
+    (
+      await executor.execute({
+        id: "mcp-reply",
+        name: "ReplyToChannel",
+        input: { collaboration: { kind: "report", targetBotId: "configured-pm" } },
+      })
+    ).error?.type,
+  ).toBe(CoreErrorType.PermissionDenied);
   const deferred = await executor.execute(
     { id: "deferred", name: "DeferredToolCall", input: { name: "Edit", input: {} } },
     {

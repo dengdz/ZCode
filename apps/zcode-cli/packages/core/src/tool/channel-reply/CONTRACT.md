@@ -9,7 +9,9 @@
 
 运行时回归位于 `tests/reply-to-channel.test.ts`。
 
-Local 协作输入可声明 dispatch/report/question/final 意图及本机目标 botId，正文仅 text parts；真实原需求用户、平台目标和方向由 Host 重读 Local 归属与配置确认。没有 Local 能力的宿主拒绝该意图，不能降级为普通发送；普通群原接口不变。
+Local 协作输入可声明 dispatch/report/question/final 意图，只有原 dispatch/question 形状允许本机目标 botId/requiredDuty；report/final/accept/silent/stop 的 collaboration 对象只有 kind。正文规则及真实原需求用户、平台目标和方向由 Host 重读 Local 归属与配置确认。没有 Local 能力的宿主拒绝该意图，不能降级为普通发送；普通群原接口不变。
+
+只读 guard 仍在准备、Hook、权限和 handler 之前拒绝。原生 ReplyToChannel 的已提供但不合法协作参数返回固定的可修正参数错误，不发消息、不裁字段；修正后重新完整授权。缺少协作意图、其他工具和 MCP 同名仍按原权限拒绝，Provider flat schema 兼容边界保持。
 
 06：Local 派单提供 requiredDuty；blocked 结果只说明未发送及纠正原因，不包装为成功，不自行更换职责或发送目标。
 

@@ -1,10 +1,36 @@
 import { CoreErrorType, createCoreError, isCoreError } from "@zcode/contracts";
+import { collaborationReplyIntentSchema } from "@zcode/shared";
 import type { RuntimeInputValidationIssue } from "../input-normalization.js";
 import { createInitialInputValidationModelContent } from "../input-validation-model-content.js";
 import { validateJsonSchemaValue } from "../json-schema.js";
 import type { ToolEntry } from "../types.js";
 
 const INITIAL_INPUT_VALIDATION_MODEL_CONTENT_KEY = "initialInputValidationModelContent";
+
+/** 原生协作工具的参数错误不等于权限撤销；只分类拒绝，不裁字段或降级发送。 */
+export function localReadOnlyCollaborationInputError(
+  input: unknown,
+  entry: ToolEntry,
+): Error | undefined {
+  if (
+    entry.metadata.name !== "ReplyToChannel" ||
+    entry.metadata.mcpPresentation ||
+    !input ||
+    typeof input !== "object"
+  )
+    return undefined;
+  const intent = (input as Record<string, unknown>).collaboration;
+  if (intent === undefined || collaborationReplyIntentSchema.safeParse(intent).success)
+    return undefined;
+  return createCoreError(
+    CoreErrorType.ToolExecutionFailed,
+    "Invalid Local collaboration arguments. report/final/accept/silent/stop require only {kind}; omit targetBotId and requiredDuty. Only dispatch/question may include configured targetBotId and requiredDuty. Correct the arguments and submit a new call; nothing was sent.",
+    {
+      context: { toolName: entry.metadata.name, ruleId: "local.readOnly.arguments" },
+      recoverable: true,
+    },
+  );
+}
 
 export function validateOutput(output: unknown, entry: ToolEntry): void {
   const runtimeSchemaValidation = validateRuntimeSchema(output, entry.runtimeOutputSchema);
