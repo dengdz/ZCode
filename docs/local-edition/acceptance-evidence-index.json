@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-cold-inspection-local6-ready-awaiting-normal-exit",
+  "overall": "in-progress-cold-inspection-local6-installed-new-human-round-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -742,6 +742,30 @@
         "candidate-7/candidate.json",
         "cold-inspection-candidate-verify.json",
         "cold-inspection-orphan-preflight/audit.private.json"
+      ]
+    },
+    "cold-inspection-install": {
+      "source": "0bd94d671206bd666df12743d458e317423fe690",
+      "version": "3.16.2-local.6",
+      "status": "installed-independently-verified-new-round-pending",
+      "path": "cold-after-user-normal-exit-and-exact-owner-archive",
+      "originalBackupAndIndependentVerify": true,
+      "noWritersRechecked": true,
+      "installedTreeAndSignatureVerified": true,
+      "ownerRuntimeMatched": true,
+      "launcherAndApplicationAliveAtVerification": true,
+      "switchGateAbsent": true,
+      "connectionCheck": "local-host-ready",
+      "businessRoundTripProven": false,
+      "ledgerBytesUnchangedBeforeNewInput": true,
+      "oldMessagesReplayed": false,
+      "realDataRestored": false,
+      "evidence": [
+        "cold-inspection-owner-recovery/result.json",
+        "cold-inspection-install.private.json",
+        "cold-inspection-installed-verify.json",
+        "cold-inspection-postswitch-ledger-summary.json",
+        "readonly-g-before.private.json"
       ]
     }
   },

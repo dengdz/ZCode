@@ -369,3 +369,13 @@ Local 适配先读工作证明再读 blocker；证据适配先发纯检查避免
 当前运行目标仍为 cf7f4664 / local.5，应用存活、launcher 已结束，退出原因未知；两根 owner 完全一致并与 runtime 匹配，原 owner 未改变。只读归档当前控制记录及 44 个关联进程，admission 和项目执行租约均为 0；这不替代正常退出及之后的完整无写进程核对。已请求用户在工作结束后从菜单正常退出，按 17 人工边界保护当前数据和精确归档遗留 owner，再由原 install 切换。备份/解除 owner/安装脚本仅准备，尚未执行；未强杀、清计数、恢复真实台账或重放旧消息。18 与真实新需求及最终用户验收仍未完成。
 
 私有证据：`cold-inspection-review-candidate-source.json`、`cold-inspection-version-push.log`、`cold-inspection-candidate-build.json`、`candidate-7/candidate.json`、`cold-inspection-candidate-verify.json`、`cold-inspection-orphan-preflight/audit.private.json`。
+
+### local.6 已安装，等待新的真人只读需求
+
+用户确认从菜单正常退出后，按 17 在原同序 owner 锁内复核归档的 44 个关联进程均已结束、两类应用均不在、业务根无打开句柄，原 token/owner/runtime/路径仍精确匹配，群输入终态及投递结果、admission/项目租约均满足边界。调用原 15 公开备份与独立 verify，并对当前源逐项 sameTree；再次核对无写进程和控制记录后，将精确旧 owner 移入私有归档。未按超时接管、强杀、恢复业务数据或修改应用。
+
+原 install 随后按冷态无占用路径执行自己的备份/独立 verify、staging、原子替换、takeover 及 Host-ready，返回 installed。此次没有运行中旧应用的 idle→commit→accepted 退出握手，不将人工退出和冷态切换冒充该路径。独立核对实际目标完整树、源码、深度签名及 local.6 版本，launcher/应用存活，owner/runtime/PID/token 匹配，gate 已释放。当前清单指针为 candidate-7，历史 v5 指针保留，官网未替换或启动。
+
+新的真人输入前 ledger 与切换前字节一致，仍为 1 个需求、6 个输入、4 个交接、0 个在途协调记录，项目租约为 0。有限 PM 诊断 connection/ready，0600 输出，不能当作模型或群闭环证明。项目 HEAD/status/diff、目标文档及已知项目外台账指纹已保存。下一轮使用新的显式只读需求；不重放旧消息、不因独立观察窗口到期要求重发或重启。18、原 C 失败、其他真实场景及最终用户验收保持未完成。
+
+私有证据：`cold-inspection-owner-recovery/result.json`、`cold-inspection-install.private.json`、`cold-inspection-installed-verify.json`、`cold-inspection-postswitch-ledger-summary.json`、`readonly-g-before.private.json`。
