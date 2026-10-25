@@ -412,8 +412,12 @@ Core 相关 4 文件 41/41；根相关 6 文件 218 通过/1 专用入口跳过�
 
 原需求真人随后明确通过并要求关闭，仅对应 H，不是 18 整体验收。第四个 PM 输入为同一真人、同一 H、相符只读约束，工具提交合法 accept（只含 kind、单个空 text），Host 却返回 acceptance_requires_user。真实记录与 Provider 源码证明：Provider 对真人省略 senderType，原授权核对 owner/union/tenant 并允许，Local 原样保存可选字段；验收却要求显式 user。新增合成 Provider 回调通过同一 Bot/Local/Repo/任务 seam 复现同样错误，原显式 user 对照通过。
 
-仅将 accept 的类型判定恢复为原入站语义：已通过原授权的省略值与 user 同义，app 仍拒绝；原 PM、当前需求/版本、sent final、后续输入、停止与幂等门保持，不改 Provider/schema、不回填真实记录、不解析正文代验收、不重放原消息。Provider 回调下错误 owner/union/tenant 仍不受理。相关 5 文件 323 通过/1 专用入口跳过，根 typecheck 通过，Lint 0 errors/97 既有 warnings，架构 0 新违规；固定复审另行记录。
+初版曾把已受理记录的省略值视为 user，5 文件 323 通过/1 专用入口跳过、根 typecheck、Lint 0 errors/97 既有 warnings、架构通过；固定复审 Standards 0 / Spec 1 项 P2：13 以前的机器人输入也不保存 senderType，不能将历史未知当真人。新旧机器人记录反例已实际复现此缺口，初版不进入候选。
+
+修正收紧到原入站 owner：原 decision 核对 owner/union/tenant 后，bindInput 只为新真人记录明确保存 user；新 app 仍为 app。accept 保持只认显式 user，历史缺字段记录仍拒绝，重放比较保留旧省略值，不回填或授予权限。原 PM、当前需求/版本、sent final、后续输入、停止与幂等门保持，不改 Provider/schema、不迁移真实记录、不解析正文代验收、不重放原消息。Provider 回调下错误 owner/union/tenant 仍不受理；最终回归与固定复审另行记录。
 
 第四次输入结束后独立指纹仍全部相同，ledger 为 3 个需求、12 个输入、7 个交接、0 在途协调记录；H 仍 awaiting_acceptance，运行中仍 local.7。当前仅完成源码修正验证，真实关闭尚未通过，其他真实异常及用户整体验收未完成，18 保持 in-progress。
+
+收紧后的 16 项验收定向场景、相关 5 文件 324 通过/1 专用入口跳过，根类型、Lint 0 errors/97 既有 warnings 和架构 0 新违规通过；新真人格式可验收，显式与历史缺字段机器人均被拒。未运行完整根 UT。初版红灯、初版复审 P2 及历史反例红灯均保留，最终固定复审与新候选另行记录。
 
 私有证据：`readonly-h-evaluation.private.json`、`readonly-h-before.private.json`、`readonly-h-after.private.json`、`readonly-h-acceptance-failure.private.json`、`readonly-h-after-acceptance.private.json`、`acceptance-provider-red.json`、`acceptance-provider-green.json`、`acceptance-provider-related.json`、`acceptance-provider-types.json`、`acceptance-provider-lint.json`。

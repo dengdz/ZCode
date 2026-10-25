@@ -251,4 +251,4 @@ report/final/accept/silent/stop 的 collaboration 对象只能有 kind；targetB
 
 新的真实只读需求已完成执行者 report、PM 本轮重新读取并 final，进入 awaiting_acceptance；同一授权真人随后明确通过，PM 提交合法 accept，却返回 acceptance_requires_user。原 Feishu Provider 对真人省略 senderType，Local 的 decision 已按当前成员 owner、union/tenant 验证并允许，bindInput 原样保存可选字段；accept 仅比较显式 user，与原可信真人合同不一致。
 
-沿原 Provider 回调→Bot/Local/Repo→受控任务 SDK seam 补回归：省略类型的真人后续输入与显式 user 均可在已 sent final 后验收；app/bot、伪造或错误用户、同轮、未送达、停止和旧版本仍拒绝。唯一 owner、原文件锁、输入关联及幂等边界不变。仅按原入站语义解释已授权记录的可选类型，不改 Provider 格式、不迁移真实记录、不解析正文自动关闭、不重放旧验收。此为原 13 合同恢复；修正候选前真实需求仍待验收，18 其他真实场景与最终确认未完成。
+沿原 Provider 回调→Bot/Local/Repo→受控任务 SDK seam 补回归：省略类型的真人新入站与显式 user 均在原 decision 核对 owner/union/tenant 后，由 bindInput 为新记录保存明确 user；新 app 仍保存 app。accept 继续只认显式 user。13 以前真人与机器人都可能缺少类型，历史缺字段记录不能推断真人；重放比较保留旧省略值，不回填或授予验收能力。app/bot、历史类型未知、伪造或错误用户、同轮、未送达、停止和旧版本仍拒绝。唯一 owner、原文件锁、输入关联及幂等边界不变，不改 Provider 格式、不迁移真实记录、不解析正文自动关闭、不重放旧验收。此为原 13 合同恢复；修正候选前真实需求仍待验收，18 其他真实场景与最终确认未完成。

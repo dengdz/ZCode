@@ -340,7 +340,10 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
           ...scope,
           ...execution,
           botId: message.botId,
-          senderType: message.senderType,
+          // 原 Provider 对真人省略类型，须在上方 owner/union/tenant 授权后明确保存，供 accept 核对。
+          // 13 以前的缺字段记录也可能来自机器人；重放保留旧缺省，不回填或授予验收权限。
+          senderType:
+            message.senderType ?? (replay && replay.senderType === undefined ? undefined : "user"),
           requirementId,
           revision: config.revision,
         });

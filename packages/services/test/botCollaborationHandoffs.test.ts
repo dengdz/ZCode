@@ -3611,95 +3611,110 @@ it("13 已关闭需求不能在同一输入中再发送 final 或重新派单", 
   expect(fixture.sent).toHaveLength(sent);
 });
 
-it("13 待验收阶段来自机器人回报或追问的后续输入不能冒充用户验收", async () => {
-  const fixture = await setup();
-  await fixture.service.handleInboundMessage(fixture.human());
-  const initialInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
-  const dispatch = async (botId: "app" | "product", duty: string, toolCallId: string) =>
-    fixture.service.replyToChannel!({
-      workspacePath: "/project",
-      taskId: "task-pm",
-      inputId: initialInputId,
-      toolCallId,
-      parts: [{ type: "text", text: `${duty} work` }],
-      collaboration: { kind: "dispatch", targetBotId: botId, requiredDuty: duty },
-    });
-  const appDispatch = await dispatch("app", "APP", "dispatch-app-before-final");
-  const productDispatch = await dispatch("product", "Product", "dispatch-product-before-final");
-  if (appDispatch.status !== "sent" || productDispatch.status !== "sent")
-    throw Error("dispatch failed");
+it.each(["typed", "legacy"] as const)(
+  "13 待验收阶段来自机器人回报或追问的后续输入不能冒充用户验收（%s）",
+  async (recordType) => {
+    const fixture = await setup();
+    await fixture.service.handleInboundMessage(fixture.human());
+    const initialInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0]
+      .commandId;
+    const dispatch = async (botId: "app" | "product", duty: string, toolCallId: string) =>
+      fixture.service.replyToChannel!({
+        workspacePath: "/project",
+        taskId: "task-pm",
+        inputId: initialInputId,
+        toolCallId,
+        parts: [{ type: "text", text: `${duty} work` }],
+        collaboration: { kind: "dispatch", targetBotId: botId, requiredDuty: duty },
+      });
+    const appDispatch = await dispatch("app", "APP", "dispatch-app-before-final");
+    const productDispatch = await dispatch("product", "Product", "dispatch-product-before-final");
+    if (appDispatch.status !== "sent" || productDispatch.status !== "sent")
+      throw Error("dispatch failed");
 
-  await fixture.service.handleProviderCallbackResponse!(
-    "feishu",
-    fixture.native("app", "pm", appDispatch.providerMessageId!, "APP work"),
-  );
-  const appInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls.at(-1)![0].commandId;
-  const report = await fixture.service.replyToChannel!({
-    workspacePath: "/project",
-    taskId: "task-app",
-    inputId: appInputId,
-    toolCallId: "report-before-final",
-    parts: [{ type: "text", text: "APP evidence" }],
-    collaboration: { kind: "report" },
-  });
-  if (report.status !== "sent") throw Error("report failed");
-  await fixture.service.handleProviderCallbackResponse!(
-    "feishu",
-    fixture.native("pm", "app", report.providerMessageId!, "APP evidence"),
-  );
-  const reviewInputId = vi
-    .mocked(fixture.tasks.submitBotGroupInput!)
-    .mock.calls.at(-1)![0].commandId;
-  expect(
-    (
+    await fixture.service.handleProviderCallbackResponse!(
+      "feishu",
+      fixture.native("app", "pm", appDispatch.providerMessageId!, "APP work"),
+    );
+    const appInputId = vi
+      .mocked(fixture.tasks.submitBotGroupInput!)
+      .mock.calls.at(-1)![0].commandId;
+    const report = await fixture.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-app",
+      inputId: appInputId,
+      toolCallId: "report-before-final",
+      parts: [{ type: "text", text: "APP evidence" }],
+      collaboration: { kind: "report" },
+    });
+    if (report.status !== "sent") throw Error("report failed");
+    await fixture.service.handleProviderCallbackResponse!(
+      "feishu",
+      fixture.native("pm", "app", report.providerMessageId!, "APP evidence"),
+    );
+    const reviewInputId = vi
+      .mocked(fixture.tasks.submitBotGroupInput!)
+      .mock.calls.at(-1)![0].commandId;
+    expect(
+      (
+        await fixture.service.replyToChannel!({
+          workspacePath: "/project",
+          taskId: "task-pm",
+          inputId: reviewInputId,
+          toolCallId: "final-from-bot-report",
+          parts: [{ type: "text", text: "Final report awaiting acceptance" }],
+          collaboration: { kind: "final" },
+        })
+      ).status,
+    ).toBe("sent");
+
+    await fixture.service.handleProviderCallbackResponse!(
+      "feishu",
+      fixture.native("product", "pm", productDispatch.providerMessageId!, "Product work"),
+    );
+    const productInputId = vi
+      .mocked(fixture.tasks.submitBotGroupInput!)
+      .mock.calls.at(-1)![0].commandId;
+    const productQuestion = await fixture.service.replyToChannel!({
+      workspacePath: "/project",
+      taskId: "task-product",
+      inputId: productInputId,
+      toolCallId: "late-product-question",
+      parts: [{ type: "text", text: "Late product question" }],
+      collaboration: { kind: "question" },
+    });
+    if (productQuestion.status !== "sent") throw Error("product question failed");
+    await fixture.service.handleProviderCallbackResponse!(
+      "feishu",
+      fixture.native("pm", "product", productQuestion.providerMessageId!, "Late product question"),
+    );
+    const lateBotInputId = vi
+      .mocked(fixture.tasks.submitBotGroupInput!)
+      .mock.calls.at(-1)![0].commandId;
+    if (recordType === "legacy") {
+      const file = join(fixture.home, ".zcode/local/v1/collaboration.json");
+      const ledger = JSON.parse(await readFile(file, "utf8")) as {
+        inputs: Array<{ inputId: string; senderType?: "user" | "app" }>;
+      };
+      // 13 以前的格式未保存类型，原 Bot 来源仍是合法机器人交接，不能因兼容读取而获得真人权限。
+      delete ledger.inputs.find((item) => item.inputId === lateBotInputId)!.senderType;
+      await writeFile(file, JSON.stringify(ledger));
+    }
+    expect(
       await fixture.service.replyToChannel!({
         workspacePath: "/project",
         taskId: "task-pm",
-        inputId: reviewInputId,
-        toolCallId: "final-from-bot-report",
-        parts: [{ type: "text", text: "Final report awaiting acceptance" }],
-        collaboration: { kind: "final" },
-      })
-    ).status,
-  ).toBe("sent");
-
-  await fixture.service.handleProviderCallbackResponse!(
-    "feishu",
-    fixture.native("product", "pm", productDispatch.providerMessageId!, "Product work"),
-  );
-  const productInputId = vi
-    .mocked(fixture.tasks.submitBotGroupInput!)
-    .mock.calls.at(-1)![0].commandId;
-  const productQuestion = await fixture.service.replyToChannel!({
-    workspacePath: "/project",
-    taskId: "task-product",
-    inputId: productInputId,
-    toolCallId: "late-product-question",
-    parts: [{ type: "text", text: "Late product question" }],
-    collaboration: { kind: "question" },
-  });
-  if (productQuestion.status !== "sent") throw Error("product question failed");
-  await fixture.service.handleProviderCallbackResponse!(
-    "feishu",
-    fixture.native("pm", "product", productQuestion.providerMessageId!, "Late product question"),
-  );
-  const lateBotInputId = vi
-    .mocked(fixture.tasks.submitBotGroupInput!)
-    .mock.calls.at(-1)![0].commandId;
-  expect(
-    await fixture.service.replyToChannel!({
-      workspacePath: "/project",
-      taskId: "task-pm",
-      inputId: lateBotInputId,
-      toolCallId: "bot-cannot-accept",
-      parts: [{ type: "text", text: "" }],
-      collaboration: { kind: "accept" },
-    }),
-  ).toMatchObject({
-    status: "blocked",
-    reason: "acceptance_requires_user",
-  });
-});
+        inputId: lateBotInputId,
+        toolCallId: "bot-cannot-accept",
+        parts: [{ type: "text", text: "" }],
+        collaboration: { kind: "accept" },
+      }),
+    ).toMatchObject({
+      status: "blocked",
+      reason: "acceptance_requires_user",
+    });
+  },
+);
 
 it("13 外部发送结果未知时不能把需求记为待验收", async () => {
   const fixture = await setup();

@@ -845,9 +845,9 @@
       ]
     },
     "acceptance-provider-fix": {
-      "status": "isolated-pass-candidate-and-real-closure-pending",
+      "status": "isolated-pass-legacy-unknown-rejected-candidate-and-real-closure-pending",
       "regressionRed": "provider-callback-acceptance_requires_user",
-      "relatedPassed": 323,
+      "relatedPassed": 324,
       "relatedSkipped": 1,
       "rootTypes": "pass",
       "rootLintErrors": 0,
@@ -858,8 +858,18 @@
         "acceptance-provider-red.json",
         "acceptance-provider-related.json",
         "acceptance-provider-types.json",
-        "acceptance-provider-lint.json"
-      ]
+        "acceptance-provider-lint.json",
+        "acceptance-provider-legacy-red.json",
+        "acceptance-provider-legacy-green.json",
+        "acceptance-provider-final.json",
+        "acceptance-provider-final-types.json",
+        "acceptance-provider-final-lint.json",
+        "acceptance-provider-final-architecture.json"
+      ],
+      "initialReviewStandardsFindings": 0,
+      "initialReviewSpecFindings": 1,
+      "legacyMissingTypeRejected": true,
+      "normalizationOnlyNewAuthorizedHuman": true
     }
   },
   "scenarios": {

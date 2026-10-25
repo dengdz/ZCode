@@ -48,4 +48,4 @@ replyRouting.ts 是同一 owner 的私有实现：沿原 ledger/read/write 与�
 
 18 只读验收：授权真人原生发给 PM 的首行 `[ZCODE-LOCAL-READONLY]` 加非空正文是显式新需求命令。仅在端口证明原群工作全部 idle 时创建，busy/unknown 拒绝；旧需求不改、不重放。requirement 的可选 readOnly=true 只由本 owner 持有，交接及真人后续输入继承，到明确关闭/停止后的新普通需求才不继承；机器人、引用和历史不能启用或解除。bindInput 同次返回 context 与严格 turn 元数据 requirementId/role/readOnly，调用者送入原 V4 Local scope，不扩官网 Bot v3。CLI 原入队/持久化与 executor 消费这份约束，不增队列。模型章程明确协作工具与普通自动回复范围，派单不能取消 Host 路由；ordinary final 仍不生成 handoff。详细规则、失败和验证 seam 见 18 已批准合同。
 
-18 真人验收格式补正：原 Provider 对真人省略 senderType，原 bindInput 仍先以当前 owner/union/tenant 授权；其已受理记录的省略值与显式 user 同义，app 始终不能验收。accept 重用这份可信类型，不新建身份来源、不改 Provider 或 Local 格式、不回填真实记录；已 sent final、后续输入、PM-only、同需求/版本/停止与幂等约束保持。Provider 回调 seam 覆盖省略值真人验收与错误身份拒绝，机器人后续回报仍不可关闭。
+18 真人验收格式补正：原 Provider 对真人省略 senderType；bindInput 先以当前 owner/union/tenant 授权，再为新真人记录明确保存 user，新机器人记录仍为 app。accept 继续只接受显式 user，不推断 13 以前同样可能来自机器人的缺字段记录；旧记录重放比较保留缺省值，不回填或授予验收权限。不新建身份来源、不改 Provider 或 Local 格式、不迁移真实记录；已 sent final、后续输入、PM-only、同需求/版本/停止与幂等约束保持。Provider 回调 seam 覆盖新真人验收与错误身份拒绝，显式 app 和历史缺字段机器人后续回报均不可关闭。
