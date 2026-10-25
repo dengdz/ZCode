@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-cold-inspection-fix-reviewed-next-candidate-pending",
+  "overall": "in-progress-cold-inspection-local6-ready-awaiting-normal-exit",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -722,6 +722,26 @@
         "cold-inspection-source-push.log",
         "readonly-f-after.private.json",
         "readonly-f-control-observation.private.json"
+      ]
+    },
+    "cold-inspection-candidate": {
+      "source": "0bd94d671206bd666df12743d458e317423fe690",
+      "version": "3.16.2-local.6",
+      "status": "ready-independently-verified-not-installed",
+      "appTreeSha256": "a97bae5bffa61ce308466a6554bd267175a35a4eb104b39f3486fde4482745fe",
+      "maintenanceTestsPassed": 50,
+      "affectedAllSelectedSkipped": true,
+      "applicationStarted": false,
+      "currentInstalledVersion": "3.16.2-local.5",
+      "launcherAlive": false,
+      "applicationAlive": true,
+      "oldOwnerRetained": true,
+      "normalExitRequired": true,
+      "evidence": [
+        "cold-inspection-candidate-build.json",
+        "candidate-7/candidate.json",
+        "cold-inspection-candidate-verify.json",
+        "cold-inspection-orphan-preflight/audit.private.json"
       ]
     }
   },

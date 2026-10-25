@@ -359,3 +359,13 @@ Local 适配先读工作证明再读 blocker；证据适配先发纯检查避免
 私有证据：`cold-inspection-bootstrap-red-2.json`、`cold-inspection-valid-red-source-scope.json`、`cold-inspection-adapter-valid-red.json`、`cold-inspection-race-red.json`、`cold-inspection-adapter-final.json`、`cold-inspection-root-final.json`、`cold-inspection-cli-runtime.json`、`cold-inspection-cli-cold-resume.json`、`cold-inspection-core-runtime.json`、`cold-inspection-root-types.json`、`cold-inspection-cli-types.json`、`cold-inspection-root-lint.json`、`cold-inspection-cli-lint.json`。
 
 固定 `611c1b75...7125ec685d77c355c70d5e0803bbe859b0a179ce` 的 Standards/Spec 复审各 0 项发现。源码普通 fork 推送的 pre-push 通过，官方 affected 选择 110/2064 个根文件，1966 通过/2 跳过，不算全量；GitHub API 独立核对一致。官方基线仍为 3c5b2276，严格安装版本门要求下一修订，分支和根版本进入 `3.16.2-local.6`。当前仅准备下一候选，未切换当前 local.5，旧消息不重放。证据：`cold-inspection-review-final.json`、`cold-inspection-source-push.log`。
+
+### local.6 候选已独立核验，等待旧应用正常退出
+
+原维护入口从 `0bd94d671206bd666df12743d458e317423fe690` / `3.16.2-local.6` 生成 candidate-7，版本增量复审 0/0。Node 24.14.0 / pnpm 10.33.2 已重新验证；官方 API 再核对基线 3c5b2276 未变。构建的类型、Lint、架构及 50/50 维护测试通过，affected 全选按仓库合同跳过，不冒充全量。仅复用 762 个 hash 已校验的公共 dmg-builder 缓存文件，没有替代打包链、手工 ready 清单或发布 tag。
+
+独立检查完整应用树、来源及深度签名，DMG/ZIP 的大小和 hash、ZIP 全成员/CRC、只读 DMG 内完整树及签名均通过，挂载已解除。候选 app tree 为 `a97bae5bffa61ce308466a6554bd267175a35a4eb104b39f3486fde4482745fe`。独立核验不启动该候选，不证明真实模型或群闭环。
+
+当前运行目标仍为 cf7f4664 / local.5，应用存活、launcher 已结束，退出原因未知；两根 owner 完全一致并与 runtime 匹配，原 owner 未改变。只读归档当前控制记录及 44 个关联进程，admission 和项目执行租约均为 0；这不替代正常退出及之后的完整无写进程核对。已请求用户在工作结束后从菜单正常退出，按 17 人工边界保护当前数据和精确归档遗留 owner，再由原 install 切换。备份/解除 owner/安装脚本仅准备，尚未执行；未强杀、清计数、恢复真实台账或重放旧消息。18 与真实新需求及最终用户验收仍未完成。
+
+私有证据：`cold-inspection-review-candidate-source.json`、`cold-inspection-version-push.log`、`cold-inspection-candidate-build.json`、`candidate-7/candidate.json`、`cold-inspection-candidate-verify.json`、`cold-inspection-orphan-preflight/audit.private.json`。
