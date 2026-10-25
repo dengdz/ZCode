@@ -304,3 +304,13 @@ sequenceDiagram
 ### 空闲判据源码复审及 local.5 准备
 
 固定 `8369f19e...461020e33a9dffe29aaa5cbe92378d3f5eaee8b4` 的 Standards/Spec 两轴各 0 项发现。普通 fork 推送通过原 pre-push：官方 affected 选择 110 个根文件，1857 通过/2 跳过，不算全量；GitHub API 独立核对源码一致。原严格安装规则要求下一修订，根版本及分支进入 `3.16.2-local.5`。当前运行应用仍是 f2ef20bf / local.4，新候选的构建、独立核验、空闲受控切换及真实验证尚待完成；不因源码复审通过重放旧消息或关闭 18。证据：`readonly-busy-review-final.json`、`readonly-busy-source-push.log`。
+
+### local.5 已运行，等待新的真人只读需求
+
+原维护入口从 `cf7f46641ba962a5e90c11e835c0aace85088b29` / `3.16.2-local.5` 构建 candidate-6。类型、Lint、架构与 50/50 维护测试通过；affected 官方选中 2064/2064 后按仓库合同跳过，未执行全量 UT。版本增量两轴复核各 0 项，fork 分支推送及 GitHub API 源码核对一致。独立校验应用完整树、源码和签名，所有归档哈希/大小、ZIP 全成员与 CRC、只读挂载 DMG 内完整树及签名通过，挂载已解除；没有发布 tag。
+
+2026-10-25 北京时间 09:08–09:14，原 install 在 owner/runtime 匹配、无 admission/项目执行租约的前提下，执行运行中 local.4 的 idle→commit→accepted 正常退出、当前应用/数据备份及独立 verify、staging 与原子替换，随后 takeover 和 Host-ready 成功。未强杀、重置计数或恢复数据。再次独立核对实际目标完整树、签名及来源，local.5 的 launcher/应用均存活，owner/runtime/PID/token/版本匹配，switch gate 已释放。当前清单指针为 candidate-6，历史 v4 指针保留。
+
+新真人输入前，协作 ledger 与切换前字节一致，仍为 1 个需求、6 个输入、4 个交接、0 个在途协调记录，项目执行租约为 0。新的 PM 有限诊断只记录 connection/ready，输出权限 0600；这不证明模型或协作业务闭环。项目 HEAD/status/diff、目标文档及已知项目外台账指纹已保存。旧拒绝消息未重放，下一轮使用新的显式只读需求。旧真实事件的具体 busy 分支仍未追溯，18 与最终用户验收保持未完成。
+
+私有证据：`idle-proof-candidate-build.json`、`candidate-6/candidate.json`、`idle-proof-review-candidate-source.json`、`idle-proof-candidate-verify.json`、`idle-proof-install.private.json`、`idle-proof-installed-verify.json`、`idle-proof-postswitch-ledger-summary.json`、`readonly-f-before.private.json`。

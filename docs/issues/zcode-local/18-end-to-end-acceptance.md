@@ -200,3 +200,7 @@ flowchart LR
     D -->|是| F[Local owner 按原 token 受理]
     C -.有限旁路元信息.-> G[原私有诊断 owner]
 ```
+
+### local.5 已受控安装（2026-10-25）
+
+行为源码 `461020e3` 固定端点两轴复审 0/0，版本增量 `cf7f4664` 复核 0/0。原维护入口生成 local.5 / candidate-6，50/50 维护测试通过，独立完整树/源码/签名及 DMG/ZIP 核对通过；affected 全选按合同跳过，不记全量。原运行中 local.4 经 idle→commit→accepted 正常退出，原 install 完成备份及独立 verify、替换、takeover 与 Host-ready。安装后独立核对 owner/runtime/PID/token/版本及完整应用一致，launcher/应用存活，gate 已释放。新真人输入前 ledger 字节不变，旧消息未重放。有限诊断 connection/ready 和文件指纹基线已准备；真实新需求、旧事件具体拒绝分支及最终用户验收仍未完成。详见[安装记录](../../local-edition/final-acceptance.md#local5-已运行等待新的真人只读需求)。
