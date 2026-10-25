@@ -357,3 +357,5 @@ Local 适配先读工作证明再读 blocker；证据适配先发纯检查避免
 固定源码复审、下一候选构建和真实验证尚待完成；运行中仍是 cf7f4664 / local.5，launcher 遗留现场保留，旧消息不重放，18 不标 done。
 
 私有证据：`cold-inspection-bootstrap-red-2.json`、`cold-inspection-valid-red-source-scope.json`、`cold-inspection-adapter-valid-red.json`、`cold-inspection-race-red.json`、`cold-inspection-adapter-final.json`、`cold-inspection-root-final.json`、`cold-inspection-cli-runtime.json`、`cold-inspection-cli-cold-resume.json`、`cold-inspection-core-runtime.json`、`cold-inspection-root-types.json`、`cold-inspection-cli-types.json`、`cold-inspection-root-lint.json`、`cold-inspection-cli-lint.json`。
+
+固定 `611c1b75...7125ec685d77c355c70d5e0803bbe859b0a179ce` 的 Standards/Spec 复审各 0 项发现。源码普通 fork 推送的 pre-push 通过，官方 affected 选择 110/2064 个根文件，1966 通过/2 跳过，不算全量；GitHub API 独立核对一致。官方基线仍为 3c5b2276，严格安装版本门要求下一修订，分支和根版本进入 `3.16.2-local.6`。当前仅准备下一候选，未切换当前 local.5，旧消息不重放。证据：`cold-inspection-review-final.json`、`cold-inspection-source-push.log`。

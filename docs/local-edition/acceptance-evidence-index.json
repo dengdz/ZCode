@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-real-readonly-entry-rejected-idle-proof-fix-review-pending",
+  "overall": "in-progress-cold-inspection-fix-reviewed-next-candidate-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -694,6 +694,35 @@
         "skippedTests": 2,
         "fullSuite": false
       }
+    },
+    "cold-inspection-fix": {
+      "source": "7125ec685d77c355c70d5e0803bbe859b0a179ce",
+      "status": "isolated-pass-real-new-round-pending",
+      "rootPassed": 521,
+      "rootSkipped": 1,
+      "cliExecutionPassed": 23,
+      "cliColdResumePassed": 95,
+      "coreRelatedPassed": 17,
+      "standardsFindings": 0,
+      "specFindings": 0,
+      "sourcePushAffectedSelected": "110/2064",
+      "sourcePushPassed": 1966,
+      "sourcePushSkipped": 2,
+      "currentInstalledSource": "cf7f46641ba962a5e90c11e835c0aace85088b29",
+      "currentInstalledVersion": "3.16.2-local.5",
+      "launcherCurrentlyAlive": false,
+      "launcherExitCauseKnown": false,
+      "realNewRequirementAccepted": false,
+      "evidence": [
+        "cold-inspection-root-final.json",
+        "cold-inspection-cli-runtime.json",
+        "cold-inspection-cli-cold-resume.json",
+        "cold-inspection-core-runtime.json",
+        "cold-inspection-review-final.json",
+        "cold-inspection-source-push.log",
+        "readonly-f-after.private.json",
+        "readonly-f-control-observation.private.json"
+      ]
     }
   },
   "scenarios": {
