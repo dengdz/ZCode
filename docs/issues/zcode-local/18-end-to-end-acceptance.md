@@ -252,3 +252,29 @@ report/final/accept/silent/stop 的 collaboration 对象只能有 kind；targetB
 新的真实只读需求已完成执行者 report、PM 本轮重新读取并 final，进入 awaiting_acceptance；同一授权真人随后明确通过，PM 提交合法 accept，却返回 acceptance_requires_user。原 Feishu Provider 对真人省略 senderType，Local 的 decision 已按当前成员 owner、union/tenant 验证并允许，bindInput 原样保存可选字段；accept 仅比较显式 user，与原可信真人合同不一致。
 
 沿原 Provider 回调→Bot/Local/Repo→受控任务 SDK seam 补回归：省略类型的真人新入站与显式 user 均在原 decision 核对 owner/union/tenant 后，由 bindInput 为新记录保存明确 user；新 app 仍保存 app。accept 继续只认显式 user。13 以前真人与机器人都可能缺少类型，历史缺字段记录不能推断真人；重放比较保留旧省略值，不回填或授予验收能力。app/bot、历史类型未知、伪造或错误用户、同轮、未送达、停止和旧版本仍拒绝。唯一 owner、原文件锁、输入关联及幂等边界不变，不改 Provider 格式、不迁移真实记录、不解析正文自动关闭、不重放旧验收。此为原 13 合同恢复；修正候选前真实需求仍待验收，18 其他真实场景与最终确认未完成。
+
+### 已确认不重放边界的重复原生事件回归（2026-10-25）
+
+用户确认没有重新发送 F。切换前原 Bot v3 的 autoReplyGuard.messageIds 已包含后来 F 入站的同一原生消息 ID，而 inputs 尚无该消息；local.8 的 transport/native 诊断确认重投入站，guard 明确 duplicate，随后仍创建独立需求并受理。原重复真人分支用于普通群重试，在显式只读命令初次未受理、后来变空闲时误使旧命令执行。最初未受理的具体原因仍不从其他消息推断。
+
+按已经确认的“旧消息不自动重放”边界恢复单次原生命令语义：同一 Bot/群/线程的持久守卫一旦登记过已授权 Local 显式只读命令，重复原生事件即使尚无受理记录、跨服务重建、实际工作已空闲，也不能再次进入准备/绑定/任务 admission。沿原 guard owner 和同一串行写入核对，不增加状态、TTL、队列、重试或清记录入口；原 guard duplicate 观察保留。新的真人原生消息 ID 仍完整走授权、空闲、绑定、原 admission；普通群及非只读真人原有重试、已接受输入核对、恢复与机器人长链不变。
+
+回归沿已确认 Provider 回调→真实 Bot/Local/Repo→受控 SDK seam，复现首次 busy 拒绝留下 guard 但无 input，重建后同一事件在 idle 时不得受理；新的原生 ID 才受理一次。覆盖已受理只读输入重建后重投，以及普通真人原重试兼容。真实旧 F 与 H 的事实保留，不回填/手工关闭或重放；修正候选后的真实验证另用新的真人需求，不把被错误关闭的 F 算作 H 验收。
+
+```mermaid
+sequenceDiagram
+    participant P as 原 Provider 事件
+    participant G as 原 Bot 守卫 owner
+    participant C as 原 Local 绑定 owner
+    participant R as 原任务 admission
+    P->>G: 首次原生只读命令
+    G->>G: 同一锁登记 message ID
+    G->>C: 原授权与实际空闲核对
+    C-->>G: busy/unknown，不受理
+    Note over G,R: 服务重建不删除原守卫，不生成重试队列
+    P->>G: 同一原生 ID 再次投递
+    G-->>P: duplicate，结束，不再绑定/受理
+    P->>G: 真人另发新原生 ID
+    G->>C: 原授权与实际空闲核对
+    C->>R: 新输入沿原 admission 受理
+```

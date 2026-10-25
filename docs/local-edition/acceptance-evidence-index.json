@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-local8-real-accept-control-success-target-label-mismatch-H-open",
+  "overall": "in-progress-local8-old-readonly-redelivery-confirmed-source-fix-isolated-pass",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -914,7 +914,7 @@
     },
     "post-local8-acceptance-scope": {
       "source": "757082860a17817a0f3ce89e08d9dfec6f743f59",
-      "status": "real-control-success-user-target-mismatch-under-investigation",
+      "status": "real-accept-control-success-old-F-redelivery-caused-target-mismatch",
       "newRequirementMarker": "F",
       "humanApprovalMarker": "H",
       "sameAuthorizedHuman": true,
@@ -925,7 +925,7 @@
       "originalHInputs": 4,
       "currentTaskPriorRequirementBinding": true,
       "newFSourceInPreSwitchBotSnapshot": false,
-      "newFOriginConfirmedByHuman": false,
+      "newFOriginConfirmedByHuman": true,
       "allNewCanonicalInputsReadOnly": true,
       "selectedFingerprintsUnchanged": true,
       "realLedgerManuallyModified": false,
@@ -934,7 +934,37 @@
       "evidence": [
         "readonly-postlocal8-f-acceptance-scope.private.json",
         "readonly-h-after-new-f-control.private.json",
-        "verify-h-closed.py"
+        "verify-h-closed.py",
+        "readonly-postlocal8-f-origin-user-denial.private.json",
+        "readonly-postlocal8-f-receive-provenance.private.json"
+      ],
+      "humanReportsNoFResend": true,
+      "sameFNativeIdInPreSwitchPersistentGuard": true,
+      "transportNativeAndGuardDuplicateObserved": true,
+      "initialNonAdmissionReasonConfirmed": false
+    },
+    "readonly-redelivery-fix": {
+      "status": "isolated-pass-review-and-new-candidate-pending",
+      "relatedFilesPassed": 5,
+      "relatedPassed": 328,
+      "relatedSkipped": 1,
+      "groupsPassed": 112,
+      "rootTypes": "pass",
+      "rootLintErrors": 0,
+      "rootLintExistingWarnings": 97,
+      "architectureNewViolations": 0,
+      "additionalPersistentState": false,
+      "ordinaryHumanRetryPreserved": true,
+      "onlyLocalExplicitReadOnlyDuplicatesDenied": true,
+      "realOldInputsReplayedByAgent": false,
+      "evidence": [
+        "readonly-redelivery-red.json",
+        "readonly-redelivery-green.json",
+        "readonly-redelivery-related.json",
+        "readonly-redelivery-groups.json",
+        "readonly-redelivery-types.json",
+        "readonly-redelivery-lint.json",
+        "readonly-redelivery-architecture.json"
       ]
     }
   },
@@ -1318,11 +1348,12 @@
         "readonly-h-real",
         "acceptance-provider-fix",
         "acceptance-provider-install",
-        "post-local8-acceptance-scope"
+        "post-local8-acceptance-scope",
+        "readonly-redelivery-fix"
       ],
-      "status": "real-accept-control-success-latest-F-closed-original-H-still-open",
+      "status": "old-F-native-redelivery-confirmed-no-replay-fix-isolated-pass",
       "limits": [
-        "local.8 normalized a new authorized human input and accept returned acceptance_recorded, closing a later F requirement. Approval text named H; latest-task binding associated it to F, so H remains awaiting_acceptance and this is not H or overall acceptance. New F origin and user target require clarification. Historical external ledger write remains a failure. No manual state change, replay, data restoration or new code change performed."
+        "The human did not resend F. Its exact native ID existed in the pre-switch persistent guard, and later transport/native plus guard duplicate and admission accepted prove the replay gap for a previously non-admitted readonly command. Local.8 accept succeeded for that F, not H; H remains awaiting_acceptance. Scoped source repair passes isolated regressions; reviewed new candidate, clean fresh real round, other anomalies and overall user acceptance remain pending. No real ledger migration, manual closure or data restore."
       ]
     }
   },

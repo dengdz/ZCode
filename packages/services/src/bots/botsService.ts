@@ -8167,8 +8167,11 @@ export function createBotsService(
             input.source.messages?.some((original) => original.messageId === id),
         )
       ) {
-        // 真人重试仍走原有准备/命令幂等流程，但不能重复恢复机器人额度。
-        admitted = message.senderType !== "app";
+        // 普通真人重试保持原流程；Local 只读命令可能曾在登记守卫后因 busy 拒绝，尚无 input。
+        // 真实重投已复现旧命令在后来空闲时被执行；它须由真人另发新原生 ID，不能借重连自动重试。
+        admitted =
+          message.senderType !== "app" &&
+          !(collaborationAuthorized && hasLocalReadOnlyHeader(message.commandText ?? message.text));
         guardOutcome = "duplicate";
         return;
       }

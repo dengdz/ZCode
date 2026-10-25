@@ -637,6 +637,90 @@ it.each(["running", "unknown"] as const)(
   },
 );
 
+it.each(["busy", "unknown"] as const)(
+  "18 首次未受理的只读原生命令重建后重投不能在空闲时自动执行（%s）",
+  async (initial) => {
+    const f = await setup();
+    const text = "[ZCODE-LOCAL-READONLY]\nRead fixture once";
+    const id = "om_readonly_rejected_before_restart";
+    if (initial === "busy") {
+      vi.mocked(f.tasks.getBotGroupTaskBlockReason!).mockResolvedValue("running");
+    } else {
+      vi.mocked(f.tasks.readBotCollaborationTask!).mockResolvedValue({
+        ownedWork: "unknown",
+        inputs: [],
+      });
+    }
+    await expect(f.service.handleInboundMessage({ ...f.human("pm", id), text })).rejects.toThrow(
+      "readonly_busy",
+    );
+    expect(f.tasks.submitBotGroupInput).not.toHaveBeenCalled();
+    const state = await f.repo.readState();
+    const group = Object.values(state.bots).find((c) => c.botId === "pm")!.group!;
+    expect(group.autoReplyGuard!.messageIds).toContain(id);
+    expect(Object.values(group.inputs ?? {})).toHaveLength(0);
+
+    await f.service.disposeAllAndWait();
+    vi.mocked(f.tasks.getBotGroupTaskBlockReason!).mockResolvedValue(null);
+    vi.mocked(f.tasks.getBotGroupTaskBlockReason!).mockClear();
+    vi.mocked(f.tasks.readBotCollaborationTask!).mockResolvedValue({
+      ownedWork: "idle",
+      inputs: [],
+    });
+    const restored = f.create();
+    const event = f.native("pm", "unused", id, text);
+    const native = {
+      ...event,
+      event: {
+        ...event.event,
+        sender: {
+          ...event.event.sender,
+          sender_type: "user",
+          sender_id: { open_id: "ou_owner_pm", union_id: "on_owner" },
+        },
+      },
+    };
+    await restored.handleProviderCallbackResponse!("feishu", native);
+    expect(f.tasks.submitBotGroupInput).not.toHaveBeenCalled();
+    expect(f.tasks.getBotGroupTaskBlockReason).not.toHaveBeenCalled();
+    expect(
+      JSON.parse(await readFile(join(f.home, ".zcode/local/v1/collaboration.json"), "utf8"))
+        .requirements,
+    ).toHaveLength(0);
+    expect(
+      JSON.parse(await readFile(join(f.home, ".zcode/local/v1/collaboration.json"), "utf8"))
+        .admissions,
+    ).toHaveLength(0);
+
+    const fresh = structuredClone(native);
+    fresh.header.event_id = "ev_fresh_readonly_after_restart";
+    fresh.event.message.message_id = "om_fresh_readonly_after_restart";
+    await restored.handleProviderCallbackResponse!("feishu", fresh);
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledOnce();
+    expect(
+      vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0].projectExecutionScope,
+    ).toMatchObject({ collaboration: { role: "PM", readOnly: true } });
+  },
+);
+
+it.each([true, false])(
+  "18 已登记但未受理的普通真人输入重建后仍保持原重试行为（Local=%s）",
+  async (local) => {
+    const f = await setup();
+    const id = "om_ordinary_guarded_retry";
+    const state = await f.repo.readState();
+    Object.values(state.bots).find((c) => c.botId === "pm")!.group!.autoReplyGuard = {
+      consecutive: 0,
+      messageIds: [id],
+    };
+    await f.repo.writeState(state);
+    await f.service.disposeAllAndWait();
+    const restored = f.create(local);
+    await restored.handleInboundMessage(f.human("pm", id));
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledOnce();
+  },
+);
+
 it("18 正文中引用标记不授予只读命令，同一原生输入不重放，新显式命令创建独立需求", async () => {
   const f = await setup();
   await f.service.handleInboundMessage({
@@ -657,6 +741,8 @@ it("18 正文中引用标记不授予只读命令，同一原生输入不重放�
   await f.service.handleInboundMessage(command);
   expect(calls()).toHaveLength(2);
   const rebuilt = f.create();
+  await rebuilt.handleInboundMessage(command);
+  expect(calls()).toHaveLength(2);
   await rebuilt.handleInboundMessage({
     ...f.human("pm", "om_followup"),
     text: "Continue the same requirement",

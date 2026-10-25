@@ -451,3 +451,15 @@ Core 相关 4 文件 41/41；根相关 6 文件 218 通过/1 专用入口跳过�
 `verify-h-closed.py` 已实际运行并退出 1，明确检查原 H closed 与 acceptedByInput，而非把任意需求 closed 当通过。后续先核对新增 F 的来源及用户验收目标；没有要求用户继续盲目重发。历史需求显式定位或新的产品行为尚未获批准，不在本次调查中实现。18 保持 in-progress，真实异常及整体验收未完成。
 
 私有证据：`readonly-postlocal8-f-acceptance-scope.private.json`、`readonly-h-after-new-f-control.private.json`、`verify-h-closed.py`。真实消息正文、身份、原生消息 ID、数据库和备份副本不入库。
+
+### 用户未重发 F；持久守卫证明旧原生事件被再次受理
+
+用户明确确认没有重新发送 F。进一步比较原备份的 autoReplyGuard.messageIds，确认后来 F 的同一原生消息 ID 在切换前已经登记，而 inputs 尚无其来源记录。有限观察器也按同一 HMAC 精确关联到 16:59:54 的 transport/native、授权 allow、guard duplicate，之后仍有空闲 allow、绑定 linked 和 admission accepted。因此上一节“未见于 inputs”不能排除重投，持久守卫和原生阶段已补足证据，不能归咎于用户重发。
+
+原 admitAutoReplyTurn 的重复真人分支允许继续准备/命令幂等流程；已受理记录可被下一层挡住，但该旧只读命令首次尚未受理，没有 input，后来空闲时重投便创建了 F 需求。最初未受理的具体原因没有从此消息的旧证据确认，不根据其他 F 截图或其他 busy 消息推断。原 H 没有被重跑；额外执行的是这条曾登记但未受理的旧 F，属于已确认“旧消息不自动重放”边界的回归缺口。
+
+先更新 18 局部合同和事件图，再在原 Provider/Bot/Local/Repo/任务 seam 复现：首次 busy 拒绝、持久守卫已记但无 input、服务重建后同一事件被受理。修正只在原持久守卫的 duplicate 分支拒绝已授权 Local 显式只读命令，早于准备/绑定/admission，不增加持久字段、TTL、队列或重试入口。新真人消息 ID 仍完整走原核对；普通 Local/非 Local 真人重试、已受理记录重建去重、恢复与机器人长链保持原路径。
+
+相关 5 文件 328 通过/1 专用入口跳过，另实际群组回归 112/112，根类型、Lint 0 errors/97 既有 warnings、架构 0 新违规通过。首轮相关命令的群组文件名写成单数，Vitest 实际只运行其余 5 文件；随后用实际 plural 文件入口补跑 112 项，不把不存在的文件算作通过。当前仅交付源码修正与隔离证据，固定复审/下一候选另行记录；运行中仍 local.8，真实旧 F/H 不手工修复、不重放，18 未完成。
+
+私有证据：`readonly-postlocal8-f-origin-user-denial.private.json`、`readonly-postlocal8-f-receive-provenance.private.json`、`readonly-redelivery-red.json`、`readonly-redelivery-green.json`、`readonly-redelivery-related.json`、`readonly-redelivery-groups.json`、`readonly-redelivery-types.json`、`readonly-redelivery-lint.json`、`readonly-redelivery-architecture.json`。
