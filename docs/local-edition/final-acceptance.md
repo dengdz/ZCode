@@ -300,3 +300,7 @@ sequenceDiagram
 最终指定根回归 17 文件 518 通过/1 专用入口跳过；原最小对照 2/2 变绿。CLI 原实际执行边界文件 20/20，通过未提交 draft 的 owned-work 证明与既有停止/后台工作/冷 lease 等反例。根类型和 CLI 类型 32/32（28 缓存）通过；根 Lint 0 errors/97 存量 warnings，CLI 0 errors/72 warnings/11 原样上游行数诊断；架构 0 新违规。初次私有夹具缺少 workspace alias 的导入失败保留，随后真正红灯为同一 readonly_busy；不是用导入失败充当回归红灯。源码复审、下一修订及真实验证仍待完成，当前运行应用还是 f2ef20bf / local.4。
 
 私有证据：`readonly-case-d-format-rejection.json`、`readonly-busy-draft-minimized-1.json`、`readonly-busy-draft-minimized-2.json`、`readonly-draft-owned-work.json`、`readonly-main-idle-probe.json`、`readonly-busy-root-red.json`、`readonly-busy-diagnostic-red.json`、`readonly-busy-original-repro-green.json`、`readonly-busy-root-final.json`、`readonly-busy-bootstrap.json`、`readonly-busy-root-types-serial.json`、`readonly-busy-cli-typecheck.json`、`readonly-busy-lint-final.json`、`readonly-busy-cli-lint.json`、`readonly-busy-architecture.json`。18 不标 done，原 C 失败及其他真实场景/最终验收门禁保留。
+
+### 空闲判据源码复审及 local.5 准备
+
+固定 `8369f19e...461020e33a9dffe29aaa5cbe92378d3f5eaee8b4` 的 Standards/Spec 两轴各 0 项发现。普通 fork 推送通过原 pre-push：官方 affected 选择 110 个根文件，1857 通过/2 跳过，不算全量；GitHub API 独立核对源码一致。原严格安装规则要求下一修订，根版本及分支进入 `3.16.2-local.5`。当前运行应用仍是 f2ef20bf / local.4，新候选的构建、独立核验、空闲受控切换及真实验证尚待完成；不因源码复审通过重放旧消息或关闭 18。证据：`readonly-busy-review-final.json`、`readonly-busy-source-push.log`。

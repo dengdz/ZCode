@@ -647,7 +647,7 @@
     },
     "readonly-idle-proof-fix": {
       "sourceBase": "8369f19e9501fd9c5c6a916bb6335e930f88b48d",
-      "status": "isolated-red-green-review-and-next-candidate-pending",
+      "status": "reviewed-zero-findings-source-pushed-local5-candidate-pending",
       "rootFiles": 17,
       "rootPassed": 518,
       "rootSkipped": 1,
@@ -675,13 +675,25 @@
         "readonly-busy-cli-typecheck.json",
         "readonly-busy-lint-final.json",
         "readonly-busy-cli-lint.json",
-        "readonly-busy-architecture.json"
+        "readonly-busy-architecture.json",
+        "readonly-busy-review-final.json",
+        "readonly-busy-source-push.log"
       ],
       "limits": [
         "Real command rejected before new requirement or CLI input; existing ledger unchanged. Old observer expired before this event; no real idleness-reason trace claimed.",
         "Confirmed isolated defect: active draft reference is not proof of actual work. Exact real busy branch remains unconfirmed; terminal persistence, adjacent zero counters and later Main idle query do not replace per-session authoritative proof.",
         "Active index semantics and unknown/busy guards retained; no state reset, model call or native replay by the agent. Current app remains f2ef20bf/local.4 pending new candidate."
-      ]
+      ],
+      "sourceHead": "461020e33a9dffe29aaa5cbe92378d3f5eaee8b4",
+      "standardsFindings": 0,
+      "specFindings": 0,
+      "sourcePush": {
+        "selectedFiles": 110,
+        "passedFiles": 110,
+        "passedTests": 1857,
+        "skippedTests": 2,
+        "fullSuite": false
+      }
     }
   },
   "scenarios": {
