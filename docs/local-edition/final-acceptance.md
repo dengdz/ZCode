@@ -421,3 +421,7 @@ Core 相关 4 文件 41/41；根相关 6 文件 218 通过/1 专用入口跳过�
 收紧后的 16 项验收定向场景、相关 5 文件 324 通过/1 专用入口跳过，根类型、Lint 0 errors/97 既有 warnings 和架构 0 新违规通过；新真人格式可验收，显式与历史缺字段机器人均被拒。未运行完整根 UT。初版红灯、初版复审 P2 及历史反例红灯均保留，最终固定复审与新候选另行记录。
 
 私有证据：`readonly-h-evaluation.private.json`、`readonly-h-before.private.json`、`readonly-h-after.private.json`、`readonly-h-acceptance-failure.private.json`、`readonly-h-after-acceptance.private.json`、`acceptance-provider-red.json`、`acceptance-provider-green.json`、`acceptance-provider-related.json`、`acceptance-provider-types.json`、`acceptance-provider-lint.json`。
+
+最终固定 `ceb1a34b...a7da210e210cb0be80a8c02efa12a095e3209990` 的 Standards/Spec 均为 0 项，原 P2 已关闭。源码普通 fork 推送的 pre-push 通过，官方 affected 的 109 个根文件实际运行 1847 通过/2 跳过，非全量；GitHub API 独立核对一致。有限观察器的实际 20 条输出结构/事实类型、HMAC 摘要、时限和数量上限及 0600/0700 权限审计通过，不扩大为所有未来日志或 scope 运行时证明。官方基线 API 仍为 3c5b2276。原严格安装版本门要求下一修订，集成分支与根版本进入 local.8；当前仅准备候选，运行中 local.7，真实关闭和 18 仍未完成。
+
+私有证据：`acceptance-provider-legacy-red.json`、`acceptance-provider-legacy-green.json`、`acceptance-provider-final.json`、`acceptance-provider-final-types.json`、`acceptance-provider-final-lint.json`、`acceptance-provider-final-architecture.json`、`acceptance-provider-review-final.json`、`acceptance-provider-source-push.json`、`readonly-h-diagnostic-privacy-audit.json`。

@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-real-h-awaiting-acceptance-provider-type-fix-isolated-pass",
+  "overall": "in-progress-human-acceptance-source-reviewed-local8-candidate-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -845,7 +845,7 @@
       ]
     },
     "acceptance-provider-fix": {
-      "status": "isolated-pass-legacy-unknown-rejected-candidate-and-real-closure-pending",
+      "status": "isolated-pass-reviewed-local8-candidate-and-real-closure-pending",
       "regressionRed": "provider-callback-acceptance_requires_user",
       "relatedPassed": 324,
       "relatedSkipped": 1,
@@ -864,12 +864,20 @@
         "acceptance-provider-final.json",
         "acceptance-provider-final-types.json",
         "acceptance-provider-final-lint.json",
-        "acceptance-provider-final-architecture.json"
+        "acceptance-provider-final-architecture.json",
+        "acceptance-provider-review-final.json",
+        "acceptance-provider-source-push.json",
+        "readonly-h-diagnostic-privacy-audit.json"
       ],
       "initialReviewStandardsFindings": 0,
       "initialReviewSpecFindings": 1,
       "legacyMissingTypeRejected": true,
-      "normalizationOnlyNewAuthorizedHuman": true
+      "normalizationOnlyNewAuthorizedHuman": true,
+      "source": "a7da210e210cb0be80a8c02efa12a095e3209990",
+      "standardsFindings": 0,
+      "specFindings": 0,
+      "sourcePushAffectedPassed": 1847,
+      "sourcePushAffectedSkipped": 2
     }
   },
   "scenarios": {
