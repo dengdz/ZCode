@@ -86,50 +86,31 @@
     },
     "settings-ui": {
       "exitCode": 0,
-      "command": [
-        "pnpm",
-        "test:local-collaboration-ui"
-      ],
+      "command": ["pnpm", "test:local-collaboration-ui"],
       "evidence": "settings-ui.log",
       "scope": "isolated-synthetic-and-process-fixtures"
     },
     "typecheck": {
       "exitCode": 0,
-      "command": [
-        "pnpm",
-        "typecheck"
-      ],
+      "command": ["pnpm", "typecheck"],
       "evidence": "typecheck.log",
       "scope": "isolated-synthetic-and-process-fixtures"
     },
     "lint": {
       "exitCode": 0,
-      "command": [
-        "pnpm",
-        "lint"
-      ],
+      "command": ["pnpm", "lint"],
       "evidence": "lint.log",
       "scope": "isolated-synthetic-and-process-fixtures"
     },
     "cli-typecheck": {
       "exitCode": 0,
-      "command": [
-        "pnpm",
-        "--dir",
-        "apps/zcode-cli",
-        "typecheck"
-      ],
+      "command": ["pnpm", "--dir", "apps/zcode-cli", "typecheck"],
       "evidence": "cli-typecheck.log",
       "scope": "isolated-synthetic-and-process-fixtures"
     },
     "cli-lint": {
       "exitCode": 0,
-      "command": [
-        "pnpm",
-        "--dir",
-        "apps/zcode-cli",
-        "lint"
-      ],
+      "command": ["pnpm", "--dir", "apps/zcode-cli", "lint"],
       "evidence": "cli-lint.log",
       "scope": "isolated-synthetic-and-process-fixtures"
     },
@@ -192,21 +173,12 @@
       "scope": "whole repository, no unrelated reformatting"
     },
     "official-signature": {
-      "command": [
-        "codesign",
-        "--verify",
-        "--deep",
-        "--strict",
-        "/Applications/ZCode.app"
-      ],
+      "command": ["codesign", "--verify", "--deep", "--strict", "/Applications/ZCode.app"],
       "exitCode": 0,
       "scope": "read-only actual installed official application signature; no app start or data access"
     },
     "candidate-independent": {
-      "evidence": [
-        "candidate-independent.json",
-        "candidate-independent.log"
-      ],
+      "evidence": ["candidate-independent.json", "candidate-independent.log"],
       "scope": "metadata/signature/whole tree/archive hashes",
       "status": "pass"
     },
@@ -241,38 +213,25 @@
     },
     "plugin-typecheck-final": {
       "exitCode": 0,
-      "command": [
-        "pnpm",
-        "typecheck"
-      ],
+      "command": ["pnpm", "typecheck"],
       "evidence": "plugin-typecheck-final.log",
       "scope": "repository-check"
     },
     "plugin-lint-final": {
       "exitCode": 0,
-      "command": [
-        "pnpm",
-        "lint"
-      ],
+      "command": ["pnpm", "lint"],
       "evidence": "plugin-lint-final.log",
       "scope": "repository-check"
     },
     "plugin-architecture-final": {
       "exitCode": 0,
-      "command": [
-        "pnpm",
-        "architecture:check",
-        "--changed"
-      ],
+      "command": ["pnpm", "architecture:check", "--changed"],
       "evidence": "plugin-architecture-final.log",
       "scope": "repository-check"
     },
     "plugin-pre-push": {
       "exitCode": 0,
-      "command": [
-        "pnpm",
-        "verify:pre-push"
-      ],
+      "command": ["pnpm", "verify:pre-push"],
       "evidence": "plugin-pre-push.log",
       "scope": "repository-check"
     },
@@ -540,10 +499,7 @@
         "receipt-case-c-edit-preview.private.json",
         "receipt-readonly-verification-final.json"
       ],
-      "command": [
-        "python3",
-        "evaluate-readonly-round.py"
-      ],
+      "command": ["python3", "evaluate-readonly-round.py"],
       "exitCode": 1,
       "executorAcceptedOriginalSentDispatch": true,
       "nativeSenderEqualsStoredPmOpenId": false,
@@ -823,10 +779,7 @@
       "requirementStatus": "active",
       "selectedFileFingerprintsUnchanged": true,
       "diagnosticExpired": true,
-      "evidence": [
-        "readonly-g-evaluation.private.json",
-        "readonly-g-after.private.json"
-      ]
+      "evidence": ["readonly-g-evaluation.private.json", "readonly-g-after.private.json"]
     },
     "report-arguments-fix": {
       "source": "b9f2144d3c75019e9d06e94e39c417ee03e8b3d5",
@@ -1025,9 +978,7 @@
   },
   "scenarios": {
     "T01": {
-      "issues": [
-        "../issues/zcode-local/04-group-collaboration-settings.md"
-      ],
+      "issues": ["../issues/zcode-local/04-group-collaboration-settings.md"],
       "currentEvidence": [
         "root-related",
         "live-native-configuration",
@@ -1045,18 +996,12 @@
         "../issues/zcode-local/05-trusted-handoffs.md",
         "../issues/zcode-local/11-stop-execution.md"
       ],
-      "currentEvidence": [
-        "root-related",
-        "receive-authorization-diagnosis",
-        "receipt-binding-fix"
-      ],
+      "currentEvidence": ["root-related", "receive-authorization-diagnosis", "receipt-binding-fix"],
       "status": "mechanism-pass",
       "limits": []
     },
     "T03": {
-      "issues": [
-        "../issues/zcode-local/05-trusted-handoffs.md"
-      ],
+      "issues": ["../issues/zcode-local/05-trusted-handoffs.md"],
       "currentEvidence": [
         "root-related",
         "cli-core",
@@ -1073,9 +1018,7 @@
       ]
     },
     "T04": {
-      "issues": [
-        "../issues/zcode-local/05-trusted-handoffs.md"
-      ],
+      "issues": ["../issues/zcode-local/05-trusted-handoffs.md"],
       "currentEvidence": [
         "root-related",
         "cli-core",
@@ -1086,21 +1029,13 @@
       "limits": []
     },
     "T05": {
-      "issues": [
-        "../issues/zcode-local/05-trusted-handoffs.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "receive-authorization-diagnosis",
-        "receipt-binding-fix"
-      ],
+      "issues": ["../issues/zcode-local/05-trusted-handoffs.md"],
+      "currentEvidence": ["root-related", "receive-authorization-diagnosis", "receipt-binding-fix"],
       "status": "mechanism-pass",
       "limits": []
     },
     "T06": {
-      "issues": [
-        "../issues/zcode-local/04-group-collaboration-settings.md"
-      ],
+      "issues": ["../issues/zcode-local/04-group-collaboration-settings.md"],
       "currentEvidence": [
         "root-related",
         "settings-ui",
@@ -1113,57 +1048,35 @@
       ]
     },
     "T07": {
-      "issues": [
-        "../issues/zcode-local/06-dispatch-role-validation.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "cli-core"
-      ],
+      "issues": ["../issues/zcode-local/06-dispatch-role-validation.md"],
+      "currentEvidence": ["root-related", "cli-core"],
       "status": "mechanism-pass",
       "limits": []
     },
     "T08": {
-      "issues": [
-        "../issues/zcode-local/07-silent-acknowledgments.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "cli-core"
-      ],
+      "issues": ["../issues/zcode-local/07-silent-acknowledgments.md"],
+      "currentEvidence": ["root-related", "cli-core"],
       "status": "mechanism-pass",
       "limits": [
         "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
       ]
     },
     "T09": {
-      "issues": [
-        "../issues/zcode-local/07-silent-acknowledgments.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "cli-core"
-      ],
+      "issues": ["../issues/zcode-local/07-silent-acknowledgments.md"],
+      "currentEvidence": ["root-related", "cli-core"],
       "status": "mechanism-pass",
       "limits": []
     },
     "T10": {
-      "issues": [
-        "../issues/zcode-local/07-silent-acknowledgments.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "cli-core"
-      ],
+      "issues": ["../issues/zcode-local/07-silent-acknowledgments.md"],
+      "currentEvidence": ["root-related", "cli-core"],
       "status": "mechanism-pass",
       "limits": [
         "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
       ]
     },
     "T11": {
-      "issues": [
-        "../issues/zcode-local/10-collaboration-chain-admission.md"
-      ],
+      "issues": ["../issues/zcode-local/10-collaboration-chain-admission.md"],
       "currentEvidence": [
         "root-related",
         "live-loop-guard-diagnosis",
@@ -1180,31 +1093,19 @@
         "../issues/zcode-local/10-collaboration-chain-admission.md",
         "../issues/zcode-local/12-state-reconciliation.md"
       ],
-      "currentEvidence": [
-        "root-related"
-      ],
+      "currentEvidence": ["root-related"],
       "status": "mechanism-pass",
       "limits": []
     },
     "T13": {
-      "issues": [
-        "../issues/zcode-local/08-recipient-selection.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "cli-core"
-      ],
+      "issues": ["../issues/zcode-local/08-recipient-selection.md"],
+      "currentEvidence": ["root-related", "cli-core"],
       "status": "mechanism-pass",
       "limits": []
     },
     "T14": {
-      "issues": [
-        "../issues/zcode-local/08-recipient-selection.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "cli-core"
-      ],
+      "issues": ["../issues/zcode-local/08-recipient-selection.md"],
+      "currentEvidence": ["root-related", "cli-core"],
       "status": "mechanism-pass",
       "limits": []
     },
@@ -1213,10 +1114,7 @@
         "../issues/zcode-local/08-recipient-selection.md",
         "../issues/zcode-local/12-state-reconciliation.md"
       ],
-      "currentEvidence": [
-        "root-related",
-        "cli-core"
-      ],
+      "currentEvidence": ["root-related", "cli-core"],
       "status": "mechanism-pass",
       "limits": []
     },
@@ -1226,11 +1124,7 @@
         "../issues/zcode-local/05-trusted-handoffs.md",
         "../issues/zcode-local/09-project-serial-execution.md"
       ],
-      "currentEvidence": [
-        "root-related",
-        "receive-authorization-diagnosis",
-        "receipt-binding-fix"
-      ],
+      "currentEvidence": ["root-related", "receive-authorization-diagnosis", "receipt-binding-fix"],
       "status": "mechanism-pass",
       "limits": []
     },
@@ -1239,85 +1133,52 @@
         "../issues/zcode-local/04-group-collaboration-settings.md",
         "../issues/zcode-local/09-project-serial-execution.md"
       ],
-      "currentEvidence": [
-        "root-related",
-        "settings-ui"
-      ],
+      "currentEvidence": ["root-related", "settings-ui"],
       "status": "mechanism-pass",
       "limits": []
     },
     "T18": {
-      "issues": [
-        "../issues/zcode-local/09-project-serial-execution.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "cli-runtime"
-      ],
+      "issues": ["../issues/zcode-local/09-project-serial-execution.md"],
+      "currentEvidence": ["root-related", "cli-runtime"],
       "status": "mechanism-pass",
       "limits": [
         "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
       ]
     },
     "T19": {
-      "issues": [
-        "../issues/zcode-local/13-pm-review-acceptance.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "receipt-fixed-real-round",
-        "readonly-routing-fix"
-      ],
+      "issues": ["../issues/zcode-local/13-pm-review-acceptance.md"],
+      "currentEvidence": ["root-related", "receipt-fixed-real-round", "readonly-routing-fix"],
       "status": "real-model-partial-report-and-readonly-failed",
       "limits": [
         "Real PM/executor input and read completed. No executor collaboration report or PM final followed; PM also completed an external ledger Edit. Full model judgment and acceptance behavior remain unproven."
       ]
     },
     "T20": {
-      "issues": [
-        "../issues/zcode-local/13-pm-review-acceptance.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "receipt-fixed-real-round",
-        "readonly-routing-fix"
-      ],
+      "issues": ["../issues/zcode-local/13-pm-review-acceptance.md"],
+      "currentEvidence": ["root-related", "receipt-fixed-real-round", "readonly-routing-fix"],
       "status": "real-model-partial-report-and-readonly-failed",
       "limits": [
         "Real PM/executor input and read completed. No executor collaboration report or PM final followed; PM also completed an external ledger Edit. Full model judgment and acceptance behavior remain unproven."
       ]
     },
     "T21": {
-      "issues": [
-        "../issues/zcode-local/11-stop-execution.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "cli-runtime",
-        "cli-core"
-      ],
+      "issues": ["../issues/zcode-local/11-stop-execution.md"],
+      "currentEvidence": ["root-related", "cli-runtime", "cli-core"],
       "status": "mechanism-pass",
       "limits": [
         "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
       ]
     },
     "T22": {
-      "issues": [
-        "../issues/zcode-local/12-state-reconciliation.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "cli-runtime"
-      ],
+      "issues": ["../issues/zcode-local/12-state-reconciliation.md"],
+      "currentEvidence": ["root-related", "cli-runtime"],
       "status": "mechanism-pass",
       "limits": [
         "Real group/model behavior not executed; synthetic results do not establish model judgment or actual channel delivery."
       ]
     },
     "T23": {
-      "issues": [
-        "../issues/zcode-local/13-pm-review-acceptance.md"
-      ],
+      "issues": ["../issues/zcode-local/13-pm-review-acceptance.md"],
       "currentEvidence": [
         "root-related",
         "cli-core",
@@ -1330,13 +1191,8 @@
       ]
     },
     "T24": {
-      "issues": [
-        "../issues/zcode-local/04-group-collaboration-settings.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "settings-ui"
-      ],
+      "issues": ["../issues/zcode-local/04-group-collaboration-settings.md"],
+      "currentEvidence": ["root-related", "settings-ui"],
       "status": "mechanism-pass",
       "limits": []
     },
@@ -1345,22 +1201,15 @@
         "../issues/zcode-local/03-data-compatibility-ownership.md",
         "../issues/zcode-local/04-group-collaboration-settings.md"
       ],
-      "currentEvidence": [
-        "root-related"
-      ],
+      "currentEvidence": ["root-related"],
       "status": "historical-reader-current-regression",
       "limits": [
         "Fixed official Reader evidence is historical; current root regression is not a newly executed official Reader run."
       ]
     },
     "T26": {
-      "issues": [
-        "../issues/zcode-local/03-data-compatibility-ownership.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "live-runtime"
-      ],
+      "issues": ["../issues/zcode-local/03-data-compatibility-ownership.md"],
+      "currentEvidence": ["root-related", "live-runtime"],
       "status": "controlled-current-local-started",
       "limits": [
         "Original official app remained stopped; source/API/owner evidence and selected-data backup preserved. Current official Reader was not rerun."
@@ -1388,14 +1237,8 @@
       ]
     },
     "T28": {
-      "issues": [
-        "../issues/zcode-local/02-local-app.md"
-      ],
-      "currentEvidence": [
-        "root-related",
-        "receive-candidate",
-        "receipt-fixed-candidate"
-      ],
+      "issues": ["../issues/zcode-local/02-local-app.md"],
+      "currentEvidence": ["root-related", "receive-candidate", "receipt-fixed-candidate"],
       "status": "mechanism-pass",
       "limits": []
     },
@@ -1404,11 +1247,7 @@
         "../issues/zcode-local/01-baseline-candidate.md",
         "../issues/zcode-local/14-versioned-candidates.md"
       ],
-      "currentEvidence": [
-        "candidate-build",
-        "receive-candidate",
-        "receipt-fixed-candidate"
-      ],
+      "currentEvidence": ["candidate-build", "receive-candidate", "receipt-fixed-candidate"],
       "status": "current-source-and-capability-review",
       "limits": [
         "Current official main was independently observed through GitHub API; accepted first-edition capability gap remains disclosed."
@@ -1419,23 +1258,15 @@
         "../issues/zcode-local/02-local-app.md",
         "../issues/zcode-local/14-versioned-candidates.md"
       ],
-      "currentEvidence": [
-        "candidate-build"
-      ],
+      "currentEvidence": ["candidate-build"],
       "status": "artifacts-verified-tag-unpublished",
       "limits": [
         "Expected version tag is recorded, not created or published; no release or install claimed."
       ]
     },
     "T31": {
-      "issues": [
-        "../issues/zcode-local/16-safe-installation.md"
-      ],
-      "currentEvidence": [
-        "maintenance",
-        "install-owner-rerun",
-        "plugin-maintenance-all"
-      ],
+      "issues": ["../issues/zcode-local/16-safe-installation.md"],
+      "currentEvidence": ["maintenance", "install-owner-rerun", "plugin-maintenance-all"],
       "status": "pass-with-recorded-batch-failure",
       "limits": [
         "Initial maintenance batch 78/79; owner-conflict test stopped earlier than expected. Focused rerun 1/1 passed; root cause unconfirmed and initial failure remains recorded. Complete 85-case serial maintenance rerun passed after the bounded link policy correction; no root cause inferred for the initial timing-boundary failure."
@@ -1462,14 +1293,8 @@
       ]
     },
     "T33": {
-      "issues": [
-        "../issues/zcode-local/17-rollback-restore.md"
-      ],
-      "currentEvidence": [
-        "maintenance",
-        "plugin-maintenance-all",
-        "readonly-cold-owner-audit"
-      ],
+      "issues": ["../issues/zcode-local/17-rollback-restore.md"],
+      "currentEvidence": ["maintenance", "plugin-maintenance-all", "readonly-cold-owner-audit"],
       "status": "mechanism-pass",
       "limits": []
     },
@@ -1487,9 +1312,7 @@
         "readonly-controlled-switch"
       ],
       "status": "signed-current-local-startup-and-host-ready-pass",
-      "limits": [
-        "Host-ready is not proof of model or robot business round trip."
-      ]
+      "limits": ["Host-ready is not proof of model or robot business round trip."]
     },
     "T35": {
       "issues": [
@@ -1512,9 +1335,7 @@
       ]
     },
     "T36": {
-      "issues": [
-        "../issues/zcode-local/18-end-to-end-acceptance.md"
-      ],
+      "issues": ["../issues/zcode-local/18-end-to-end-acceptance.md"],
       "currentEvidence": [
         "live-runtime",
         "live-group-preflight",
