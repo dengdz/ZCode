@@ -357,6 +357,8 @@ export interface AgentRuntimeDeps {
   pdfDocumentPort?: PdfDocumentPort;
   skillPort?: SkillPort;
   mcpPort?: McpPort;
+  /** 纯检查冷恢复只延迟预启动；真实 initializeMcp 仍使用原端口和配置。 */
+  deferMcpStartup?: boolean;
   subagentPort?: SubagentPort;
   coordinatorResponsePort?: CoordinatorResponsePort;
   /** 工作流 actor 提交终态结果的端口；存在即作为 submit_result 工具的注册门。 */

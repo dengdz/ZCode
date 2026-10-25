@@ -193,6 +193,8 @@ export interface ZCodeAppOptions {
   includeVisualize?: boolean;
   skillPort?: SkillPort;
   mcpPort?: McpPort;
+  /** 仅纯检查冷恢复延迟 MCP 预启动；执行仍沿 initializeMcp 初始化。 */
+  deferMcpStartup?: boolean;
   /** 由宿主提供 per-app lease；产出的端口归 app 所有。 */
   mcpPortFactory?: (input: { workingDirectory?: string }) => McpPort;
   permissionBroker?: PermissionBrokerPort;

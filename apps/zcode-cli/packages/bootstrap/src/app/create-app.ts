@@ -874,6 +874,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
           : undefined,
       mcpPort,
       eventSink: options.eventSink,
+      deferMcpStartup: options.deferMcpStartup,
       onOffPeakLifecycleEvent: options.onOffPeakLifecycleEvent
         ? (event) => options.onOffPeakLifecycleEvent!({ ...event, sessionId })
         : undefined,

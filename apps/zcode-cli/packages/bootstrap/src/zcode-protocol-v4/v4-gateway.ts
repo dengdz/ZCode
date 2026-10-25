@@ -233,6 +233,7 @@ export interface V4GatewayHost {
     workspace?: ZCodeWorkspaceRef,
     additionalDirectories?: string[],
     persistedMessages?: MessageWithParts[],
+    inspectionOnly?: boolean,
   ): Promise<ColdSessionResumeOutcome>;
   /**
    * 下行物理帧出口（宿主负责投递：stdio notification / MessagePort / ws）。
@@ -700,11 +701,20 @@ export class ConversationV4Gateway {
       prepareDecision: async (envelope) => {
         if (
           envelope.sessionId &&
-          (envelope.type === "renameSession" || envelope.type === "deleteSession") &&
+          (envelope.type === "renameSession" ||
+            envelope.type === "deleteSession" ||
+            envelope.type === "inspectOwnedWork") &&
           !this.host.sessionExists(envelope.sessionId)
         ) {
           // 历史行的重命名 / 删除仍由 CLI 原命令写持久事实；只在真实命令 admission 后冷恢复。
-          await this.ensureColdReadyPublisher(envelope.sessionId);
+          // 检查必须先于临时订阅冷恢复，避免自己启动的 MCP 预热制造 busy。
+          await this.ensureColdReadyPublisher(
+            envelope.sessionId,
+            undefined,
+            undefined,
+            undefined,
+            envelope.type === "inspectOwnedWork",
+          );
         }
       },
       getRevision: (sessionId) => {
@@ -3205,6 +3215,7 @@ export class ConversationV4Gateway {
     resumeThoughtLevel?: string,
     workspace?: ZCodeWorkspaceRef,
     additionalDirectories?: string[],
+    inspectionOnly = false,
   ): Promise<ConversationTopicPublisher> {
     const existingFlight = this.readyFlights.get(sessionId);
     if (existingFlight) return existingFlight;
@@ -3215,6 +3226,9 @@ export class ConversationV4Gateway {
         resumeThoughtLevel,
         workspace,
         additionalDirectories,
+        undefined,
+        undefined,
+        inspectionOnly,
       );
       return this.hydratePublisher(sessionId, persistedMessages);
     });

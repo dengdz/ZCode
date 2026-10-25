@@ -1736,6 +1736,7 @@ export function createConversationV4Gateway(
       workspace?: ZCodeWorkspaceRef,
       additionalDirectories?: string[],
       persistedMessages?: MessageWithParts[],
+      inspectionOnly?: boolean,
     ) => {
       const persisted = await context.deps.sessionStore?.getSession(sessionId as SessionId);
       if (!persisted || persisted.time.deleted !== undefined) {
@@ -1758,7 +1759,7 @@ export function createConversationV4Gateway(
           ...(additionalDirectories !== undefined ? { additionalDirectories } : {}),
           ...(resumeThoughtLevel ? { thoughtLevel: resumeThoughtLevel } : {}),
         },
-        { reusePersistedMessages: true, persistedMessages },
+        { reusePersistedMessages: true, persistedMessages, inspectionOnly },
       );
       return {
         status: "resumed",

@@ -1,5 +1,7 @@
 # Local 协作停止核对
 
+18 补正：原 inspectOwnedWork 在冷会话上沿 CommandInbox/READY 单飞恢复，并仅在该恢复来源延迟 MCP 预启动。Core 是内存延迟标记的唯一 owner，构造及历史上下文恢复均遵守它；原 initializeMcp 真实执行入口解除标记并幂等初始化，完成前不请求模型。正常创建/恢复默认不变，已有 runtime 不被重设为延迟模式。blocking work、finalization、后台与旧租约的 idle/busy/unknown 定义不变；不新增 RPC、队列或持久状态，不忽略正在初始化的原工作。Host 的纯核对必须先发该命令再读原快照；两种订阅模式共享同一记录及原交付语义。
+
 11 工单复用原 stop、setAutoDrain、deleteQueueItem、pauseGoal 和 cancelBackgroundWork。Host 先持久停止屏障，再暂停原任务队列；仅控制原需求来源的执行，前台使用实际 foregroundExecutionId，停止 ACK 不等同于终态。
 
 新增只读 V4 inspectOwnedWork 命令，返回严格 ownedWorkState（idle / busy / unknown）。CLI 在原 record/runtime 上核对 active controller、finalization、Core residency-blocking work 及同一项目租约；未释放的后台/sidecar/待运行工作均不能返回 idle。持久租约仍属于此 session 而当前 record 没有对应 live lease 时返回 unknown，损坏或不可读也不得回空闲。不新增执行状态、队列、定时器或写入路径；Host 不用 UI phase 或 ACK 推测副作用结束。

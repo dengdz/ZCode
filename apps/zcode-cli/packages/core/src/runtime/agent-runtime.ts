@@ -202,6 +202,7 @@ export class AgentRuntime {
   private mcpStartupPromise?: Promise<McpConnectionSnapshot>;
   private residencyBlockingWorkCount = 0;
   private mcpInitialized = false;
+  private mcpStartupDeferred: boolean;
   private mcpToolsRegistered = false;
   private registeredMcpToolNames?: string[];
   private mcpToolsSignature?: string;
@@ -338,6 +339,7 @@ export class AgentRuntime {
     this.contextSourcePort = deps.contextSourcePort;
     this.skillPort = deps.skillPort;
     this.mcpPort = deps.mcpPort;
+    this.mcpStartupDeferred = deps.deferMcpStartup === true;
     this.runtimeTaskRegistry = deps.runtimeTaskRegistry ?? new InMemoryRuntimeTaskRegistry();
     this.runtimeTaskRegistry.setActiveBranchGeneration?.(this.branchGeneration);
     this.workflowBlockedReminder = createWorkflowBlockedReminder(runtime);

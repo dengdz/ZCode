@@ -42,6 +42,8 @@ export function startMcpStartup(
   this: AgentRuntimeInternal,
   traceContext: TraceContext,
 ): Promise<McpConnectionSnapshot> | undefined {
+  // 纯检查冷恢复不能自己启动 MCP 后又把初始化算成旧工作；执行入口统一解除延迟。
+  if (this.mcpStartupDeferred) return undefined;
   if (this.mcpInitialized) return this.mcpStartupPromise;
   this.mcpInitialized = true;
 
@@ -124,6 +126,7 @@ export async function initializeMcp(
   this: AgentRuntimeInternal,
   traceContext: TraceContext,
 ): Promise<void> {
+  this.mcpStartupDeferred = false;
   if (this.mcpToolsRegistered) return;
 
   const startup = this.startMcpStartup(traceContext);

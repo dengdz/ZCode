@@ -1107,6 +1107,14 @@ export function createBotsService(
                     : {}),
                   ...(target.remoteSessionId ? { remoteSessionId: target.remoteSessionId } : {}),
                 };
+                // blocker 会读取临时快照；先取纯检查证明，避免冷订阅预热造成误判。
+                const evidence = collaborationTaskEvidenceSchema.parse(
+                  await tasks.readBotCollaborationTask({ ...workspace, taskId, inputIds }),
+                );
+                if (evidence.ownedWork !== "idle")
+                  return deny(
+                    evidence.ownedWork === "busy" ? "owned_work_busy" : "owned_work_unknown",
+                  );
                 const reason = await tasks.getBotGroupTaskBlockReason({ ...workspace, taskId });
                 if (reason)
                   return deny(
@@ -1117,13 +1125,6 @@ export function createBotsService(
                         : reason === "running"
                           ? "task_running"
                           : "task_state_unknown",
-                  );
-                const evidence = collaborationTaskEvidenceSchema.parse(
-                  await tasks.readBotCollaborationTask({ ...workspace, taskId, inputIds }),
-                );
-                if (evidence.ownedWork !== "idle")
-                  return deny(
-                    evidence.ownedWork === "busy" ? "owned_work_busy" : "owned_work_unknown",
                   );
                 return true;
               } catch {

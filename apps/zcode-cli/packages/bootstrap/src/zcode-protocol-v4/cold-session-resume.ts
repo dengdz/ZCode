@@ -28,6 +28,7 @@ export interface ColdSessionResumeHost {
     workspace?: ZCodeWorkspaceRef,
     additionalDirectories?: string[],
     persistedMessages?: MessageWithParts[],
+    inspectionOnly?: boolean,
   ): Promise<ColdSessionResumeOutcome>;
   onDebug?(message: string): void;
   onError?(scope: string, error: unknown, context?: Record<string, unknown>): void;
@@ -59,6 +60,7 @@ export class ColdSessionResumeCoordinator {
     additionalDirectories?: string[],
     persistedMessages?: MessageWithParts[],
     onActivated?: (outcome: Extract<ColdSessionResumeOutcome, { status: "resumed" }>) => void,
+    inspectionOnly = false,
   ): Promise<MessageWithParts[] | undefined> {
     const inFlight = this.flights.get(sessionId);
     if (inFlight) {
@@ -73,6 +75,7 @@ export class ColdSessionResumeCoordinator {
       additionalDirectories,
       persistedMessages,
       onActivated,
+      inspectionOnly,
     ).finally(() => {
       this.flights.delete(sessionId);
       this.host.onDebug?.(`cold resume flight cleared session=${sessionId}`);
@@ -92,6 +95,7 @@ export class ColdSessionResumeCoordinator {
     additionalDirectories?: string[],
     persistedMessages?: MessageWithParts[],
     onActivated?: (outcome: Extract<ColdSessionResumeOutcome, { status: "resumed" }>) => void,
+    inspectionOnly = false,
   ): Promise<MessageWithParts[] | undefined> {
     const resume = this.host.resumePersistedSession;
     if (!resume) {
@@ -110,6 +114,7 @@ export class ColdSessionResumeCoordinator {
         workspace,
         additionalDirectories,
         persistedMessages,
+        inspectionOnly,
       );
     } catch (error) {
       this.host.onError?.("v4.subscribe.resume", error, {

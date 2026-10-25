@@ -6061,20 +6061,25 @@ async function readCollaborationTaskEvidence(
           accepted.add(item.key.commandId);
       }
     }
+    // 冷快照会恢复 runtime 并预热 MCP；先走纯检查命令，避免检查自己制造 busy。
+    const inspect = async () =>
+      assertV4CommandAckOk(
+        "inspectOwnedWork",
+        await agent.sendConversationCommandV4({
+          ...workspace,
+          envelope: createHostCommandEnvelope({ type: "inspectOwnedWork", sessionId, payload: {} }),
+        }),
+        `session=${sessionId}`,
+      );
+    await inspect();
     const snapshot = await readBotGroupRuntimeSnapshot(agent, { ...workspace, sessionId });
     for (const item of snapshot.queue.items)
       if (inputIds.includes(item.sourceCommandId)) accepted.add(item.sourceCommandId);
     for (const item of snapshot.control.activeWorks)
       if (item.sourceCommandId && inputIds.includes(item.sourceCommandId))
         accepted.add(item.sourceCommandId);
-    const proof = assertV4CommandAckOk(
-      "inspectOwnedWork",
-      await agent.sendConversationCommandV4({
-        ...workspace,
-        envelope: createHostCommandEnvelope({ type: "inspectOwnedWork", sessionId, payload: {} }),
-      }),
-      `session=${sessionId}`,
-    );
+    // 快照读取会让出执行；最终证明必须重读同一 owner，不能缓存读取前的 idle。
+    const proof = await inspect();
     return collaborationTaskEvidenceSchema.parse({
       ownedWork: proof.result?.type === "ownedWorkState" ? proof.result.state : "unknown",
       inputs: inputIds.map((inputId) => ({

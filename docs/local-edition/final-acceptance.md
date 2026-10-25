@@ -343,3 +343,17 @@ sequenceDiagram
 ```
 
 私有证据：`readonly-f-initial-triage.private.json`、`readonly-f-after.private.json`、`readonly-cold-mcp-red-3.json`、`readonly-cold-mcp-minimized-1.json`、`readonly-cold-mcp-minimized-2.json`；反馈环命令及隔离 HOME 均在同名 JSON，合成 MCP 不连接外部服务。
+
+### 纯检查修正实现与隔离验证
+
+用户明确确认前述边界后，18 局部合同补充原 inspectOwnedWork→READY 冷恢复→延迟 MCP 预启动→真实执行 initializeMcp 的顺序。沿同一 CommandInbox、session record、Core 与原停止/恢复路径实现，不新增 RPC 或持久工作状态。普通创建/恢复仍默认预启动，已有 runtime 的真实初始化不能被检查关闭；Core 只对纯检查引起的冷恢复保存内存延迟标记，执行沿原幂等初始化并等待完成后请求模型。
+
+Local 适配先读工作证明再读 blocker；证据适配先发纯检查避免订阅抢先预启动，再在原快照/收据读取后取得最终 owned-work 证明。读取过程中新增后台工作的反例先红后绿，不缓存早期 idle。所有群历史任务引用继续核对，未收窄为仅当前配置成员。
+
+根相关 17 文件最终 521 通过/1 专用入口跳过；CLI 实际执行边界 23/23、原冷恢复 95/95、Core MCP/常驻/无模型绑定恢复 3 文件 17/17 通过。覆盖两种订阅、并发检查、检查无新 MCP/模型、执行等待初始化且只启动一次、已有初始化 busy、冷租约 unknown、原草稿及工作/停止边界。根 typecheck、CLI 32 项类型（24 缓存）通过；根 Lint 0 errors/97 存量 warnings，CLI 0 errors/72 warnings/11 原样上游行数诊断；架构 0 新违规。变更范围按各包 oxfmt 检查，未将仓库级格式历史失败改记通过，未运行完整根或完整 CLI UT。
+
+首轮 CLI 夹具参数遮蔽、根夹具使用无效 phase、Core 构建产物尚未更新的失败均保留，未当作有效根因红灯。有效适配红灯固定 611c1b75 的两个原源码文件运行，均复现同一 busy，运行后当前编辑逐字节恢复并核对 hash；CLI 冷命令入口先拒绝、补通后两种模式均通过。原私有冷订阅对照仍证明旧订阅预启动机制，修正后的检查入口不靠等待或重试。
+
+固定源码复审、下一候选构建和真实验证尚待完成；运行中仍是 cf7f4664 / local.5，launcher 遗留现场保留，旧消息不重放，18 不标 done。
+
+私有证据：`cold-inspection-bootstrap-red-2.json`、`cold-inspection-valid-red-source-scope.json`、`cold-inspection-adapter-valid-red.json`、`cold-inspection-race-red.json`、`cold-inspection-adapter-final.json`、`cold-inspection-root-final.json`、`cold-inspection-cli-runtime.json`、`cold-inspection-cli-cold-resume.json`、`cold-inspection-core-runtime.json`、`cold-inspection-root-types.json`、`cold-inspection-cli-types.json`、`cold-inspection-root-lint.json`、`cold-inspection-cli-lint.json`。

@@ -1473,7 +1473,11 @@ export async function discardFailedSessionResume(
 export async function activateSessionForResume(
   context: ZCodeProtocolAgentServerContext,
   params: ZCodeSessionResumeParams,
-  options: { reusePersistedMessages?: boolean; persistedMessages?: MessageWithParts[] } = {},
+  options: {
+    reusePersistedMessages?: boolean;
+    persistedMessages?: MessageWithParts[];
+    inspectionOnly?: boolean;
+  } = {},
 ): Promise<ActivatedSessionForResume> {
   const resumeStartedAt = Date.now();
   const activeBeforeWait = context.sessions.has(params.sessionId);
@@ -1545,6 +1549,7 @@ export async function activateSessionForResume(
     true,
     { kind: "host" },
     session.traceID ? { traceId: session.traceID } : undefined,
+    options.inspectionOnly,
   );
   // createRecord 把 createdAt/updatedAt 写死为 Date.now()——resume 老会话
   // 会让 sessions-index 把它当"刚创建"的会话（配合 hydration 前的空标题，侧栏
@@ -3416,6 +3421,7 @@ async function materializeSessionRecord(
   resume: boolean,
   source: SessionStartupPreferencesSource,
   trace?: ZCodeProtocolTrace,
+  inspectionOnly = false,
 ): Promise<ZCodeProtocolSessionRecord> {
   const startupPreferences = await resolveSessionStartupPreferences(
     context,
@@ -3423,7 +3429,15 @@ async function materializeSessionRecord(
     source,
     trace,
   );
-  return createRecord(context, params, sessionId, resume, startupPreferences, trace);
+  return createRecord(
+    context,
+    params,
+    sessionId,
+    resume,
+    startupPreferences,
+    trace,
+    inspectionOnly,
+  );
 }
 
 async function createRecord(
@@ -3433,6 +3447,7 @@ async function createRecord(
   resume: boolean,
   startupPreferences: SessionStartupPreferences,
   trace?: ZCodeProtocolTrace,
+  inspectionOnly = false,
 ): Promise<ZCodeProtocolSessionRecord> {
   const workspace =
     "workspace" in params && params.workspace
@@ -3462,6 +3477,7 @@ async function createRecord(
   // 用可变持有者做惰性绑定：CronCreate 在 turn 中调用 create() 时 record 早已就绪。
   let ownSessionRecord: ZCodeProtocolSessionRecord | undefined;
   const app = await createWorkspaceZCodeApp(context, workspace, {
+    deferMcpStartup: inspectionOnly,
     env: context.deps.env,
     eventStore,
     resume,

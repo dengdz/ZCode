@@ -210,3 +210,29 @@ flowchart LR
 local.5 新真实需求仍被 busy 拒绝，未进入 ledger/CLI，选定项目及已知外部台账指纹不变。有限诊断早期记录 owned_work_busy；截图时已到期，不能拼成同一事件的完整证据。原 CLI 日志显示拒绝前恢复旧任务并启动 MCP。真实 Bootstrap/Core 的隔离最小对照连续两次各 1 通过/1 失败：没有运行、队列、交互或新模型调用，冷订阅所启动的 MCP 初始化仍使 inspectOwnedWork 返回 busy；仅释放该初始化即 idle。
 
 待对齐：CLI 单一 owner 的纯核对不启动执行服务，真实执行初始化仍走原入口；既有工作、冷遗留租约和未知继续拒绝，不放宽 blocking work、不删除历史引用、不固定等待或人工预热。实施前按根设计缺陷规则对齐，再补 adapter→冷订阅→CLI 纵向及两种订阅模式回归。当前应用存活但 launcher 已结束，原因未知；保留 owner，后续遵守 17 人工边界。详见[诊断和待对齐方案](../../local-edition/final-acceptance.md#local5-真实拒绝及冷加载初始化反馈环2026-10-25)。18 仍 in-progress。
+
+### 已批准的纯检查实现合同（2026-10-25）
+
+用户确认上述边界后实施。复用原 inspectOwnedWork 命令、CommandInbox、冷恢复单飞和原 session record，不新建检查 RPC、已受理队列或第二份工作事实。该命令在冷 record 上可先经原 READY 门恢复；只有这个恢复来源将 MCP 预启动延迟到原 initializeMcp 执行入口。正常新建/恢复默认不变，检查复用已有 runtime 时不能关闭或隐藏已经启动的工作。
+
+Core 是延迟初始化标记的唯一 owner：构造和历史上下文恢复均不启动延迟的 MCP，实际执行先解除标记并沿原幂等 initializeMcp 启动，初始化完成前不请求模型。标记不落盘、不关闭配置、不改变 residency blocking work 定义；正在初始化的原 runtime、后台工作、finalization、旧租约和未知照常拒绝。CLI 冷恢复门仍串行保护 session 身份和 READY，检查不能跨 Host 绕过原会话路由。
+
+Local 空闲适配先通过原 readBotCollaborationTask 获取工作证明，再读取 blocker。证据读取先发 inspectOwnedWork，再沿原快照/命令事实读取输入归属，避免临时订阅抢先触发预启动；既有停止和投递 owner 不变。所有历史任务引用及绑定 workspace 的活动候选仍逐项核对。
+
+首次检查负责安全冷恢复；快照/收据读取后再次向同一 owner 取得最终 owned-work 证明，避免读取期间才开始的后台工作被前一次 idle 遮蔽。两次命令均为原只读检查，不成为缓存、执行命令或新的工作状态。
+
+验证 seam 已由本方案确认：真实 adapter→原命令/快照；CLI Bootstrap/Core/SQLite 冷检查→desktop-continuous 与 web-remote-replayable 订阅→真实执行初始化。使用可释放的合成 MCP 端口，断言无检查引发的连接/新增模型调用、执行时初始化恰好一次且初始化前不运行模型；另覆盖已有初始化 busy、前台/队列/交互/后台、冷 lease unknown、并发 READY 与原草稿行为。所有数据隔离，旧真实需求不重放。
+
+```mermaid
+sequenceDiagram
+    participant B as Local 适配
+    participant G as 原 CommandInbox 与 READY
+    participant R as 原 session Core
+    B->>G: inspectOwnedWork
+    G->>R: 冷恢复时延迟 MCP 预启动
+    R-->>B: 原 owned-work 证明
+    B->>G: 原快照与 blocker 核对
+    Note over G,R: 两种订阅共用同一 record，不改变交付语义
+    G->>R: 真实执行进入 initializeMcp
+    R->>R: 原幂等初始化完成后执行
+```

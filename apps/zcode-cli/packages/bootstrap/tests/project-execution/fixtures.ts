@@ -20,11 +20,13 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-export async function fixture() {
+export async function fixture(setup: { pendingMcp?: boolean } = {}) {
   const home = await mkdtemp(join(tmpdir(), "zcode-project-serial-"));
   const store = await createSqliteSessionStore({ dbPath: ":memory:" });
   const started: string[] = [];
   const releases: Array<() => void> = [];
+  const mcpReleases: Array<() => void> = [];
+  let mcpConnections = 0;
   const apps = new Map<string, Awaited<ReturnType<typeof createRegistryBackedTestApp>>>();
   let closing = false;
   let active = 0;
@@ -47,8 +49,26 @@ export async function fixture() {
             workingDirectory: options?.runtimeConfig?.workingDirectory ?? home,
             titleGeneration: { enabled: false },
             memory: { enabled: false },
-            mcp: { enabled: false },
+            mcp: { enabled: setup.pendingMcp === true },
           },
+          ...(setup.pendingMcp
+            ? {
+                mcpPort: {
+                  async status() {
+                    return {};
+                  },
+                  async listTools() {
+                    return [];
+                  },
+                  async connectConfiguredServers() {
+                    mcpConnections++;
+                    await new Promise<void>((resolve) => mcpReleases.push(resolve));
+                    return { statuses: {}, tools: [] };
+                  },
+                  async close() {},
+                } as never,
+              }
+            : {}),
           modelExecutor: {
             async generateText() {
               if (!closing) {
@@ -85,6 +105,7 @@ export async function fixture() {
   };
   cleanups.push(async () => {
     closing = true;
+    mcpReleases.splice(0).forEach((release) => release());
     releases.splice(0).forEach((release) => release());
     for (const server of servers) {
       await server.shutdown();
@@ -158,6 +179,8 @@ export async function fixture() {
   const first = client(makeServer());
   return {
     ...first,
+    mcpReleases,
+    mcpConnections: () => mcpConnections,
     otherClient: () => client(makeServer()),
     home,
     started,

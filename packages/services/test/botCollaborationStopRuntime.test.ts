@@ -20,7 +20,7 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-async function setup() {
+async function setup(options: { coldMcp?: boolean; workStartsOnSnapshot?: boolean } = {}) {
   const home = await mkdtemp(join(tmpdir(), "collaboration-stop-runtime-"));
   setDataBaseDir(home);
   const repo = new TaskIndexRepo(undefined, undefined, join(home, "tasks.db"));
@@ -30,6 +30,8 @@ async function setup() {
   let rejectType: string | undefined;
   let ownedState: "idle" | "busy" | "unknown" = "busy";
   let subscription = 0;
+  let inspectionStarted = false;
+  let mcpInitializing = false;
   let receiptsKnown = true;
   let transformQuery: (value: unknown) => unknown = (value) => value;
   const queries: unknown[] = [];
@@ -110,6 +112,8 @@ async function setup() {
     disposeAll: () => undefined,
     onDynamicConversationFrame: () => wire.event,
     subscribeConversationV4: async () => {
+      if (options.coldMcp && !inspectionStarted) mcpInitializing = true;
+      if (options.workStartsOnSnapshot) ownedState = "busy";
       const subscriptionId = `stop-${++subscription}`;
       const frame = {
         topic: "conversation/original-task",
@@ -158,13 +162,15 @@ async function setup() {
       routes.push(route);
       commands.push(envelope);
       if (envelope.type === rejectType) throw new Error("Synthetic external command refusal");
-      if (envelope.type === "inspectOwnedWork")
+      if (envelope.type === "inspectOwnedWork") {
+        inspectionStarted = true;
         return {
           commandId: envelope.commandId,
           status: "accepted",
           revisionAtDecision: snapshot.revision,
-          result: { type: "ownedWorkState", state: ownedState },
+          result: { type: "ownedWorkState", state: mcpInitializing ? "busy" : ownedState },
         };
+      }
       if (envelope.type === "setAutoDrain")
         snapshot.queue.autoDrain = (envelope.payload as { autoDrain: boolean }).autoDrain;
       if (envelope.type === "deleteQueueItem")
@@ -326,6 +332,19 @@ it("新需求恢复仅在原 owned work 与原队列都空后开启 autoDrain，
   );
 });
 
+it("18 真实任务适配在冷快照之前检查工作，不把检查启动的 MCP 当成在办工作", async () => {
+  const f = await setup({ coldMcp: true });
+  f.finishOwnedWork();
+  f.snapshot.control = {
+    ...f.snapshot.control,
+    phase: "completedInterrupted",
+    stopState: "idle",
+    activeWorks: [],
+  };
+  f.snapshot.queue.items = [];
+  expect(await f.service.readBotCollaborationTask!(f.target)).toMatchObject({ ownedWork: "idle" });
+});
+
 it("12 只读核对原 commandId 的受理与 owned-work，不能因 UI 空闲或收据缺失重放", async () => {
   const f = await setup();
   expect(await f.service.readBotCollaborationTask!(f.target)).toEqual({
@@ -344,7 +363,10 @@ it("12 只读核对原 commandId 的受理与 owned-work，不能因 UI 空闲�
       ],
     }),
   ]);
-  expect(f.commands.map((command) => command.type)).toEqual(["inspectOwnedWork"]);
+  expect(f.commands.map((command) => command.type)).toEqual([
+    "inspectOwnedWork",
+    "inspectOwnedWork",
+  ]);
   f.forgetReceipts();
   f.finishOwnedWork();
   f.snapshot.control = {
@@ -362,6 +384,12 @@ it("12 只读核对原 commandId 的受理与 owned-work，不能因 UI 空闲�
     ],
   });
   expect(f.commands.every((command) => command.type === "inspectOwnedWork")).toBe(true);
+});
+
+it("18 快照读取期间出现原 runtime 后台工作时，最终证明不能沿用此前 idle", async () => {
+  const f = await setup({ workStartsOnSnapshot: true });
+  f.finishOwnedWork();
+  expect(await f.service.readBotCollaborationTask!(f.target)).toMatchObject({ ownedWork: "busy" });
 });
 
 it.each(["session", "command", "missing", "duplicate", "bare", "input-id", "disconnected"])(

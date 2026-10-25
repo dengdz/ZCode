@@ -313,6 +313,28 @@ it("18 真实活动索引中的未提交草稿必须取得实际 idle 证明，�
   ).toBe(true);
 });
 
+it("18 Local 只读受理先取 owned-work 证明，避免 blocker 冷订阅启动初始化", async () => {
+  const f = await setupWithWorkspaceDraft();
+  let inspected = false;
+  let initializationStarted = false;
+  vi.mocked(f.tasks.getBotGroupTaskBlockReason!).mockImplementation(async ({ taskId }) => {
+    if (taskId === "untouched-draft" && !inspected) initializationStarted = true;
+    return null;
+  });
+  vi.mocked(f.tasks.readBotCollaborationTask!).mockImplementation(async ({ taskId, inputIds }) => {
+    if (taskId === "untouched-draft") inspected = true;
+    return {
+      ownedWork: initializationStarted ? "busy" : "idle",
+      inputs: inputIds.map((inputId) => ({ inputId, admission: "unknown" })),
+    };
+  });
+  await f.service.handleInboundMessage({
+    ...f.human(),
+    text: "[ZCODE-LOCAL-READONLY]\nRead synthetic fixture only",
+  });
+  expect(f.tasks.submitBotGroupInput).toHaveBeenCalledOnce();
+});
+
 it.each([
   "running",
   "queued",

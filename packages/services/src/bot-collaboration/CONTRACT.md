@@ -1,5 +1,7 @@
 # bot-collaboration
 
+冷检查先取得原 readBotCollaborationTask/inspectOwnedWork 证明，再读 blocker；证据适配先发原检查命令，再订阅快照，不让纯核对先启动 MCP 预热。CLI 只对该命令引起的冷恢复延迟预启动；已有 runtime 的真实工作及未知仍严格核对，不能关闭 MCP、忽略 blocking work 或清空旧引用。执行沿原 initializeMcp 入口启动。
+
 空闲核对补正：workspace 活动引用仅用于发现候选，逐项沿原 SDK blocker 与 owned-work 证据核对；不能因非终态列表包含纯内存 draft 就判忙，也不能直接豁免 draft。实际工作、未知、异常或缺失能力均拒绝，全局活动索引不改。isIdle 的可选观察上下文仅含当前机器人/消息/发送者标识，供原有限诊断作 scope/HMAC 关联，不参与判断、不持久化正文或工作状态。
 
 每 Provider/群的配置只有此模块写入，保存到实际数据根 .zcode/local/v1/collaboration.json，version 1。复用 shared 短锁和私有原子写入；未知版本/坏文件不覆盖。官网配置、任务索引格式不扩字段。

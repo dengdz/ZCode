@@ -4,6 +4,67 @@ import { expect, it } from "vitest";
 import { SessionEventType } from "@zcode/contracts";
 import { fixture } from "./fixtures.js";
 
+it.each(["desktop-continuous", "web-remote-replayable"] as const)(
+  "18 冷检查不启动 MCP，%s 订阅后真实执行才初始化且只启动一次",
+  async (mode) => {
+    const f = await fixture({ pendingMcp: true });
+    const session = await f.create();
+    f.mcpReleases.shift()!();
+    await expect
+      .poll(async () => (await f.command(session, "inspectOwnedWork", {})).result)
+      .toMatchObject({ state: "idle" });
+    await f.command(session, "sendText", { text: "Synthetic completed work" });
+    await expect.poll(() => f.started.length).toBe(1);
+    f.releases.shift()!();
+    await expect
+      .poll(async () => (await f.command(session, "inspectOwnedWork", {})).result)
+      .toMatchObject({ state: "idle" });
+    const connections = f.mcpConnections();
+    const cold = f.otherClient();
+    const [proof, concurrentProof] = await Promise.all([
+      cold.command(session, "inspectOwnedWork", {}),
+      cold.command(session, "inspectOwnedWork", {}),
+    ]);
+    expect(f.mcpConnections()).toBe(connections);
+    expect(proof).toMatchObject({
+      status: "accepted",
+      result: { type: "ownedWorkState", state: "idle" },
+    });
+    expect(concurrentProof).toMatchObject({
+      status: "accepted",
+      result: { type: "ownedWorkState", state: "idle" },
+    });
+    const snapshot = await cold.snapshot(session, mode);
+    expect(snapshot.control.activeWorks).toHaveLength(0);
+    expect(snapshot.queue.items).toHaveLength(0);
+    expect(snapshot.pendingInteractions).toHaveLength(0);
+    expect(f.mcpConnections()).toBe(connections);
+    expect(f.started).toHaveLength(1);
+    await cold.command(session, "sendText", { text: "Real execution after inspection" });
+    await expect.poll(() => f.mcpConnections()).toBe(connections + 1);
+    expect(f.started).toHaveLength(1);
+    f.mcpReleases.shift()!();
+    await expect.poll(() => f.started.length).toBe(2);
+    expect(f.mcpConnections()).toBe(connections + 1);
+  },
+);
+
+it("18 检查已有 runtime 不能关闭或忽略正在初始化的 MCP", async () => {
+  const f = await fixture({ pendingMcp: true });
+  const session = await f.create();
+  expect(f.mcpConnections()).toBe(1);
+  expect(await f.command(session, "inspectOwnedWork", {})).toMatchObject({
+    status: "accepted",
+    result: { type: "ownedWorkState", state: "busy" },
+  });
+  expect(f.started).toHaveLength(0);
+  f.mcpReleases.shift()!();
+  await expect
+    .poll(async () => (await f.command(session, "inspectOwnedWork", {})).result)
+    .toMatchObject({ state: "idle" });
+  expect(f.mcpConnections()).toBe(1);
+});
+
 it("18 未提交 draft 可以沿实际命令入口证明 owned work idle，且不启动模型", async () => {
   const f = await fixture();
   const session = await f.create();
@@ -153,6 +214,10 @@ it("冷加载 record 没有 live lease 时，不把旧 Host 的持久执行租�
   });
   await expect.poll(() => f.started.length).toBe(1);
   const cold = f.otherClient();
+  expect(await cold.command(session, "inspectOwnedWork", {})).toMatchObject({
+    status: "accepted",
+    result: { type: "ownedWorkState", state: "unknown" },
+  });
   await cold.snapshot(session, "web-remote-replayable");
   expect(await cold.command(session, "inspectOwnedWork", {})).toMatchObject({
     status: "accepted",

@@ -111,6 +111,7 @@ export interface AgentRuntimeInternal
   mcpStartupPromise?: Promise<McpConnectionSnapshot>;
   residencyBlockingWorkCount: number;
   mcpInitialized: boolean;
+  mcpStartupDeferred: boolean;
   mcpToolsRegistered: boolean;
   /** 初始化 / 上次刷新时注册的 MCP 工具名与集合签名。 */
   registeredMcpToolNames?: string[];
