@@ -403,3 +403,17 @@ Core 相关 4 文件 41/41；根相关 6 文件 218 通过/1 专用入口跳过�
 额外只读核对候选与实际安装的 CLI bundle 字节一致：存在新参数错误及正确字段说明，旧矛盾说明已移除；不把源码通过冒充已打包生效。新真人输入前 ledger 字节不变，仍为 2 个需求、8 个输入、5 个交接、0 个在途协调记录，项目租约为 0。有限 PM 观察器 connection/ready，输出权限 0600；项目及已知外部台账指纹基线已保存。未重放 G 或旧消息，下一轮由真人发送新的只读需求；真实 report→PM 审核→待验收与其他真实场景/最终用户验收仍未完成，18 保持 in-progress。
 
 私有证据：`report-arguments-review-candidate-source.json`、`report-arguments-candidate-build.json`、`candidate-8/candidate.json`、`report-arguments-candidate-verify.json`、`report-arguments-install.private.json`、`report-arguments-installed-verify.json`、`report-arguments-packaged-cli-check.json`、`report-arguments-postswitch-ledger-summary.json`、`readonly-h-before.private.json`。
+
+### local.7 真实只读闭环到待验收；真人关闭被类型判断阻挡
+
+本轮 H 的真人原生入站和 PM 派单受理，执行者完成 Read；首次 report 多带字段被新参数错误明确拒绝，模型随后提交只含 kind 的 report，原投递确认 sent 且其平台消息与 PM 新入站精确匹配。PM 在本轮重新 Read 后 final，原生 user mention 指向原需求真人，回复关联同一 H 的输入。报告标题第 1 行、npm run dev 第 21 行及相对路径与文件独立核对一致；需求进入 awaiting_acceptance，没有自行关闭。执行者报告后的额外 silent 被 outputVisible 拒绝，没有额外发送；这不等于单独的纯确认静默场景已通过。
+
+该轮三个 canonical input 的需求/角色/只读约束匹配，仅出现 Read/ReplyToChannel；项目 HEAD/status/diff、目标文件及已知项目外台账指纹前后均不变。有限观察器记录真人和 report 入站的授权/守卫 allow、绑定和受理，不将其到期后的真人验收冒充完整阶段诊断。历史 C 的项目外写入失败保持，不因新指纹稳定而抹去。
+
+原需求真人随后明确通过并要求关闭，仅对应 H，不是 18 整体验收。第四个 PM 输入为同一真人、同一 H、相符只读约束，工具提交合法 accept（只含 kind、单个空 text），Host 却返回 acceptance_requires_user。真实记录与 Provider 源码证明：Provider 对真人省略 senderType，原授权核对 owner/union/tenant 并允许，Local 原样保存可选字段；验收却要求显式 user。新增合成 Provider 回调通过同一 Bot/Local/Repo/任务 seam 复现同样错误，原显式 user 对照通过。
+
+仅将 accept 的类型判定恢复为原入站语义：已通过原授权的省略值与 user 同义，app 仍拒绝；原 PM、当前需求/版本、sent final、后续输入、停止与幂等门保持，不改 Provider/schema、不回填真实记录、不解析正文代验收、不重放原消息。Provider 回调下错误 owner/union/tenant 仍不受理。相关 5 文件 323 通过/1 专用入口跳过，根 typecheck 通过，Lint 0 errors/97 既有 warnings，架构 0 新违规；固定复审另行记录。
+
+第四次输入结束后独立指纹仍全部相同，ledger 为 3 个需求、12 个输入、7 个交接、0 在途协调记录；H 仍 awaiting_acceptance，运行中仍 local.7。当前仅完成源码修正验证，真实关闭尚未通过，其他真实异常及用户整体验收未完成，18 保持 in-progress。
+
+私有证据：`readonly-h-evaluation.private.json`、`readonly-h-before.private.json`、`readonly-h-after.private.json`、`readonly-h-acceptance-failure.private.json`、`readonly-h-after-acceptance.private.json`、`acceptance-provider-red.json`、`acceptance-provider-green.json`、`acceptance-provider-related.json`、`acceptance-provider-types.json`、`acceptance-provider-lint.json`。

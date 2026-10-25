@@ -246,3 +246,9 @@ report/final/accept/silent/stop 的 collaboration 对象只能有 kind；targetB
 只读 guard 继续在工具准备、Hook、权限和 handler 前拒绝。只有原生 ReplyToChannel 提供了存在但不合法的 collaboration 参数时，将这次拒绝作为可修正的参数错误，返回固定格式说明；不调用 Host、不产生发送或降级普通回复。缺失协作意图、其他工具和 MCP 同名仍为权限拒绝。模型修正为原合法形状后，重新完整走原校验和 Host 授权，不自动重试或代填参数。
 
 回归 seam：真实 Core executor（含 app-tool authorize）→原 ReplyToChannel handler/Host 端口；无效 report/final 额外字段在只读/YOLO 下不发送，错误可定位参数；合法修正才发送一次；普通额外发送、MCP 同名、写工具等原拒绝仍保留。真实旧需求不重放，新候选后另由真人输入验证。
+
+### 真实验收输入格式回归补正（2026-10-25）
+
+新的真实只读需求已完成执行者 report、PM 本轮重新读取并 final，进入 awaiting_acceptance；同一授权真人随后明确通过，PM 提交合法 accept，却返回 acceptance_requires_user。原 Feishu Provider 对真人省略 senderType，Local 的 decision 已按当前成员 owner、union/tenant 验证并允许，bindInput 原样保存可选字段；accept 仅比较显式 user，与原可信真人合同不一致。
+
+沿原 Provider 回调→Bot/Local/Repo→受控任务 SDK seam 补回归：省略类型的真人后续输入与显式 user 均可在已 sent final 后验收；app/bot、伪造或错误用户、同轮、未送达、停止和旧版本仍拒绝。唯一 owner、原文件锁、输入关联及幂等边界不变。仅按原入站语义解释已授权记录的可选类型，不改 Provider 格式、不迁移真实记录、不解析正文自动关闭、不重放旧验收。此为原 13 合同恢复；修正候选前真实需求仍待验收，18 其他真实场景与最终确认未完成。

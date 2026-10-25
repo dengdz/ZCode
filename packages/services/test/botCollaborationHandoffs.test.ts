@@ -3420,71 +3420,103 @@ it("13 final 未送达时 accept 保持需求开放，且验收控制不能携�
   expect(fixture.sent).toHaveLength(0);
 });
 
-it("13 已送达最终汇报后的后续真人输入可明确验收并关闭原需求", async () => {
-  const fixture = await setup();
-  await fixture.service.handleInboundMessage(fixture.human());
-  const finalInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
-  expect(
-    (
+it.each(["explicit", "provider"] as const)(
+  "13 已送达最终汇报后的后续真人输入可明确验收并关闭原需求（%s）",
+  async (source) => {
+    const fixture = await setup();
+    await fixture.service.handleInboundMessage(fixture.human());
+    const finalInputId = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls[0]![0].commandId;
+    expect(
+      (
+        await fixture.service.replyToChannel!({
+          workspacePath: "/project",
+          taskId: "task-pm",
+          inputId: finalInputId,
+          toolCallId: "final-before-explicit-acceptance",
+          parts: [{ type: "text", text: "Reviewed result; please accept" }],
+          collaboration: { kind: "final" },
+        })
+      ).status,
+    ).toBe("sent");
+
+    if (source === "provider") {
+      const native = fixture.native("pm", "unused", "om_native_acceptance", "验收通过，可以结束");
+      const event = {
+        ...native,
+        event: {
+          ...native.event,
+          sender: {
+            ...native.event.sender,
+            sender_type: "user",
+            sender_id: { open_id: "ou_owner_pm", union_id: "on_owner" },
+          },
+        },
+      };
+      const submitted = vi.mocked(fixture.tasks.submitBotGroupInput!).mock.calls.length;
+      for (const field of ["owner", "union", "tenant"] as const) {
+        const invalid = structuredClone(event);
+        invalid.header.event_id += `_${field}`;
+        invalid.event.message.message_id += `_${field}`;
+        if (field === "owner") invalid.event.sender.sender_id.open_id = "ou_other";
+        if (field === "union") invalid.event.sender.sender_id.union_id = "on_other";
+        if (field === "tenant") invalid.event.sender.tenant_key = "other_tenant";
+        await fixture.service.handleProviderCallbackResponse!("feishu", invalid);
+        expect(fixture.tasks.submitBotGroupInput).toHaveBeenCalledTimes(submitted);
+      }
+      await fixture.service.handleProviderCallbackResponse!("feishu", event);
+    } else {
+      await fixture.service.handleInboundMessage({
+        ...fixture.human("pm", "om_explicit_acceptance"),
+        text: "验收通过，可以结束",
+      });
+    }
+    const approvalInputId = vi
+      .mocked(fixture.tasks.submitBotGroupInput!)
+      .mock.calls.at(-1)![0].commandId;
+    const sent = fixture.sent.length;
+    expect(
       await fixture.service.replyToChannel!({
         workspacePath: "/project",
         taskId: "task-pm",
-        inputId: finalInputId,
-        toolCallId: "final-before-explicit-acceptance",
-        parts: [{ type: "text", text: "Reviewed result; please accept" }],
-        collaboration: { kind: "final" },
-      })
-    ).status,
-  ).toBe("sent");
+        inputId: approvalInputId,
+        toolCallId: "explicit-acceptance",
+        parts: [{ type: "text", text: "" }],
+        collaboration: { kind: "accept" },
+      }),
+    ).toEqual({ status: "acceptance_recorded" });
+    expect(fixture.sent).toHaveLength(sent);
 
-  await fixture.service.handleInboundMessage({
-    ...fixture.human("pm", "om_explicit_acceptance"),
-    text: "验收通过，可以结束",
-  });
-  const approvalInputId = vi
-    .mocked(fixture.tasks.submitBotGroupInput!)
-    .mock.calls.at(-1)![0].commandId;
-  const sent = fixture.sent.length;
-  expect(
-    await fixture.service.replyToChannel!({
-      workspacePath: "/project",
+    const ledger = JSON.parse(
+      await readFile(join(fixture.home, ".zcode/local/v1/collaboration.json"), "utf8"),
+    ) as {
+      inputs: Array<{ inputId: string; requirementId: string }>;
+      requirements: Array<{ id: string; status: string; acceptedByInputId?: string }>;
+    };
+    const requirementId = ledger.inputs.find(
+      (item) => item.inputId === finalInputId,
+    )!.requirementId;
+    expect(ledger.inputs.find((item) => item.inputId === approvalInputId)?.requirementId).toBe(
+      requirementId,
+    );
+    expect(ledger.requirements.find((item) => item.id === requirementId)).toMatchObject({
+      status: "closed",
+      acceptedByInputId: approvalInputId,
+    });
+
+    await fixture.emit({
+      type: "task_run_started",
       taskId: "task-pm",
       inputId: approvalInputId,
-      toolCallId: "explicit-acceptance",
-      parts: [{ type: "text", text: "" }],
-      collaboration: { kind: "accept" },
-    }),
-  ).toEqual({ status: "acceptance_recorded" });
-  expect(fixture.sent).toHaveLength(sent);
-
-  const ledger = JSON.parse(
-    await readFile(join(fixture.home, ".zcode/local/v1/collaboration.json"), "utf8"),
-  ) as {
-    inputs: Array<{ inputId: string; requirementId: string }>;
-    requirements: Array<{ id: string; status: string; acceptedByInputId?: string }>;
-  };
-  const requirementId = ledger.inputs.find((item) => item.inputId === finalInputId)!.requirementId;
-  expect(ledger.inputs.find((item) => item.inputId === approvalInputId)?.requirementId).toBe(
-    requirementId,
-  );
-  expect(ledger.requirements.find((item) => item.id === requirementId)).toMatchObject({
-    status: "closed",
-    acceptedByInputId: approvalInputId,
-  });
-
-  await fixture.emit({
-    type: "task_run_started",
-    taskId: "task-pm",
-    inputId: approvalInputId,
-  } as ZCodeStreamEvent);
-  await fixture.emit({
-    type: "task_complete",
-    taskId: "task-pm",
-    inputId: approvalInputId,
-    stopReason: "end_turn",
-  } as ZCodeStreamEvent);
-  expect(fixture.sent).toHaveLength(sent);
-});
+    } as ZCodeStreamEvent);
+    await fixture.emit({
+      type: "task_complete",
+      taskId: "task-pm",
+      inputId: approvalInputId,
+      stopReason: "end_turn",
+    } as ZCodeStreamEvent);
+    expect(fixture.sent).toHaveLength(sent);
+  },
+);
 
 it("13 同一验收工具调用重试返回原接受事实，不重复关闭或发送", async () => {
   const fixture = await setup();

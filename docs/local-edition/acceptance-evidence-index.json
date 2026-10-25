@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-report-arguments-local7-installed-new-human-round-pending",
+  "overall": "in-progress-real-h-awaiting-acceptance-provider-type-fix-isolated-pass",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -825,6 +825,41 @@
         "report-arguments-postswitch-ledger-summary.json",
         "readonly-h-before.private.json"
       ]
+    },
+    "readonly-h-real": {
+      "source": "11ca7b1530280f41d394c2c4af195d734620af1b",
+      "status": "real-round-trip-to-awaiting-acceptance-human-accept-blocked",
+      "freshPmRead": true,
+      "reportReceiptMatchedPmInput": true,
+      "nativeFinalMentionsOriginalUser": true,
+      "fileFactsIndependentlyMatched": true,
+      "allCanonicalInputsReadOnly": true,
+      "selectedFingerprintsUnchanged": true,
+      "humanExplicitAcceptanceObserved": true,
+      "acceptanceRecorded": false,
+      "blockedReason": "acceptance_requires_user",
+      "evidence": [
+        "readonly-h-evaluation.private.json",
+        "readonly-h-acceptance-failure.private.json",
+        "readonly-h-after-acceptance.private.json"
+      ]
+    },
+    "acceptance-provider-fix": {
+      "status": "isolated-pass-candidate-and-real-closure-pending",
+      "regressionRed": "provider-callback-acceptance_requires_user",
+      "relatedPassed": 323,
+      "relatedSkipped": 1,
+      "rootTypes": "pass",
+      "rootLintErrors": 0,
+      "rootLintExistingWarnings": 97,
+      "realInputsReplayed": false,
+      "realLedgerMigrated": false,
+      "evidence": [
+        "acceptance-provider-red.json",
+        "acceptance-provider-related.json",
+        "acceptance-provider-types.json",
+        "acceptance-provider-lint.json"
+      ]
     }
   },
   "scenarios": {
@@ -1201,16 +1236,20 @@
         "receipt-fixed-real-round",
         "readonly-routing-fix",
         "readonly-controlled-switch",
-        "readonly-idle-proof-fix"
+        "readonly-idle-proof-fix",
+        "report-arguments-fix",
+        "report-arguments-install",
+        "readonly-h-real",
+        "acceptance-provider-fix"
       ],
-      "status": "real-new-readonly-command-rejected-idle-proof-fix-review-pending",
+      "status": "real-readonly-report-review-final-passed-human-acceptance-blocked-provider-type-fix-pending",
       "limits": [
-        "New native input confirmed the receipt-binding repair. Correct file facts and stable project fingerprints do not negate the external ledger write. Executor report, PM final, anomaly scenarios and explicit final user acceptance remain incomplete. No replay or data restoration performed."
+        "H reached awaiting_acceptance with a fresh PM read and verified native report/final; later original human approval was admitted but accept was blocked by optional senderType handling. Source repair passes isolated regressions; real closure, other anomaly scenarios and overall user acceptance remain incomplete. Historical external ledger write remains a failure. No replay or data restoration performed."
       ]
     }
   },
   "maintenanceSource": "8c752d581e8880db2533df11b5dc5018a5a2d837",
   "diagnosticSource": "19059fb36abebbcdb9daf19268ca636110cc5cad",
-  "currentApplicationSource": "f2ef20bf701fb8004bb9e15b13321623883ece5b",
+  "currentApplicationSource": "11ca7b1530280f41d394c2c4af195d734620af1b",
   "receiptBindingFixSource": "aca671101531717575635a6dc1a46e88e5952525"
 }

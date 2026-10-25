@@ -257,7 +257,9 @@ export function createReplyRouting(deps: Dependencies) {
             message:
               "Requirement remains open. The user must reply after the final report before acceptance.",
           };
-        if (input.senderType !== "user")
+        // 原 Provider 对真人省略 senderType；bindInput 已核对 owner/union/tenant 后才保存。
+        // 沿原入站语义拒绝显式 app，不能将已授权的真人旧记录误判为机器人，也不迁移或重放输入。
+        if (input.senderType === "app")
           return {
             status: "blocked",
             reason: "acceptance_requires_user",
