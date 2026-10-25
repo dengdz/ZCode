@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-human-acceptance-source-reviewed-local8-candidate-pending",
+  "overall": "in-progress-local8-installed-verified-new-h-human-closure-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -845,7 +845,7 @@
       ]
     },
     "acceptance-provider-fix": {
-      "status": "isolated-pass-reviewed-local8-candidate-and-real-closure-pending",
+      "status": "isolated-pass-reviewed-local8-installed-real-closure-pending",
       "regressionRed": "provider-callback-acceptance_requires_user",
       "relatedPassed": 324,
       "relatedSkipped": 1,
@@ -878,6 +878,38 @@
       "specFindings": 0,
       "sourcePushAffectedPassed": 1847,
       "sourcePushAffectedSkipped": 2
+    },
+    "acceptance-provider-install": {
+      "source": "757082860a17817a0f3ce89e08d9dfec6f743f59",
+      "version": "3.16.2-local.8",
+      "status": "installed-independently-verified-human-closure-pending",
+      "originalRunningAppTwoPhaseExit": true,
+      "requestCommitAcceptedMatchedPriorOwner": true,
+      "maintenanceTestsPassed": 50,
+      "candidateArchivesAndInstalledTreeVerified": true,
+      "installedHostBytesMatchCandidate": true,
+      "newInputNormalizationAndStrictAcceptanceGuardPresent": true,
+      "ownerRuntimeMatched": true,
+      "launcherAndApplicationAliveAtVerification": true,
+      "switchGateAbsent": true,
+      "connectionCheck": "local-host-ready",
+      "ledgerBytesUnchangedBeforeNewInput": true,
+      "historicalTypesMigrated": false,
+      "oldInputsReplayed": false,
+      "realDataRestored": false,
+      "realAcceptanceControlProven": false,
+      "evidence": [
+        "acceptance-provider-review-candidate-source.json",
+        "acceptance-provider-candidate-build.json",
+        "acceptance-provider-candidate-verify.json",
+        "acceptance-provider-candidate-host-check.json",
+        "acceptance-provider-exit-proof.private.json",
+        "acceptance-provider-install.private.json",
+        "acceptance-provider-installed-verify.json",
+        "acceptance-provider-installed-host-check.json",
+        "acceptance-provider-postswitch-ledger-summary.json",
+        "readonly-h-after-switch.private.json"
+      ]
     }
   },
   "scenarios": {
@@ -1258,16 +1290,17 @@
         "report-arguments-fix",
         "report-arguments-install",
         "readonly-h-real",
-        "acceptance-provider-fix"
+        "acceptance-provider-fix",
+        "acceptance-provider-install"
       ],
-      "status": "real-readonly-report-review-final-passed-human-acceptance-blocked-provider-type-fix-pending",
+      "status": "real-h-awaiting-acceptance-local8-installed-new-human-closure-pending",
       "limits": [
-        "H reached awaiting_acceptance with a fresh PM read and verified native report/final; later original human approval was admitted but accept was blocked by optional senderType handling. Source repair passes isolated regressions; real closure, other anomaly scenarios and overall user acceptance remain incomplete. Historical external ledger write remains a failure. No replay or data restoration performed."
+        "H reached awaiting_acceptance on local.7 with a fresh PM read and verified native report/final; later original human approval was admitted but accept was blocked by optional senderType handling. Reviewed local.8 repair installed and independently verified; historical records unchanged, new human closure input pending. Other real anomaly scenarios and overall user acceptance remain incomplete. Historical external ledger write remains a failure. No replay or data restoration performed."
       ]
     }
   },
   "maintenanceSource": "8c752d581e8880db2533df11b5dc5018a5a2d837",
   "diagnosticSource": "19059fb36abebbcdb9daf19268ca636110cc5cad",
-  "currentApplicationSource": "11ca7b1530280f41d394c2c4af195d734620af1b",
+  "currentApplicationSource": "757082860a17817a0f3ce89e08d9dfec6f743f59",
   "receiptBindingFixSource": "aca671101531717575635a6dc1a46e88e5952525"
 }

@@ -425,3 +425,15 @@ Core 相关 4 文件 41/41；根相关 6 文件 218 通过/1 专用入口跳过�
 最终固定 `ceb1a34b...a7da210e210cb0be80a8c02efa12a095e3209990` 的 Standards/Spec 均为 0 项，原 P2 已关闭。源码普通 fork 推送的 pre-push 通过，官方 affected 的 109 个根文件实际运行 1847 通过/2 跳过，非全量；GitHub API 独立核对一致。有限观察器的实际 20 条输出结构/事实类型、HMAC 摘要、时限和数量上限及 0600/0700 权限审计通过，不扩大为所有未来日志或 scope 运行时证明。官方基线 API 仍为 3c5b2276。原严格安装版本门要求下一修订，集成分支与根版本进入 local.8；当前仅准备候选，运行中 local.7，真实关闭和 18 仍未完成。
 
 私有证据：`acceptance-provider-legacy-red.json`、`acceptance-provider-legacy-green.json`、`acceptance-provider-final.json`、`acceptance-provider-final-types.json`、`acceptance-provider-final-lint.json`、`acceptance-provider-final-architecture.json`、`acceptance-provider-review-final.json`、`acceptance-provider-source-push.json`、`readonly-h-diagnostic-privacy-audit.json`。
+
+### local.8 已受控安装，等待新的真人关闭确认
+
+版本增量 `757082860a17817a0f3ce89e08d9dfec6f743f59` 的 Standards/Spec 复核均为 0 项。原维护入口生成 local.8 / candidate-9，类型、Lint、架构及维护/备份 50/50 通过；affected 全选按合同跳过，不冒充全量。复用的公共 dmg-builder 缓存逐文件核对 hash，没有替代构建链或手工 ready 清单。独立核对应用完整树、来源与深度签名、两份归档大小/hash、ZIP 全成员/CRC、只读 DMG 完整树/签名，挂载解除。
+
+原安装入口核对实际空闲并完成 local.7 的 idle→commit→accepted 正常退出；独立保存的 request/commit/accepted 回执互相匹配且对应切换前 owner，旧应用和 launcher 均结束，没有强杀。随后原备份与独立 verify、原子替换、takeover 和 Host-ready 返回 installed。安装后独立核对实际目标树、来源及签名，local.8 的 launcher/应用存活，owner/runtime/PID/token 匹配，gate 释放，当前指针更新为 candidate-9，历史 v7 指针保留。官网未替换或启动，没有真实数据恢复或 tag 发布。
+
+额外读取打包 Host：新入站类型规范化和原显式 user 验收门均存在，实际安装的全部 Host JS 与候选逐字节一致。首轮检查脚本只匹配 if，未兼容构建器转为三元表达式的形式；核对实际产物并修正检查脚本后通过，此脚本首轮失败不作为候选源码失败。新真人输入前 Local ledger 与切换前逐字节相同，仍为 3 个需求、12 个输入、7 个交接、0 在途协调记录，项目执行租约 0；历史缺字段记录没有回填。项目 HEAD/status/diff、README 与已知外部台账指纹均与 H 前相同。
+
+有限 PM 观察器 connection/ready、0600 输出，仅证明本机观察就绪；Host-ready 不证明真实验收关闭。H 仍 awaiting_acceptance，原真人确认及被拒的 accept 保留，均不自动重放。已请求同一真人另发仅关闭 H 的确认，不重跑原需求；真实关闭、其他关键真实异常与 18 整体验收仍未完成，18 保持 in-progress。
+
+私有证据：`acceptance-provider-review-candidate-source.json`、`acceptance-provider-version-push.json`、`acceptance-provider-candidate-build.json`、`candidate-9/candidate.json`、`acceptance-provider-candidate-verify.json`、`acceptance-provider-candidate-host-check.json`、`acceptance-provider-exit-proof.private.json`、`acceptance-provider-install.private.json`、`acceptance-provider-installed-verify.json`、`acceptance-provider-installed-host-check.json`、`acceptance-provider-postswitch-ledger-summary.json`、`readonly-h-after-switch.private.json`。
