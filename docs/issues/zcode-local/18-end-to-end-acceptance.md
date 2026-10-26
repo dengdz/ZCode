@@ -162,7 +162,7 @@ sequenceDiagram
 
 用户已批准上述方案。以下为实施合同，冻结父规格及其矩阵不改；本合同不表示实现或真实验收已通过。
 
-- 新验收通过原渠道、原生提及 PM，由同一授权真人在正文首行单独写 `[ZCODE-LOCAL-READONLY]`，下一行给非空需求。这是显式机器命令，不从“只读”等自然语言、引用、历史或机器人正文推断。Local owner 仅在原运行时证明指定群全部相关工作空闲时创建独立新需求，旧需求保持原状；busy/unknown 拒绝，不抢占、不重放。精确原消息重投沿原 input/requirement 幂等。
+- 新验收通过原渠道、原生提及 PM，由同一授权真人在正文开头写 `[ZCODE-LOCAL-READONLY]`，以至少一个空白字符分隔后给非空需求（空格、制表符、换行均可）。这是显式机器命令，不从“只读”等自然语言、引用、历史或机器人正文推断。Local owner 仅在原运行时证明指定群全部相关工作空闲时创建独立新需求，旧需求保持原状；busy/unknown 拒绝，不抢占、不重放。精确原消息重投沿原 input/requirement 幂等。
 - 新需求的只读标记只由 Local owner 写入独立 Local ledger，所有后续 PM/执行者输入和交接继承，不接受模型覆盖或中途降级。用户明确验收/停止后的下一普通需求不继承。官网 Bot v3、配置和全局工具权限不扩字段。
 - bindInput 一次返回模型章程与结构化 `{requirementId,role,readOnly}`；Bot 服务沿原 `projectExecutionScope.collaboration` 送入 V4 sendText。该 scope 的严格 schema 使旧 CLI 对未知字段拒绝，不能静默执行。Bootstrap 从它派生同一份 canonical intent 的 `localCollaboration`，排队、持久化、重试/编辑和冷恢复保留；缺少合法 Bot/Local 项目范围的结构化协作输入拒绝。桌面 continuous 与手机 replayable 读取同一 input intent。
 - 模型包装按可信结构化标记区分 Local 交接与普通自动回复。Local PM dispatch/final、执行者 report 使用现有 ReplyToChannel collaboration intent；来自派单/历史的“不调用工具”不能取消 Host 路由。普通正文仍不自动变成交接；普通机器人回复指导保持原行为。模型仍判断业务语义，Host 仍验证身份、职责、原回执和阶段。
@@ -278,3 +278,11 @@ sequenceDiagram
     G->>C: 原授权与实际空闲核对
     C->>R: 新输入沿原 admission 受理
 ```
+
+### 已批准的只读命令空白兼容（2026-10-26）
+
+真实输入多次因标记与正文同行而在绑定前被拒绝，用户确认修正。原 Local bindInput owner 只放宽标记后的分隔：一个或多个空白字符后必须有非空正文；原 LF/CRLF、空格加换行、制表符及中文全角空格均接受。只有标记、纯空白尾部或标记直接粘正文仍拒绝；正文中的引用标记不授予只读能力。
+
+不改变原生提及、授权真人、PM 角色、实际空闲、只读策略、原 guard 去重和未受理旧事件不重放边界，不从历史或自然语言推断命令。沿已批准的原 Provider 回调→Bot/Local/Repo→任务 SDK seam，验证实际入队约束、错误格式无受理及重复事件无新增输入；复审和新候选后仅在空闲时受控切换，旧 M 不自动重试。
+
+实现已在原 bindInput owner 就地完成：分隔校验改为"至少一个空白字符后跟非空白"，未新增解析器或状态。回归先红后绿：红时 5 种空白（空格/双空格/Tab/空格+LF/全角空格）以 readonly_invalid_command 被拒、既有 LF/CRLF 2 例通过；修复后同一用例 7/7 通过且重投不新增输入，另补仅标记/纯空白正文/标记粘正文 3 种非法形状的受理前拒绝与重投不补受理断言。相关六文件套件 338 通过/1 专用跳过；根 typecheck、lint（0 错误）、架构检查通过，Standards/Spec 双路复审 0 硬违规。新候选经原维护入口构建并在空闲时受控切换后才可继续真实验证。

@@ -4,7 +4,7 @@
   "spec": "spec.md",
   "specBlob": "25efc393d4c8d5cf0fb44cbbd4ca8b04dd6c1387",
   "testedBusinessSource": "f2dfa97ff78e28abe48918d2348a3ce43ee25efe",
-  "overall": "in-progress-local9-installed-verified-fresh-I-real-round-pending",
+  "overall": "in-progress-J-closed-L-silent-passed-other-real-scenarios-pending",
   "definitions": "Only evidence pointers; scenario definitions remain exclusively in the parent spec.",
   "checks": {
     "root-related": {
@@ -1008,6 +1008,61 @@
         "readonly-redelivery-pre-switch-proof-digests.private.json",
         "readonly-i-before.private.json"
       ]
+    },
+    "readonly-j-real": {
+      "kind": "real-group-and-local-persistence",
+      "applicationSource": "7d8d4012aba28bb3d3caedd98e035fb0f8de9046",
+      "status": "basic-loop-and-explicit-human-close-passed",
+      "inputs": 4,
+      "executorInputs": 1,
+      "acceptedByLastAuthorizedHumanInput": true,
+      "readOnlyPoliciesMatched": true,
+      "limits": [
+        "Two silent calls after visible report/final were rejected with outputVisible; pure silent scenario remains pending. Prior H/F failures retained. Not overall acceptance."
+      ],
+      "privateEvidence": [
+        "readonly-j-closed.private.json",
+        "readonly-j-final-tools.private.json",
+        "readonly-j-after.private.json"
+      ]
+    },
+    "readonly-l-silent-real": {
+      "status": "pure-silent-passed",
+      "inputCount": 1,
+      "onlyTool": "ReplyToChannel:silent",
+      "matchingDeliveryCount": 0,
+      "requirementStatus": "active",
+      "privateEvidence": [
+        "readonly-l-silent-proof.private.json",
+        "inspect-readonly-l-cli.private.json"
+      ]
+    },
+    "readonly-whitespace-compat": {
+      "status": "isolated-pass-reviewed-candidate-pending",
+      "relatedFilesPassed": 5,
+      "relatedPassed": 338,
+      "relatedSkipped": 1,
+      "focusedSeparators": 7,
+      "invalidShapes": 3,
+      "rootTypes": "pass",
+      "rootLintErrors": 0,
+      "rootLintExistingWarnings": 97,
+      "architectureNewViolations": 0,
+      "standardsFindings": 0,
+      "specFindings": 0,
+      "evidence": [
+        "readonly-whitespace-red.json",
+        "readonly-whitespace-red-confirm.json",
+        "readonly-whitespace-green.json",
+        "readonly-whitespace-full.json",
+        "readonly-invalid-shapes.json",
+        "readonly-whitespace-related.json",
+        "readonly-final-suite.json"
+      ],
+      "source": "63e62ab64d16200e32abb3e509080e16a1400134",
+      "limits": [
+        "Red confirmed 5 new whitespace forms rejected pre-fix with existing LF/CRLF passing; green 7/7 with duplicate redelivery adding no input. Real-group validation still requires a new candidate through the original controlled path while idle; old M is not auto-retried."
+      ]
     }
   },
   "scenarios": {
@@ -1392,11 +1447,14 @@
         "acceptance-provider-install",
         "post-local8-acceptance-scope",
         "readonly-redelivery-fix",
-        "readonly-redelivery-install"
+        "readonly-redelivery-install",
+        "readonly-j-real",
+        "readonly-l-silent-real",
+        "readonly-whitespace-compat"
       ],
-      "status": "local9-no-old-readonly-replay-fix-installed-fresh-I-round-pending",
+      "status": "basic-loop-and-pure-silent-passed-other-real-scenarios-pending",
       "limits": [
-        "Old F native redelivery and wrong H-labelled acceptance remain recorded failures; historical H is still awaiting_acceptance. Scoped no-replay repair passed isolated regressions and fixed reviews, local.9 installed through the original controlled path and independently verified. No old record migration or replay; fresh real I, other real anomaly scenarios and overall user acceptance remain pending. Host-ready is not business acceptance."
+        "J exact human acceptance and L pure silent passed. Wrong-role/card, long-chain, stop and recovery real scenarios and overall user acceptance remain pending; historical failures retained."
       ]
     }
   },

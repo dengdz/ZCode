@@ -269,9 +269,11 @@ export function createBotCollaboration(port: BotCollaborationPort): BotCollabora
         // 活跃话题允许无 @ 的真人后续消息；新验收命令仍须在 owner 核对原生唤醒，不能借旧话题授权启用。
         if (explicitReadOnly && message.mentionedBot !== true)
           fail("readonly_native_mention_required");
+        // 已批准的标记分隔规则（issue 18，2026-10-26）：标记后至少一个空白字符再接非空正文，
+        // 空格/Tab/换行/CRLF/全角空格均接受；仅标记、纯空白尾部或标记直接粘正文仍拒绝。
         if (
           explicitReadOnly &&
-          !/^\r?\n\s*\S/u.test(command.slice(LOCAL_READONLY_REQUEST_HEADER.length))
+          !/^\s+\S/u.test(command.slice(LOCAL_READONLY_REQUEST_HEADER.length))
         )
           fail("readonly_invalid_command");
         // 显式命令创建独立新需求，不能把旧需求的活动状态当作空闲或重放许可。

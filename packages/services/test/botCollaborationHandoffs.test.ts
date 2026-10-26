@@ -549,6 +549,48 @@ it.each([undefined, "omt_readonly"])(
   },
 );
 
+it.each([" ", "  ", "\t", "\n", "\r\n", " \n", "\u3000"])(
+  "18 原生只读命令允许空白分隔且重投不新增输入：%j",
+  async (separator) => {
+    const f = await setup();
+    const event = f.native(
+      "pm",
+      "unused",
+      "om_readonly_separator",
+      `[ZCODE-LOCAL-READONLY]${separator}Read fixture`,
+    );
+    event.event.sender.sender_type = "user";
+    event.event.sender.sender_id = { open_id: "ou_owner_pm", union_id: "on_owner" };
+    await f.service.handleProviderCallbackResponse!("feishu", event);
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledOnce();
+    expect(
+      vi.mocked(f.tasks.submitBotGroupInput!).mock.calls[0]![0].projectExecutionScope,
+    ).toMatchObject({ collaboration: { role: "PM", readOnly: true } });
+    await f.service.handleProviderCallbackResponse!("feishu", event);
+    expect(f.tasks.submitBotGroupInput).toHaveBeenCalledOnce();
+  },
+);
+
+it.each([
+  ["仅标记", "[ZCODE-LOCAL-READONLY]"],
+  ["纯空白正文", "[ZCODE-LOCAL-READONLY]\n  "],
+  ["标记直接粘正文", "[ZCODE-LOCAL-READONLY]Read fixture"],
+])("18 只读命令非法形状在受理前拒绝且重投不受理：%s", async (_label, text) => {
+  const f = await setup();
+  const event = f.native("pm", "unused", "om_readonly_invalid_shape", text);
+  event.event.sender.sender_type = "user";
+  event.event.sender.sender_id = { open_id: "ou_owner_pm", union_id: "on_owner" };
+  await f.service.handleProviderCallbackResponse!("feishu", event);
+  expect(f.tasks.submitBotGroupInput).not.toHaveBeenCalled();
+  // 格式拒绝发生在登记之前；此后即使转空闲，同一事件也不得补受理。
+  await f.service.handleProviderCallbackResponse!("feishu", event);
+  expect(f.tasks.submitBotGroupInput).not.toHaveBeenCalled();
+  const ledger = JSON.parse(
+    await readFile(join(f.home, ".zcode/local/v1/collaboration.json"), "utf8"),
+  );
+  expect(ledger.requirements.every((item: { readOnly?: boolean }) => !item.readOnly)).toBe(true);
+});
+
 it("18 话题中的只读验收不能经原准备器先停止现有工作", async () => {
   const f = await setup("omt_readonly_busy");
   vi.mocked(f.tasks.getBotGroupTaskBlockReason!).mockResolvedValue("running");

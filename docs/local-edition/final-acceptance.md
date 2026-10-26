@@ -477,3 +477,31 @@ Core 相关 4 文件 41/41；根相关 6 文件 218 通过/1 专用入口跳过�
 新的 I 需求的项目/README/已知外部台账基线已在本机保存，PM 有限观察器 connection/ready、0600 输出；这些不代表真实模型或业务闭环成功。已请求真人发送全新 I 显式只读需求，强调本轮读取/审核及只验收本轮，不再重发 H/F。H 仍待验收、错误重投 F 的关闭仍作为历史失败保留。真实 I、其他关键异常及用户整体验收尚未完成，18 保持 in-progress。
 
 私有证据：`readonly-redelivery-review-candidate-source.json`、`readonly-redelivery-version-push.json`、`readonly-redelivery-candidate-build.json`、`candidate-10/candidate.json`、`readonly-redelivery-candidate-verify.json`、`readonly-redelivery-candidate-host-check.json`、`readonly-redelivery-exit-proof.private.json`、`readonly-redelivery-install.private.json`、`readonly-redelivery-installed-verify.json`、`readonly-redelivery-installed-host-check.json`、`readonly-redelivery-postswitch-ledger-summary.json`、`readonly-redelivery-pre-switch-proof-digests.private.json`、`readonly-i-before.private.json`。
+
+### local.9 的新只读闭环与显式验收已通过（2026-10-25）
+
+首次新输入 I 在绑定前返回 readonly_invalid_command，未创建需求；本机静态错误与用户提供截图一致，命令标记与正文同处一行。其重复原生投递已被 duplicate 拦截，未进入绑定或受理。这证明本次不重放保护实际生效，不把格式拒绝解释为 busy。有限观察器随后到期，其旧事件不作为后续 J 的阶段证据。
+
+用户另发正确换行的新需求 J 后，原持久记录及 CLI canonical input 核对确认：PM dispatch、执行者 Read/report、PM 本轮 Read/final 三个输入完成，需求进入 awaiting_acceptance。执行者和 PM 的实际 Read 均指向本轮目标，现有标题与开发命令行号独立核对一致；三个输入均带匹配需求与角色的只读策略。随后同一授权真人明确验收，第四个输入保存 senderType=user，accept 成功，需求 closed 且 acceptedByInputId 精确指向该输入。只有一次执行者输入，验收轮仅调用 accept，没有再次派单或重新执行。
+
+执行者 report 与 PM final 成功后，各又调用一次空内容 silent，均返回 collaboration.outputVisible。原 owner 明确禁止 visible 后改为纯静默，正式投递及最终关闭事实未被撤销。这是模型额外意图被原边界拒绝，不能算作纯确认静默通过；群中额外普通回复/空引用的展示仍保留为待评估现象，不借基本闭环通过宣称输出质量已全部通过。下一项单独验证纯确认 silent；其实际结果未取得前保持待验收。
+
+J 关闭后，项目 HEAD、工作树状态/diff、目标文件及已知外部台账哈希与 I 前基线均一致；该有限指纹核对不代表全盘无写入。本轮仅读取真实状态、保存私有证据和更新交付记录，没有源码或应用切换。历史 H/F 失败保留，J 的验收不代表 18 整体验收。其他真实关键异常和最终用户确认仍待完成。
+
+私有证据：`readonly-i-first-failure.private.json`、`readonly-j-observation.private.json`、`readonly-j-cli.private.json`、`readonly-j-closed.private.json`、`readonly-j-closed-cli.private.json`、`readonly-j-final-tools.private.json`、`readonly-j-after.private.json`。后者的前置参照是 I 之前的既有基线，不伪称单独采集了 J 发送前快照。
+
+### 恢复 local.9 启动与纯静默验收（2026-10-26）
+
+发现实际运行的是仓库 dist 下另一 ZCode 构建，不能用于 Local 验收。用户要求启动 Local 后，核对现有应用已退出；按 17 人工边界归档精确旧 owner/runtime，确认原进程、数据打开句柄、项目租约和在途受理均无占用，所选任务终态。原备份及独立 verify、各组件与当前树一致后，归档旧控制记录，经原 local-launch 启动 local.9。新 launcher/app 存活、owner/runtime token/PID 一致、Host ready、无 switch gate；没有强杀、恢复数据或替换应用。
+
+K 截图仍为标记与正文同行的格式拒绝，不能算静默。用户另发正确格式的新 L：实际 canonical input 仅一个 PM 输入，匹配只读策略；唯一工具为合法空内容 silent，completed，无 Read/执行命令/派单。Local replyIntent=silent、silentCalls=1，原 Bot 输入 done；按 sourceCommandId 与原生引用消息核对投递记录均为 0，没有交接或阶段投递。需求仍 active，静默不被当作验收或自动关闭。本次纯确认静默通过；不据此覆盖 J 的 visible 后 silent 拒绝，也不宣称其他异常及整体通过。
+
+私有证据：`local9-restart-orphan-preflight/`、`local9-restart-owner-recovery/result.json`、`local9-restart-ready.private.json`、`observe-readonly-l.private.json`、`inspect-readonly-l-cli.private.json`、`readonly-l-silent-proof.private.json`。
+
+### 只读命令空白兼容已实现（2026-10-26）
+
+用户批准放宽只读命令标记后的分隔后，原 Local bindInput owner 就地把分隔校验改为"至少一个空白字符后跟非空白"，接受空格、双空格、Tab、LF、CRLF、空格+LF 与全角空格；仅标记、纯空白正文、标记直接粘正文与引用标记仍拒绝。原生提及、授权真人、PM 角色、实际空闲、只读策略、原 guard 去重与未受理旧事件不重放边界未动，未新增解析器或状态。
+
+回归先红后绿：红时 5 种新增空白以 readonly_invalid_command 被拒、既有 LF/CRLF 2 例通过；修复后 7/7 通过且重复原生投递不新增输入，另补 3 种非法形状的受理前拒绝、重投不补受理与 ledger 无只读需求断言。完整 handoffs 套件 184 通过/1 专用跳过，相关六文件套件 338 通过/1 专用跳过；根 typecheck 通过，lint 0 错误（97 条既有警告），架构检查 0 新违规，改动文件格式通过。Standards/Spec 双路复审 0 硬违规；CONTRACT.md 分隔清单已按批准文本补齐 CRLF 与全角空格。真实验证仍待新候选经原维护入口构建并在空闲时受控切换后进行；旧 M 不自动重试。
+
+私有证据：`readonly-whitespace-red.log`、`readonly-whitespace-red-confirm.log`、`readonly-whitespace-green.log`、`readonly-whitespace-full.log`、`readonly-invalid-shapes.log`、`readonly-whitespace-related.log`、`readonly-final-suite.log`。

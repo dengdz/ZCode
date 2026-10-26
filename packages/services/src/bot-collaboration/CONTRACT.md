@@ -46,7 +46,7 @@ replyRouting.ts 是同一 owner 的私有实现：沿原 ledger/read/write 与�
 
 18 授权补正：原生 bot/app 事件的派单来源由原投递 owner 的精确 Provider 消息回执绑定，不把发出应用配置中的 bot openId 直接当作接收应用事件的 sender ID。原始 sender ID 仍保留审计。消息必须属于同群/线程/当前版本的合法方向交接，当前成员和固定项目权限有效，原来源 task/input/authorization/sourceCommandId 一致，原 delivery=sent 且 providerMessageId 精确相同，来源输入 accepted 且未停止/取消/丢弃、需求未停止/关闭。无匹配回执的机器人、自报身份、错消息或未知结果仍拒绝。去重、真人授权、循环守卫及持久格式不变；不增加身份映射或新查询/发送路径。详见 05/18 的 2026-10-24 局部补正合同。
 
-18 只读验收：授权真人原生发给 PM 的首行 `[ZCODE-LOCAL-READONLY]` 加非空正文是显式新需求命令。仅在端口证明原群工作全部 idle 时创建，busy/unknown 拒绝；旧需求不改、不重放。requirement 的可选 readOnly=true 只由本 owner 持有，交接及真人后续输入继承，到明确关闭/停止后的新普通需求才不继承；机器人、引用和历史不能启用或解除。bindInput 同次返回 context 与严格 turn 元数据 requirementId/role/readOnly，调用者送入原 V4 Local scope，不扩官网 Bot v3。CLI 原入队/持久化与 executor 消费这份约束，不增队列。模型章程明确协作工具与普通自动回复范围，派单不能取消 Host 路由；ordinary final 仍不生成 handoff。详细规则、失败和验证 seam 见 18 已批准合同。
+18 只读验收：授权真人原生发给 PM 的开头 `[ZCODE-LOCAL-READONLY]` 加至少一个空白字符分隔（含空格、制表符、LF/CRLF 及全角空格）和非空正文是显式新需求命令。仅在端口证明原群工作全部 idle 时创建，busy/unknown 拒绝；旧需求不改、不重放。requirement 的可选 readOnly=true 只由本 owner 持有，交接及真人后续输入继承，到明确关闭/停止后的新普通需求才不继承；机器人、引用和历史不能启用或解除。bindInput 同次返回 context 与严格 turn 元数据 requirementId/role/readOnly，调用者送入原 V4 Local scope，不扩官网 Bot v3。CLI 原入队/持久化与 executor 消费这份约束，不增队列。模型章程明确协作工具与普通自动回复范围，派单不能取消 Host 路由；ordinary final 仍不生成 handoff。详细规则、失败和验证 seam 见 18 已批准合同。
 
 18 真人验收格式补正：原 Provider 对真人省略 senderType；bindInput 先以当前 owner/union/tenant 授权，再为新真人记录明确保存 user，新机器人记录仍为 app。accept 继续只接受显式 user，不推断 13 以前同样可能来自机器人的缺字段记录；旧记录重放比较保留缺省值，不回填或授予验收权限。不新建身份来源、不改 Provider 或 Local 格式、不迁移真实记录；已 sent final、后续输入、PM-only、同需求/版本/停止与幂等约束保持。Provider 回调 seam 覆盖新真人验收与错误身份拒绝，显式 app 和历史缺字段机器人后续回报均不可关闭。
 
