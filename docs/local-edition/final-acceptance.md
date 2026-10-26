@@ -505,3 +505,5 @@ K 截图仍为标记与正文同行的格式拒绝，不能算静默。用户另
 回归先红后绿：红时 5 种新增空白以 readonly_invalid_command 被拒、既有 LF/CRLF 2 例通过；修复后 7/7 通过且重复原生投递不新增输入，另补 3 种非法形状的受理前拒绝、重投不补受理与 ledger 无只读需求断言。完整 handoffs 套件 184 通过/1 专用跳过，相关六文件套件 338 通过/1 专用跳过；根 typecheck 通过，lint 0 错误（97 条既有警告），架构检查 0 新违规，改动文件格式通过。Standards/Spec 双路复审 0 硬违规；CONTRACT.md 分隔清单已按批准文本补齐 CRLF 与全角空格。真实验证仍待新候选经原维护入口构建并在空闲时受控切换后进行；旧 M 不自动重试。
 
 私有证据：`readonly-whitespace-red.log`、`readonly-whitespace-red-confirm.log`、`readonly-whitespace-green.log`、`readonly-whitespace-full.log`、`readonly-invalid-shapes.log`、`readonly-whitespace-related.log`、`readonly-final-suite.log`。
+
+固定 `63e62ab6...9a01974f2b7d6b3cc1dcde886a3a5f7af818dbd5` 的 Standards/Spec 各 0 项硬问题；CONTRACT.md 分隔清单按批准文本补齐。源码普通 fork 推送的 pre-push 首次因本会话 shell 携带运行应用的 `ZCODE_CUA_BUNDLED_HELPER_APP_PATH` 等变量泄漏进 desktop 环境用例失败 3 项，归档后以清空全部 `ZCODE_` 前缀运行时变量重推通过，非产品回归。按原严格安装版本门，集成分支和根版本进入 local.10；当前仅准备候选，运行中仍 local.9，历史 H/F/M 失败保留，18 未完成。私有证据：`readonly-whitespace-review-final.json`、`readonly-whitespace-source-push.json`。
